@@ -36,3 +36,6 @@ Thumbs.db
 *.tsbuildinfo
 .cache/
 .playwright-mcp/
+
+# Claude Code — session worktrees (managed by harness, not ours)
+.claude/worktrees/
