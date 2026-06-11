@@ -1,6 +1,6 @@
 # ACTIVATION — Lustique
 
 `next` reads this. ▶ IMMEDIATE NEXT:
-🔵 Opus plan — S2 request-to-book endpoint. Write the plan for `docs/superpowers/plans/` using superpowers:writing-plans. Spec: `docs/superpowers/specs/2026-06-05-lustique-booking-core-design.md` (§5 flow, §9 request endpoint, §10 validation, §12 security).
+🟢 Sonnet build — S2 request-to-book. Plan written + approved (`docs/superpowers/plans/2026-06-11-lustique-booking-s2-request.md`); build in flight on `claude/s2-booking-request` (mid-build). Prune the 2 merged stray worktrees first, then resume — see ▶ NEXT in `SESSION_HANDOFF.md`.
 
 Full state: read `SESSION_HANDOFF.md` in this folder.

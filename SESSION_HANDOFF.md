@@ -3,7 +3,16 @@
 **Lane:** 🟢 Build (Sonnet) · **Phase:** Booking S2 build · **Updated:** 2026-06-11
 
 ## ▶ NEXT
-🟢 Sonnet: **build S2 — request-to-book** from [`docs/superpowers/plans/2026-06-11-lustique-booking-s2-request.md`](docs/superpowers/plans/2026-06-11-lustique-booking-s2-request.md) using **superpowers:subagent-driven-development** (recommended) or **superpowers:executing-plans** (inline).
+🟢 Sonnet — **prune 2 strays, then resume S2.**
+
+**Step 0 — remove the two merged stray worktrees** (both verified ancestors of `main`, safe). Run from this primary worktree — never from inside a worktree you're removing:
+```
+git worktree remove .claude/worktrees/pedantic-montalcini-6f4816
+git worktree remove .claude/worktrees/infallible-satoshi-95b8fb
+git branch -d claude/pedantic-montalcini-6f4816 claude/infallible-satoshi-95b8fb
+```
+
+**Step 1 — resume the S2 build — request-to-book** from [`docs/superpowers/plans/2026-06-11-lustique-booking-s2-request.md`](docs/superpowers/plans/2026-06-11-lustique-booking-s2-request.md) using **superpowers:subagent-driven-development** (recommended) or **superpowers:executing-plans** (inline). Mid-build: Tasks 1–3 committed through `3c5712c` (token helpers · `countBookingsOnDate` · `request.ts` handler); `worker/package.json` carries the uncommitted `@lustique/pricing` add → **awaiting `npm install` in Pieter's terminal** (the current pause point). Remaining: Task 4 (wire `/api/booking/request` in `index.ts`) · Task 5 (site form) · Task 6 (`booking-request.ts` + `booking-received.astro`).
 
 6 tasks in dependency order:
 1. Token helpers (`token.ts` + tests) — standalone
@@ -26,7 +35,8 @@
 - Email migration in flight: GoDaddy → Google Workspace. `info@` blocked (conflicting personal Google acct) → fix via Admin console Transfer tool before cutting MX.
 
 ## Build lane / branch
-- This plan + baton are committed on branch **`claude/pedantic-montalcini-6f4816`** (synced to `main` @ `cc3a217`, now ahead by the plan commit). Per the S1 pattern, build S2 on a branch and merge to `main` when green. To start the Sonnet build from `main`'s baton instead, fast-forward `main` to this branch first.
+- **Canonical build lane: `claude/s2-booking-request`** in the primary worktree (`~/Layer-Zero-Studios/Custom Builds/Lustique`), last build commit `3c5712c` (ahead of `main` `f4eb9ca`), `worker/package.json` modified (mid-build). Per the S1 pattern, build S2 here and merge to `main` when green.
+- Reconciled 2026-06-11 (Opus): this section previously (mis)named `claude/pedantic-montalcini-6f4816` — a stray reconcile worktree, not the build lane. Both strays (`pedantic` @ `52848bf`, `infallible-satoshi` @ `384ecbb`) are merged into `main`; ▶ NEXT Step 0 removes them.
 
 ## Open decisions / account gates (Pieter — parallel; unblock live deploy, not the build)
 - **Supabase**: Zandeline creates client-owned project, invites `hello@layerzerostudios.com` as Administrator (region `af-south-1` preferred); then apply `0001_booking_core.sql`; set `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` via `wrangler secret put`.

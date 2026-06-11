@@ -1,5 +1,6 @@
 import { keepWarm } from "./booking/db";
 import { writeAudit } from "./booking/audit";
+import { handleBookingRequest } from "./booking/request";
 
 /* ============================================================
    LUSTIQUE CO. — form-handler Worker (the stable API boundary)
@@ -104,6 +105,12 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
 
     const url = new URL(req.url);
+
+    // POST /api/booking/request — request-to-book endpoint (S2)
+    if (req.method === "POST" && url.pathname === "/api/booking/request") {
+      return handleBookingRequest(env, req);
+    }
+
     if (req.method !== "POST" || url.pathname !== "/api/enquiry") {
       return json({ ok: false, error: "Not found" }, 404, origin);
     }
