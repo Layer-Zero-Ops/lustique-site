@@ -61,3 +61,7 @@ S1 data layer ✅ → **S2 request-to-book ✅** → **S3 confirm gate** (next) 
 - S2 plan (done): `docs/superpowers/plans/2026-06-11-lustique-booking-s2-request.md`
 - S1 plan (done): `docs/superpowers/plans/2026-06-05-lustique-booking-s1-data-layer.md`
 - Key docs: `PLAN.md` · `BRAND.md` · `PRICING.md` · `ARCHITECTURE.md` · `STANDARDS.md` · `SECURITY.md` · `SETUP.md`
+
+## ⇄ Umbrella  (project ↔ Studio Manager · empty unless pending · see _ops/BRIDGE-PROTOCOL.md)
+**⬆ To umbrella / Pieter:** none
+**⬇ From umbrella:** none

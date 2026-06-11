@@ -28,5 +28,8 @@ Bridal hair & makeup website + booking platform for **Lustique Co.** (Pretoria; 
 - Safari caches JS hard — use hard-refresh or private window for verification
 - Accounts: client-owned (Cloudflare · Supabase · Workspace · Yoco · Brevo · Sanity); LZ invited as Administrator
 
+## Studio Manager bridge
+This project may post requests to the Studio Manager — see `_ops/BRIDGE-PROTOCOL.md`.
+
 ## In-flight context
 See `SESSION_HANDOFF.md` for the current baton (▶ NEXT).
