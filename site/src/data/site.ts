@@ -18,3 +18,7 @@ export const SITE_JSONLD = {
   founder: { "@type": "Person", name: "Zandeline Kemp" },
   sameAs: ["https://www.instagram.com/lustique_cosmetology/", "https://www.facebook.com/LustiqueCosmetology", "https://www.tiktok.com/@lustique_co"],
 };
+
+// Cloudflare Turnstile site key — public (safe to commit).
+// Dev/test: "1x00000000000000000000AA" (always passes). Replace with real key at deploy.
+export const TURNSTILE_SITE_KEY = "1x00000000000000000000AA";
