@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm } from "./db";
+import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate } from "./db";
 
 const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc" };
 const res = (body: unknown, status = 200) =>
@@ -48,5 +48,20 @@ describe("keepWarm", () => {
     const f = vi.fn().mockResolvedValue(res([]));
     await keepWarm(env, f as unknown as typeof fetch);
     expect((f.mock.calls[0]![0] as string)).toContain("/rest/v1/bookings?select=id&limit=1");
+  });
+});
+
+describe("countBookingsOnDate", () => {
+  it("returns the count from the PostgREST aggregate", async () => {
+    const f = vi.fn().mockResolvedValue(res([{ count: "3" }]));
+    const n = await countBookingsOnDate(env, "2026-11-14", f as unknown as typeof fetch);
+    expect(n).toBe(3);
+    const url = f.mock.calls[0]![0] as string;
+    expect(url).toContain("wedding_date=eq.2026-11-14");
+    expect(url).toContain("status=not.in.(expired,declined,cancelled)");
+  });
+  it("returns 0 when no active bookings exist on that date", async () => {
+    const f = vi.fn().mockResolvedValue(res([{ count: "0" }]));
+    expect(await countBookingsOnDate(env, "2026-12-25", f as unknown as typeof fetch)).toBe(0);
   });
 });

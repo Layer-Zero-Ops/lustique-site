@@ -106,3 +106,25 @@ export async function insertAudit(
 export async function keepWarm(env: DbEnv, f: typeof fetch = fetch): Promise<void> {
   await f(rest(env, "bookings?select=id&limit=1"), { headers: headers(env) });
 }
+
+/**
+ * Count active bookings (not expired/declined/cancelled) on a given wedding date.
+ * Used for the same-date warning in Zandeline's confirm email (spec §10).
+ * PostgREST aggregate: select=count() returns [{ count: "N" }].
+ */
+export async function countBookingsOnDate(
+  env: DbEnv,
+  weddingDate: string, // "YYYY-MM-DD"
+  f: typeof fetch = fetch,
+): Promise<number> {
+  const r = await f(
+    rest(
+      env,
+      `bookings?select=count()&wedding_date=eq.${encodeURIComponent(weddingDate)}&status=not.in.(expired,declined,cancelled)`,
+    ),
+    { headers: headers(env) },
+  );
+  if (!r.ok) throw new Error(`countBookingsOnDate ${r.status}`);
+  const rows = (await r.json()) as Array<{ count: string }>;
+  return parseInt(rows[0]?.count ?? "0", 10);
+}
