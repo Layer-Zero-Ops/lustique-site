@@ -42,4 +42,23 @@ describe("hashToken", () => {
     const h = await hashToken(t);
     expect(h).toHaveLength(64);
   });
+  it("produces a different hash when the token is tampered", async () => {
+    const t = await signToken(ID, EXP, SECRET);
+    const h1 = await hashToken(t);
+    const tampered = t.slice(0, -1) + (t.slice(-1) === "a" ? "b" : "a");
+    const h2 = await hashToken(tampered);
+    expect(h1).not.toBe(h2);
+  });
+});
+
+describe("signToken — decoded payload", () => {
+  it("embeds bookingId and expiry in the decoded payload", async () => {
+    const t = await signToken(ID, EXP, SECRET);
+    // toBase64Url is standard base64url, so replace - → + and _ → /
+    const decoded = atob(t.replace(/-/g, "+").replace(/_/g, "/"));
+    const [embeddedId, embeddedExp, hmac] = decoded.split("|");
+    expect(embeddedId).toBe(ID);
+    expect(embeddedExp).toBe(EXP.toISOString());
+    expect(hmac).toMatch(/^[0-9a-f]{64}$/);
+  });
 });

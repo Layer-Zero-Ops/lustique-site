@@ -11,16 +11,28 @@
 
 const enc = new TextEncoder();
 
-async function hmacHex(data: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
-  );
-  const buf = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+/** Converts an ArrayBuffer to a lowercase hex string. */
+function toHex(buf: ArrayBuffer): string {
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
+async function hmacHex(data: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const buf = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+  return toHex(buf);
+}
+
+/**
+ * Encodes a string to base64url (RFC 4648 §5).
+ *
+ * NOTE: `btoa` only accepts Latin-1 (code points 0–255). Callers must only
+ * pass ASCII payloads. The token payload is always `uuid|iso_date|hmac_hex`,
+ * all of which are ASCII, so this constraint is always satisfied.
+ */
 function toBase64Url(str: string): string {
   return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
@@ -46,7 +58,5 @@ export async function signToken(
  */
 export async function hashToken(token: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", enc.encode(token));
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return toHex(buf);
 }
