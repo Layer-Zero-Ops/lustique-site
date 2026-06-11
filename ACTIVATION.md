@@ -1,6 +1,3 @@
 # ACTIVATION — Lustique
 
-`next` reads this. ▶ IMMEDIATE NEXT:
-🟢 Sonnet build — S2 request-to-book. Plan written + approved (`docs/superpowers/plans/2026-06-11-lustique-booking-s2-request.md`); build in flight on `claude/s2-booking-request` (mid-build). Prune the 2 merged stray worktrees first, then resume — see ▶ NEXT in `SESSION_HANDOFF.md`.
-
-Full state: read `SESSION_HANDOFF.md` in this folder.
+`next` reads this, then defers to the real baton. The single source of the rolling ▶ NEXT is **`SESSION_HANDOFF.md`** in this folder — always read it for the current step. This file is only a stable pointer, never the ▶ NEXT itself (it kept going stale whenever it tried to be).
