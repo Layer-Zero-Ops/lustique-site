@@ -64,4 +64,8 @@ describe("countBookingsOnDate", () => {
     const f = vi.fn().mockResolvedValue(res([{ count: "0" }]));
     expect(await countBookingsOnDate(env, "2026-12-25", f as unknown as typeof fetch)).toBe(0);
   });
+  it("returns 0 when PostgREST returns an empty array (defensive guard)", async () => {
+    const f = vi.fn().mockResolvedValue(res([]));
+    expect(await countBookingsOnDate(env, "2026-12-25", f as unknown as typeof fetch)).toBe(0);
+  });
 });
