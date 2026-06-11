@@ -108,7 +108,7 @@ describe("handleBookingRequest — happy path", () => {
       .mockResolvedValueOnce(res({ messageId: "2" }, 201));
     await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
     const zandelineBody = JSON.parse((f.mock.calls[4]![1] as RequestInit).body as string);
-    expect(zandelineBody.htmlContent).toContain("2 other booking");
+    expect(zandelineBody.htmlContent).toContain("2 other active booking");
   });
 
   it("flags bookings over R200,000 in notes but still returns 200", async () => {
@@ -118,6 +118,19 @@ describe("handleBookingRequest — happy path", () => {
     expect(resp.status).toBe(200);
     const insertedBody = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
     expect(JSON.stringify(insertedBody)).toContain("manual review");
+  });
+
+  it("returns 502 and writes audit when Brevo fails after a successful insert", async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce(res({ success: true }))                                       // 1. Turnstile
+      .mockResolvedValueOnce(res([{ count: "0" }]))                                        // 2. countBookingsOnDate
+      .mockResolvedValueOnce(res([{ id: BOOKING_ID, reference: "LUS-2026-111122" }], 201)) // 3. insertBooking
+      .mockResolvedValueOnce(res({}, 201))                                                 // 4. insertAudit (request.created)
+      .mockRejectedValueOnce(new Error("Brevo 503"))                                       // 5. Zandeline email fails
+      .mockResolvedValueOnce(res({}, 201));                                                // 6. insertAudit (request.email-failed)
+    const resp = await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
+    expect(resp.status).toBe(502);
+    expect((await resp.json() as { ok: boolean }).ok).toBe(false);
   });
 });
 

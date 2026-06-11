@@ -52,7 +52,7 @@ interface RequestBody {
 const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const SANITY_CAP_RAND = 200_000;
 
-const esc = (s = "") => s.replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c] as string));
+const esc = (s = "") => s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] as string));
 const n = (v: unknown): number => Math.max(0, parseInt(String(v ?? 0), 10) || 0);
 
 async function brevoEmail(
@@ -95,7 +95,7 @@ function validate(b: RequestBody): string | "spam" | null {
   if (!b.brideEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.brideEmail)) return "Please add a valid email address.";
   if (!b.bridePhone || b.bridePhone.trim().length < 6) return "Please add a contact number.";
   if (!b.weddingDate) return "Please add your wedding date.";
-  if (b.weddingDate <= new Date().toISOString().slice(0, 10)) return "Your wedding date must be in the future.";
+  if (b.weddingDate <= new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 10)) return "Your wedding date must be in the future.";
   if (!b.consentAt) return "Please tick the consent box to proceed.";
   if (![25, 50, 100].includes(Number(b.depositPct))) return "Please choose a deposit percentage (25%, 50%, or 100%).";
   if (!b.idempotencyKey) return "Missing submission key — please reload and try again.";
@@ -217,46 +217,57 @@ export async function handleBookingRequest(
     fetchImpl,
   );
 
-  // 9. Email Zandeline — booking details + confirm link + same-date warning
-  const confirmUrl = `${env.ALLOWED_ORIGIN}/api/booking/confirm?token=${encodeURIComponent(token)}`;
-  const sameDateHtml = sameDateCount > 0
-    ? `<p style="color:#b91c1c;font-weight:600;margin:0 0 .8rem;">⚠️ ${sameDateCount} other booking${sameDateCount === 1 ? "" : "s"} already hold${sameDateCount === 1 ? "s" : ""} this date.</p>`
-    : "";
-  await brevoEmail(
-    env,
-    { email: env.NOTIFY_EMAIL, name: "Lustique" },
-    `Booking request — ${body.brideName!.trim()} · ${body.weddingDate}`,
-    `<p><strong>${esc(body.brideName!.trim())}</strong><br/>
-     ${esc(body.brideEmail!.trim())} · ${esc(body.bridePhone!.trim())}</p>
-     ${sameDateHtml}
-     <table style="border-collapse:collapse;font:14px/1.6 system-ui,sans-serif;margin:.4rem 0 .8rem;">
-       <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Date</td><td><strong>${esc(body.weddingDate!)}</strong></td></tr>
-       <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Venue</td><td>${esc([body.venue, body.town, body.province].filter(Boolean).join(", ") || "—")}</td></tr>
-       <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Party size</td><td>${result.heads} looks</td></tr>
-       <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Server total</td><td><strong>R ${result.total.toLocaleString()}</strong></td></tr>
-       <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Deposit</td><td>${depositPct}% (R ${(depositNetCents / 100).toLocaleString()} net)</td></tr>
-       <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Reference</td><td>${esc(reference)}</td></tr>
-     </table>
-     ${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
-     <p style="margin:1.2rem 0;">
-       <a href="${esc(confirmUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Confirm &amp; send deposit link</a>
-     </p>
-     <p style="font-size:.88rem;color:#8a7d72;">Confirming sends the bride a Yoco deposit link. The token expires in 14 days.</p>`,
-    fetchImpl,
-  );
-
-  // 10. Email bride — "received" confirmation
-  await brevoEmail(
-    env,
-    { email: body.brideEmail!.trim(), name: body.brideName!.trim() },
-    "Your booking request is with us — Lustique Co.",
-    `<p>Hi ${esc(body.brideName!.trim())},</p>
-     <p>We have your booking request for <strong>${esc(body.weddingDate!)}</strong>.</p>
-     <p>Your reference is <strong>${esc(reference)}</strong>.</p>
-     <p>Zandeline will review artist availability and confirm within 24 hours. Once confirmed we'll send you a link to pay your deposit and officially secure your date.</p>
-     <p>Blessings,<br/>The Lustique Cosmetology Team</p>`,
-    fetchImpl,
-  );
+  // 9 + 10. Emails — Zandeline (confirm link) + bride (received)
+  // If either call fails: write audit, return 502 so the client knows.
+  // IMPORTANT: retrying with the same idempotencyKey will short-circuit at the dedupe
+  // branch above and never re-send emails. The "request.email-failed" audit event is
+  // the recovery trace until S5 adds a cron retry sweep.
+  try {
+    const confirmUrl = `${env.ALLOWED_ORIGIN}/api/booking/confirm?token=${encodeURIComponent(token)}`;
+    const sameDateHtml = sameDateCount > 0
+      ? `<p style="color:#b91c1c;font-weight:600;margin:0 0 .8rem;">⚠️ ${sameDateCount} other active booking${sameDateCount === 1 ? "" : "s"} already hold${sameDateCount === 1 ? "s" : ""} this date.</p>`
+      : "";
+    await brevoEmail(
+      env,
+      { email: env.NOTIFY_EMAIL, name: "Lustique" },
+      `Booking request — ${body.brideName!.trim()} · ${body.weddingDate}`,
+      `<p><strong>${esc(body.brideName!.trim())}</strong><br/>
+       ${esc(body.brideEmail!.trim())} · ${esc(body.bridePhone!.trim())}</p>
+       ${sameDateHtml}
+       <table style="border-collapse:collapse;font:14px/1.6 system-ui,sans-serif;margin:.4rem 0 .8rem;">
+         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Date</td><td><strong>${esc(body.weddingDate!)}</strong></td></tr>
+         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Venue</td><td>${esc([body.venue, body.town, body.province].filter(Boolean).join(", ") || "—")}</td></tr>
+         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Party size</td><td>${result.heads} looks</td></tr>
+         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Server total</td><td><strong>R ${result.total.toLocaleString()}</strong></td></tr>
+         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Deposit</td><td>${depositPct}% (R ${(depositNetCents / 100).toLocaleString()} net)</td></tr>
+         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Reference</td><td>${esc(reference)}</td></tr>
+       </table>
+       ${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
+       <p style="margin:1.2rem 0;">
+         <a href="${esc(confirmUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Confirm &amp; send deposit link</a>
+       </p>
+       <p style="font-size:.88rem;color:#8a7d72;">Confirming sends the bride a Yoco deposit link. The token expires in 14 days.</p>`,
+      fetchImpl,
+    );
+    await brevoEmail(
+      env,
+      { email: body.brideEmail!.trim(), name: body.brideName!.trim() },
+      "Your booking request is with us — Lustique Co.",
+      `<p>Hi ${esc(body.brideName!.trim())},</p>
+       <p>We have your booking request for <strong>${esc(body.weddingDate!)}</strong>.</p>
+       <p>Your reference is <strong>${esc(reference)}</strong>.</p>
+       <p>Zandeline will review artist availability and confirm within 24 hours. Once confirmed we'll send you a link to pay your deposit and officially secure your date.</p>
+       <p>Blessings,<br/>The Lustique Cosmetology Team</p>`,
+      fetchImpl,
+    );
+  } catch {
+    await writeAudit(
+      env,
+      { bookingId, eventType: "request.email-failed", payload: { reference } },
+      fetchImpl,
+    ).catch(() => {}); // never throw out of the catch
+    return json({ ok: false, error: "We couldn't send your confirmation emails — please email info@lustiqueco.co.za and we'll confirm your booking directly." }, 502);
+  }
 
   return json({ ok: true, reference }, 200);
 }

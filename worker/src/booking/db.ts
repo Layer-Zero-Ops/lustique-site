@@ -42,7 +42,10 @@ export async function getBookingByIdempotencyKey(
     headers: headers(env),
   });
   if (!r.ok) throw new Error(`getBookingByIdempotencyKey ${r.status}`);
-  return ((await r.json()) as Array<{ id: string; reference: string }>)[0]!;
+  const rows = (await r.json()) as Array<{ id: string; reference: string }>;
+  const row = rows[0];
+  if (!row) throw new Error(`getBookingByIdempotencyKey: row not found for key ${key}`);
+  return row;
 }
 
 /** PATCH a booking by id; returns the updated row. */
