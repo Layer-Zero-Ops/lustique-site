@@ -68,8 +68,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const observer = new MutationObserver(() => {
       const text = estimateEl.textContent ?? "";
       const match = text.replace(/\s/g, "").match(/[\d]+/);
-      const rand = match ? parseInt(match[0], 10) : null;
-      updateDepositLabels(rand);
+      const totalRandVal = match ? parseInt(match[0], 10) : null;
+      updateDepositLabels(totalRandVal);
     });
     observer.observe(estimateEl, { childList: true, subtree: true, characterData: true });
   }
@@ -144,6 +144,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     say(result.error ?? "Something went wrong — please email info@lustiqueco.co.za and we'll help you directly.");
+    // Reset Turnstile so the next submit attempt gets a fresh token (tokens are single-use).
+    (window as unknown as { turnstile?: { reset(): void } }).turnstile?.reset();
     btn.disabled = false;
     btn.textContent = label;
   });
