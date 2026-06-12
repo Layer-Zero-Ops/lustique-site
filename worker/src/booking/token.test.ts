@@ -1,6 +1,6 @@
 // worker/src/booking/token.test.ts
 import { describe, it, expect } from "vitest";
-import { signToken, hashToken } from "./token";
+import { signToken, hashToken, verifyToken } from "./token";
 
 const ID = "550e8400-e29b-41d4-a716-446655440000";
 const EXP = new Date("2026-07-01T00:00:00Z");
@@ -48,6 +48,40 @@ describe("hashToken", () => {
     const tampered = t.slice(0, -1) + (t.slice(-1) === "a" ? "b" : "a");
     const h2 = await hashToken(tampered);
     expect(h1).not.toBe(h2);
+  });
+});
+
+describe("verifyToken", () => {
+  const SECRET = "signing-secret";
+  const ID = "11111111-2222-3333-4444-555555555555";
+
+  it("round-trips a freshly signed token", async () => {
+    const token = await signToken(ID, new Date(Date.now() + 60_000), SECRET);
+    const v = await verifyToken(token, SECRET);
+    expect(v).not.toBeNull();
+    expect(v!.bookingId).toBe(ID);
+    expect(v!.expiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("returns null for a tampered token", async () => {
+    const token = await signToken(ID, new Date(Date.now() + 60_000), SECRET);
+    expect(await verifyToken(token + "x", SECRET)).toBeNull();
+  });
+
+  it("returns null for a token signed with a different secret", async () => {
+    const token = await signToken(ID, new Date(Date.now() + 60_000), "other-secret");
+    expect(await verifyToken(token, SECRET)).toBeNull();
+  });
+
+  it("returns null for a structurally malformed token", async () => {
+    expect(await verifyToken("not-a-real-token", SECRET)).toBeNull();
+  });
+
+  it("authenticates an expired token but reports a past expiry (caller enforces TTL)", async () => {
+    const token = await signToken(ID, new Date(Date.now() - 1000), SECRET);
+    const v = await verifyToken(token, SECRET);
+    expect(v).not.toBeNull();
+    expect(v!.expiresAt.getTime()).toBeLessThan(Date.now());
   });
 });
 

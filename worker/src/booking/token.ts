@@ -52,6 +52,47 @@ export async function signToken(
   return toBase64Url(`${payload}|${hmac}`);
 }
 
+/** Decode a base64url string (inverse of toBase64Url). */
+function fromBase64Url(s: string): string {
+  return atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+}
+
+/** Constant-time comparison of two hex strings (avoids leaking via early-exit). */
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Verify a confirm token's authenticity: decode, split, recompute the HMAC and
+ * constant-time compare. Returns { bookingId, expiresAt } if the signature is
+ * valid, else null (malformed or tampered).
+ *
+ * Expiry is NOT enforced here — the caller compares expiresAt to now, so the UI
+ * can distinguish "invalid" from "expired".
+ */
+export async function verifyToken(
+  token: string,
+  secret: string,
+): Promise<{ bookingId: string; expiresAt: Date } | null> {
+  let decoded: string;
+  try {
+    decoded = fromBase64Url(token);
+  } catch {
+    return null;
+  }
+  const parts = decoded.split("|");
+  if (parts.length !== 3) return null;
+  const [bookingId, exp, mac] = parts as [string, string, string];
+  const expected = await hmacHex(`${bookingId}|${exp}`, secret);
+  if (!timingSafeEqualHex(mac, expected)) return null;
+  const expiresAt = new Date(exp);
+  if (Number.isNaN(expiresAt.getTime())) return null;
+  return { bookingId, expiresAt };
+}
+
 /**
  * SHA-256 hash of the raw token — what gets stored in `confirm_token_hash`.
  * S3's verify step: decode the token from the URL, hash it, compare to the stored hash.
