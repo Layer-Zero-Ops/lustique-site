@@ -145,26 +145,46 @@ export async function getBookingByTokenHash(
   return rows.length ? rows[0]! : null;
 }
 
+/** Look a booking up by id (same columns as the confirm gate needs). */
+export async function getBookingById(
+  env: DbEnv,
+  id: string,
+  f: typeof fetch = fetch,
+): Promise<ConfirmBookingRow | null> {
+  const r = await f(rest(env, `bookings?id=eq.${encodeURIComponent(id)}&select=${CONFIRM_COLS}`), { headers: headers(env) });
+  if (!r.ok) throw new Error(`getBookingById ${r.status}`);
+  const rows = (await r.json()) as ConfirmBookingRow[];
+  return rows.length ? rows[0]! : null;
+}
+
 /**
- * Guarded transition: PATCH the booking only while it is still `requested`.
- * The `&status=eq.requested` filter makes this an atomic compare-and-set — if the
- * row has already moved on (double-submit, scanner, prior decline), 0 rows update
- * and we return null.
+ * Guarded transition: PATCH only while status === fromStatus (atomic compare-and-set).
+ * Returns the updated row, or null if 0 rows matched (already moved on).
  */
-export async function transitionRequestedBooking(
+export async function transitionBooking(
+  env: DbEnv,
+  id: string,
+  fromStatus: string,
+  patch: Record<string, unknown>,
+  f: typeof fetch = fetch,
+): Promise<Record<string, unknown> | null> {
+  const r = await f(
+    rest(env, `bookings?id=eq.${encodeURIComponent(id)}&status=eq.${encodeURIComponent(fromStatus)}`),
+    { method: "PATCH", headers: { ...headers(env), prefer: "return=representation" }, body: JSON.stringify(patch) },
+  );
+  if (!r.ok) throw new Error(`transitionBooking ${r.status}: ${await r.text()}`);
+  const rows = (await r.json()) as Array<Record<string, unknown>>;
+  return rows.length ? rows[0]! : null;
+}
+
+/** S3 confirm/decline guard — thin wrapper over the generalized transition. */
+export function transitionRequestedBooking(
   env: DbEnv,
   id: string,
   patch: Record<string, unknown>,
   f: typeof fetch = fetch,
 ): Promise<Record<string, unknown> | null> {
-  const r = await f(rest(env, `bookings?id=eq.${encodeURIComponent(id)}&status=eq.requested`), {
-    method: "PATCH",
-    headers: { ...headers(env), prefer: "return=representation" },
-    body: JSON.stringify(patch),
-  });
-  if (!r.ok) throw new Error(`transitionRequestedBooking ${r.status}: ${await r.text()}`);
-  const rows = (await r.json()) as Array<Record<string, unknown>>;
-  return rows.length ? rows[0]! : null;
+  return transitionBooking(env, id, "requested", patch, f);
 }
 
 /** Daily keep-warm: a tiny read resets the free-tier 7-day pause clock (spec §2). */

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking } from "./db";
+import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking } from "./db";
 
 const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc" };
 const res = (body: unknown, status = 200) =>
@@ -88,6 +88,32 @@ describe("transitionRequestedBooking", () => {
       dbEnv, "b1", { status: "confirmed" }, f as unknown as typeof fetch,
     );
     expect(got).toBeNull();
+  });
+});
+
+describe("getBookingById", () => {
+  it("selects by id and returns the row", async () => {
+    const row = { id: "b1", status: "confirmed" };
+    const f = vi.fn().mockResolvedValue(res([row]));
+    const got = await getBookingById(dbEnv, "b1", f as unknown as typeof fetch);
+    expect(got).toEqual(row);
+    expect(f.mock.calls[0]![0] as string).toContain("id=eq.b1");
+  });
+  it("returns null when absent", async () => {
+    const f = vi.fn().mockResolvedValue(res([]));
+    expect(await getBookingById(dbEnv, "x", f as unknown as typeof fetch)).toBeNull();
+  });
+});
+
+describe("transitionBooking (generalized guard)", () => {
+  it("guards on the given fromStatus", async () => {
+    const f = vi.fn().mockResolvedValue(res([{ id: "b1", status: "deposit_paid" }]));
+    await transitionBooking(dbEnv, "b1", "confirmed", { status: "deposit_paid" }, f as unknown as typeof fetch);
+    expect(f.mock.calls[0]![0] as string).toContain("status=eq.confirmed");
+  });
+  it("returns null on 0-row guard miss", async () => {
+    const f = vi.fn().mockResolvedValue(res([]));
+    expect(await transitionBooking(dbEnv, "b1", "confirmed", { status: "deposit_paid" }, f as unknown as typeof fetch)).toBeNull();
   });
 });
 
