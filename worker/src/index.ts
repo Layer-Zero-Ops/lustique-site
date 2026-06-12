@@ -1,7 +1,7 @@
 import { keepWarm } from "./booking/db";
 import { writeAudit } from "./booking/audit";
 import { handleBookingRequest } from "./booking/request";
-import { renderConfirmPage, handleBookingConfirm } from "./booking/confirm";
+import { renderConfirmPage, handleBookingConfirm, renderMarkPaidPage, handleMarkPaid } from "./booking/confirm";
 
 /* ============================================================
    LUSTIQUE CO. — form-handler Worker (the stable API boundary)
@@ -124,6 +124,15 @@ export default {
     // POST /api/booking/confirm — confirm/decline transition (S3)
     if (req.method === "POST" && url.pathname === "/api/booking/confirm") {
       return handleBookingConfirm(env, req);
+    }
+
+    // GET /api/booking/mark-paid?token= — render-only deposit-received page (S4, prefetch-safe)
+    if (req.method === "GET" && url.pathname === "/api/booking/mark-paid") {
+      return renderMarkPaidPage(env, req);
+    }
+    // POST /api/booking/mark-paid — record EFT deposit → deposit_paid (S4)
+    if (req.method === "POST" && url.pathname === "/api/booking/mark-paid") {
+      return handleMarkPaid(env, req);
     }
 
     if (req.method !== "POST" || url.pathname !== "/api/enquiry") {
