@@ -1,21 +1,24 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** S3 ✅ → S4 (EFT payments) + go-live · plan ✅ · **Updated:** 2026-06-12 (Opus — S4-EFT plan + reconcile)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** S4 A+B ✅ → Phase C go-live (account-gated) · **Updated:** 2026-06-12 (Sonnet — S4 Phases A+B built)
 
 ## ▶ NEXT
-🟢 **Sonnet build — S4 (EFT payments) + go-live** from `docs/superpowers/plans/2026-06-12-lustique-eft-payments-and-go-live.md` (plan ✅ approved 2026-06-12). Use **superpowers:subagent-driven-development** or **executing-plans** for Phases A–B.
+🟢 **Phase C — go-live runbook** (account-gated). All code is ✅ DONE + VERIFIED (Phases A+B, 71 tests green, bundle 42.56 KiB, 26 pages). Merge `claude/s4-eft-payments` → `main`, then work through Phase C of the plan (`docs/superpowers/plans/2026-06-12-lustique-eft-payments-and-go-live.md`).
 
-**Pre-step (S3 closeout):** S3 is ✅ DONE + VERIFIED (Opus re-verified 56 green + 9 commits match the plan this session). Merge `claude/s3-booking-confirm` → `main`, prune the stale worktree, branch `claude/s4-eft-payments` from updated `main`:
-```
-git worktree remove .claude/worktrees/infallible-satoshi-95b8fb
-git branch -d claude/infallible-satoshi-95b8fb
-```
+**Account prerequisites (🛑 Pieter/Zandeline — must be done first, parallelizable):**
+- Supabase project created + `hello@layerzerostudios.com` invited as Administrator + `0001_booking_core.sql` applied
+- Turnstile widget created → site key in `site/src/data/site.ts` + `TURNSTILE_SECRET` secret
+- Brevo sender `info@lustiqueco.co.za` verified + `BREVO_API_KEY` captured
+- EFT details from Zandeline (bank name, account name, account no., branch code)
+- Cloudflare zone `lustiqueco.co.za` created (Free plan)
 
-**Phase A (TDD, small):** reword the bride's confirm email → a payment *invitation* (drop "your date is confirmed"). The correctness fix for the rule below.
-**Phase B (TDD):** self-serve mark-paid flow — purpose-scoped action token + `GET/POST /api/booking/mark-paid` → guarded `confirmed → deposit_paid` → bride "your date is secured" email; confirm also emails Zandeline her mark-paid link.
-**Phase C (ops runbook):** go-live — Supabase project + migration, Turnstile, EFT secrets, `wrangler.toml` route (`lustiqueco.co.za/api/*`) + R2 bucket create, Cloudflare Pages, DNS cutover, end-to-end smoke test.
-- Builds + tests fully offline; **no new npm dep.** Phase C deploy is account-gated (gates below).
-- **A+C alone = a correct launchable EFT site** (manual post-payment confirm); **B automates** it. Recommended: A+B before launch. Yoco becomes **S4-v2** (automates the mark-paid step) — deferred.
+**Once prerequisites done (Sonnet-runnable):**
+- `cd worker && npx wrangler r2 bucket create lustique-audit`
+- Add route + EFT secret names to `wrangler.toml` (see Phase C step 2)
+- `wrangler secret put` for all 10 secrets
+- `cd worker && npx wrangler deploy`; connect GitHub → Cloudflare Pages
+- DNS cutover GoDaddy → Cloudflare; SSL/TLS Full (strict)
+- End-to-end smoke test (3 emails + DB state walk)
 
 ### 🔑 Product rule locked (Pieter 2026-06-12)
 **The bride is told her date is BOOKED only once the EFT deposit is RECEIVED** — not at Zandeline's confirm. Confirm email = payment *invitation*; mark-paid (deposit received) = the *real* confirmation + `deposit_paid`. Yoco's webhook will automate the mark-paid step in S4-v2.
@@ -38,7 +41,16 @@ git branch -d claude/infallible-satoshi-95b8fb
 - **S1 data layer ✅ DONE + VERIFIED** (merged `main` 2026-06-07): 36 tests green (24 pricing + 12 worker), worker bundles clean.
 - **S2 request-to-book ✅ DONE + VERIFIED** (merged `main` 2026-06-12): 38 worker tests, 24 site pages. Commits: token sign/hash → countBookingsOnDate → handleBookingRequest → site quote form → booking-received page.
 - **S3 confirm gate ✅ DONE + VERIFIED** (branch `claude/s3-booking-confirm`, 2026-06-12): 56 worker tests green, bundle clean (35.46 KiB), site 26 pages. *(Opus reconcile 2026-06-12: re-ran suite → 56 green; 9 commits map 1:1 to the plan. Ledger accurate.)*
-- **S4 EFT payments + go-live — plan ✅ WRITTEN + APPROVED** (Opus 2026-06-12): `docs/superpowers/plans/2026-06-12-lustique-eft-payments-and-go-live.md`. Corrects the bride-confirmation timing (payment-gated) + adds the manual mark-paid flow + the go-live runbook. ~12 new worker tests. Yoco deferred to S4-v2.
+- **S4 EFT payments Phases A+B ✅ DONE + VERIFIED** (Sonnet 2026-06-12, branch `claude/s4-eft-payments`): 71 worker tests green, bundle 42.56 KiB, 26 pages. 5 commits. Bride confirm email is now a payment invitation; mark-paid flow (`confirmed→deposit_paid`) built + routed. Phase C (go-live) is account-gated — see ▶ NEXT.
+
+### S4 Phases A+B shipped (build commits, oldest→newest)
+| Commit | What |
+|--------|------|
+| `1c1f08a` | fix(worker): bride confirm email is a payment invitation, not a confirmation (S4) |
+| `0d9de04` | feat(worker): purpose-scoped action tokens for mark-paid (S4) |
+| `a7934bf` | feat(worker): getBookingById + generalized transitionBooking guard (S4) |
+| `6deda3e` | feat(worker): EFT mark-paid flow → deposit_paid + bride confirmation (S4) |
+| `a490cca` | feat(worker): wire GET+POST /api/booking/mark-paid routes (S4) |
 
 ### S3 shipped (build commits, oldest→newest)
 | Commit | What |
@@ -67,9 +79,9 @@ git branch -d claude/infallible-satoshi-95b8fb
 | `b8a6135` | fix: reset Turnstile widget + rename shadowed rand variable |
 
 ## Build lane / branch
-- **S3 complete + verified:** `claude/s3-booking-confirm` — merge to `main` as the S4 pre-step (see ▶ NEXT). The S4-EFT plan + this baton are committed here and ride into `main` with that merge.
-- **S4 build lane:** branch `claude/s4-eft-payments` from updated `main` after S3 merges (plan ✅ — no Opus dependency left).
-- ⚠️ Stale worktree: `infallible-satoshi-95b8fb` — prune during the S3 closeout (branch fully merged; commands in ▶ NEXT).
+- **S3 merged → main** (2026-06-12, fast-forward).
+- **S4 Phases A+B on `claude/s4-eft-payments`** — 5 commits, ready to merge → `main` before Phase C deploy.
+- ⚠️ Stale worktree `infallible-satoshi-95b8fb` still exists (branch `claude/infallible-satoshi-95b8fb` has 0 unique commits). Prune once Claude is no longer running from it: `git worktree remove .claude/worktrees/infallible-satoshi-95b8fb && git branch -d claude/infallible-satoshi-95b8fb`.
 
 ## Booking build sequence
 S1 data layer ✅ → S2 request-to-book ✅ → **S3 confirm gate ✅** → **S4 payments — EFT v1 (plan ✅, building) · Yoco v2 later** → S5 balance cron → S6 emails (5 Brevo types)
