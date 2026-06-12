@@ -132,7 +132,7 @@ async function brevoEmail(
 
 function confirmEmailHtml(env: BookingConfirmEnv, b: ConfirmBookingRow): string {
   return `<p>Hi ${esc(b.bride_name)},</p>
-<p>Wonderful news — your date <strong>${esc(b.wedding_date)}</strong> is confirmed. To officially secure it, please pay your deposit by EFT:</p>
+<p>Wonderful news — <strong>${esc(b.wedding_date)}</strong> is available! To book your date, please pay your deposit by EFT. As soon as it reflects, we'll send you your booking confirmation.</p>
 <table style="border-collapse:collapse;font:15px/1.7 system-ui,sans-serif;margin:.6rem 0 1rem;">
 <tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Deposit due</td><td><strong>${zar(b.deposit_net_cents)}</strong> (${b.deposit_pct}%)</td></tr>
 <tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Bank</td><td>${esc(env.EFT_BANK)}</td></tr>
@@ -142,7 +142,6 @@ function confirmEmailHtml(env: BookingConfirmEnv, b: ConfirmBookingRow): string 
 <tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Payment reference</td><td><strong>${esc(b.reference)}</strong></td></tr>
 </table>
 <p style="font-size:.92rem;color:#8a7d72;">Please use <strong>${esc(b.reference)}</strong> as your payment reference so we can match it to your booking. The balance of ${zar(b.balance_net_cents)} is payable closer to your day.</p>
-<p>Once we see your deposit, your date is locked in and we'll start planning the details.</p>
 <p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
 }
 
@@ -195,7 +194,7 @@ export async function handleBookingConfirm(
         "An update on your Lustique booking", declineEmailHtml(b), fetchImpl);
     } else {
       await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
-        "Your date is confirmed — deposit details inside · Lustique Co.", confirmEmailHtml(env, b), fetchImpl);
+        "Your date is available — secure it with your deposit · Lustique Co.", confirmEmailHtml(env, b), fetchImpl);
     }
     await writeAudit(env, { bookingId: b.id, eventType: decline ? "confirm.declined" : "confirm.confirmed", payload: { reference: b.reference } }, fetchImpl);
   } catch {

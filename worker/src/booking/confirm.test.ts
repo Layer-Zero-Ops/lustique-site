@@ -156,3 +156,18 @@ describe("handleBookingConfirm (POST) — decline", () => {
     expect(f).not.toHaveBeenCalled();
   });
 });
+
+describe("confirm email is a payment invitation (not a confirmation)", () => {
+  it("invites payment without claiming the date is booked", async () => {
+    const token = await validToken();
+    const f = vi.fn()
+      .mockResolvedValueOnce(res([bookingRow()]))                        // getBookingByTokenHash
+      .mockResolvedValueOnce(res([bookingRow({ status: "confirmed" })])) // transition
+      .mockResolvedValue(res({ messageId: "m" }, 201));                  // all emails + audit
+    await handleBookingConfirm(env, postReq(token, "confirm"), f as unknown as typeof fetch);
+    const brideEmail = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    expect(brideEmail.htmlContent).toMatch(/available/i);
+    expect(brideEmail.htmlContent).not.toMatch(/is confirmed|date is secured|officially secure/i);
+    expect(brideEmail.subject).not.toMatch(/confirmed/i);
+  });
+});
