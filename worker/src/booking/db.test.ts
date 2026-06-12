@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate } from "./db";
+import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking } from "./db";
 
 const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc" };
 const res = (body: unknown, status = 200) =>
@@ -48,6 +48,46 @@ describe("keepWarm", () => {
     const f = vi.fn().mockResolvedValue(res([]));
     await keepWarm(env, f as unknown as typeof fetch);
     expect((f.mock.calls[0]![0] as string)).toContain("/rest/v1/bookings?select=id&limit=1");
+  });
+});
+
+const dbEnv = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc" };
+
+describe("getBookingByTokenHash", () => {
+  it("returns the row when the hash matches", async () => {
+    const row = { id: "b1", reference: "LUS-2026-AAA", status: "requested" };
+    const f = vi.fn().mockResolvedValue(res([row]));
+    const got = await getBookingByTokenHash(dbEnv, "deadbeef", f as unknown as typeof fetch);
+    expect(got).toEqual(row);
+    const url = f.mock.calls[0]![0] as string;
+    expect(url).toContain("confirm_token_hash=eq.deadbeef");
+  });
+
+  it("returns null when no row matches", async () => {
+    const f = vi.fn().mockResolvedValue(res([]));
+    expect(await getBookingByTokenHash(dbEnv, "nope", f as unknown as typeof fetch)).toBeNull();
+  });
+});
+
+describe("transitionRequestedBooking", () => {
+  it("PATCHes guarded on status=eq.requested and returns the updated row", async () => {
+    const updated = { id: "b1", status: "confirmed" };
+    const f = vi.fn().mockResolvedValue(res([updated]));
+    const got = await transitionRequestedBooking(
+      dbEnv, "b1", { status: "confirmed" }, f as unknown as typeof fetch,
+    );
+    expect(got).toEqual(updated);
+    const url = f.mock.calls[0]![0] as string;
+    expect(url).toContain("id=eq.b1");
+    expect(url).toContain("status=eq.requested");
+  });
+
+  it("returns null when the guard matches 0 rows (already handled)", async () => {
+    const f = vi.fn().mockResolvedValue(res([]));
+    const got = await transitionRequestedBooking(
+      dbEnv, "b1", { status: "confirmed" }, f as unknown as typeof fetch,
+    );
+    expect(got).toBeNull();
   });
 });
 

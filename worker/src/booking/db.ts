@@ -105,6 +105,68 @@ export async function insertAudit(
   if (!r.ok) throw new Error(`insertAudit ${r.status}: ${await r.text()}`);
 }
 
+/** The columns the confirm gate needs from a booking row. */
+export interface ConfirmBookingRow {
+  id: string;
+  reference: string;
+  status: string;
+  bride_name: string;
+  bride_email: string;
+  wedding_date: string;
+  venue: string | null;
+  town: string | null;
+  province: string | null;
+  party_size: number;
+  total_cents: number;
+  deposit_pct: number;
+  deposit_net_cents: number;
+  balance_net_cents: number;
+  confirm_token_expires_at: string;
+  confirm_token_used_at: string | null;
+}
+
+const CONFIRM_COLS =
+  "id,reference,status,bride_name,bride_email,wedding_date,venue,town,province," +
+  "party_size,total_cents,deposit_pct,deposit_net_cents,balance_net_cents," +
+  "confirm_token_expires_at,confirm_token_used_at";
+
+/** Look a booking up by its stored confirm_token_hash. Returns null if none. */
+export async function getBookingByTokenHash(
+  env: DbEnv,
+  hash: string,
+  f: typeof fetch = fetch,
+): Promise<ConfirmBookingRow | null> {
+  const r = await f(
+    rest(env, `bookings?confirm_token_hash=eq.${encodeURIComponent(hash)}&select=${CONFIRM_COLS}`),
+    { headers: headers(env) },
+  );
+  if (!r.ok) throw new Error(`getBookingByTokenHash ${r.status}`);
+  const rows = (await r.json()) as ConfirmBookingRow[];
+  return rows.length ? rows[0]! : null;
+}
+
+/**
+ * Guarded transition: PATCH the booking only while it is still `requested`.
+ * The `&status=eq.requested` filter makes this an atomic compare-and-set — if the
+ * row has already moved on (double-submit, scanner, prior decline), 0 rows update
+ * and we return null.
+ */
+export async function transitionRequestedBooking(
+  env: DbEnv,
+  id: string,
+  patch: Record<string, unknown>,
+  f: typeof fetch = fetch,
+): Promise<Record<string, unknown> | null> {
+  const r = await f(rest(env, `bookings?id=eq.${encodeURIComponent(id)}&status=eq.requested`), {
+    method: "PATCH",
+    headers: { ...headers(env), prefer: "return=representation" },
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) throw new Error(`transitionRequestedBooking ${r.status}: ${await r.text()}`);
+  const rows = (await r.json()) as Array<Record<string, unknown>>;
+  return rows.length ? rows[0]! : null;
+}
+
 /** Daily keep-warm: a tiny read resets the free-tier 7-day pause clock (spec §2). */
 export async function keepWarm(env: DbEnv, f: typeof fetch = fetch): Promise<void> {
   await f(rest(env, "bookings?select=id&limit=1"), { headers: headers(env) });
