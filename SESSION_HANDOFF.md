@@ -1,20 +1,24 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** S3 ✅ DONE + VERIFIED → S4 (Yoco payments) next · **Updated:** 2026-06-12 (Sonnet — S3 shipped)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** S3 ✅ → S4 (EFT payments) + go-live · plan ✅ · **Updated:** 2026-06-12 (Opus — S4-EFT plan + reconcile)
 
 ## ▶ NEXT
-🟢 **Sonnet build — S4 Yoco payments** (needs Opus plan first):
+🟢 **Sonnet build — S4 (EFT payments) + go-live** from `docs/superpowers/plans/2026-06-12-lustique-eft-payments-and-go-live.md` (plan ✅ approved 2026-06-12). Use **superpowers:subagent-driven-development** or **executing-plans** for Phases A–B.
 
-**Pre-step:** Pieter close the `infallible-satoshi` worktree session, then from the main checkout:
+**Pre-step (S3 closeout):** S3 is ✅ DONE + VERIFIED (Opus re-verified 56 green + 9 commits match the plan this session). Merge `claude/s3-booking-confirm` → `main`, prune the stale worktree, branch `claude/s4-eft-payments` from updated `main`:
 ```
 git worktree remove .claude/worktrees/infallible-satoshi-95b8fb
 git branch -d claude/infallible-satoshi-95b8fb
 ```
 
-**S4 scope (Yoco pay-link + webhook + `payments` row):**
-- Replace the EFT block in `confirm.ts` with a Yoco checkout link (via Yoco Payments API)
-- Add `POST /api/payment/yoco-webhook` handler: verify signature → `deposit_paid` transition → `payments` row → email bride
-- S4 needs Opus to plan it first (new spec/plan doc).
+**Phase A (TDD, small):** reword the bride's confirm email → a payment *invitation* (drop "your date is confirmed"). The correctness fix for the rule below.
+**Phase B (TDD):** self-serve mark-paid flow — purpose-scoped action token + `GET/POST /api/booking/mark-paid` → guarded `confirmed → deposit_paid` → bride "your date is secured" email; confirm also emails Zandeline her mark-paid link.
+**Phase C (ops runbook):** go-live — Supabase project + migration, Turnstile, EFT secrets, `wrangler.toml` route (`lustiqueco.co.za/api/*`) + R2 bucket create, Cloudflare Pages, DNS cutover, end-to-end smoke test.
+- Builds + tests fully offline; **no new npm dep.** Phase C deploy is account-gated (gates below).
+- **A+C alone = a correct launchable EFT site** (manual post-payment confirm); **B automates** it. Recommended: A+B before launch. Yoco becomes **S4-v2** (automates the mark-paid step) — deferred.
+
+### 🔑 Product rule locked (Pieter 2026-06-12)
+**The bride is told her date is BOOKED only once the EFT deposit is RECEIVED** — not at Zandeline's confirm. Confirm email = payment *invitation*; mark-paid (deposit received) = the *real* confirmation + `deposit_paid`. Yoco's webhook will automate the mark-paid step in S4-v2.
 
 **Open deploy gates (parallel — unblock live launch, not the build):**
 - **Supabase**: Zandeline creates project → invite `hello@layerzerostudios.com` as Administrator → apply `0001_booking_core.sql` → set `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`
@@ -33,7 +37,8 @@ git branch -d claude/infallible-satoshi-95b8fb
 - Booking core spec written + adversarially reviewed ✅ (`docs/.../specs/2026-06-05-lustique-booking-core-design.md`)
 - **S1 data layer ✅ DONE + VERIFIED** (merged `main` 2026-06-07): 36 tests green (24 pricing + 12 worker), worker bundles clean.
 - **S2 request-to-book ✅ DONE + VERIFIED** (merged `main` 2026-06-12): 38 worker tests, 24 site pages. Commits: token sign/hash → countBookingsOnDate → handleBookingRequest → site quote form → booking-received page.
-- **S3 confirm gate ✅ DONE + VERIFIED** (branch `claude/s3-booking-confirm`, 2026-06-12): 56 worker tests green, bundle clean (35.46 KiB), site 26 pages.
+- **S3 confirm gate ✅ DONE + VERIFIED** (branch `claude/s3-booking-confirm`, 2026-06-12): 56 worker tests green, bundle clean (35.46 KiB), site 26 pages. *(Opus reconcile 2026-06-12: re-ran suite → 56 green; 9 commits map 1:1 to the plan. Ledger accurate.)*
+- **S4 EFT payments + go-live — plan ✅ WRITTEN + APPROVED** (Opus 2026-06-12): `docs/superpowers/plans/2026-06-12-lustique-eft-payments-and-go-live.md`. Corrects the bride-confirmation timing (payment-gated) + adds the manual mark-paid flow + the go-live runbook. ~12 new worker tests. Yoco deferred to S4-v2.
 
 ### S3 shipped (build commits, oldest→newest)
 | Commit | What |
@@ -62,15 +67,16 @@ git branch -d claude/infallible-satoshi-95b8fb
 | `b8a6135` | fix: reset Turnstile widget + rename shadowed rand variable |
 
 ## Build lane / branch
-- **S3 complete:** `claude/s3-booking-confirm` — ready to merge to `main` once Pieter reviews and the account gates are met for deploy.
-- **S4 build lane:** branch `claude/s4-yoco-payments` from `main` after S3 merges (needs Opus plan first).
-- ⚠️ Stale worktree: `infallible-satoshi-95b8fb` — prune after that session closes (branch fully merged; see ▶ NEXT).
+- **S3 complete + verified:** `claude/s3-booking-confirm` — merge to `main` as the S4 pre-step (see ▶ NEXT). The S4-EFT plan + this baton are committed here and ride into `main` with that merge.
+- **S4 build lane:** branch `claude/s4-eft-payments` from updated `main` after S3 merges (plan ✅ — no Opus dependency left).
+- ⚠️ Stale worktree: `infallible-satoshi-95b8fb` — prune during the S3 closeout (branch fully merged; commands in ▶ NEXT).
 
 ## Booking build sequence
-S1 data layer ✅ → S2 request-to-book ✅ → **S3 confirm gate ✅** → **S4 payments (Yoco)** → S5 balance cron → S6 emails (5 Brevo types)
+S1 data layer ✅ → S2 request-to-book ✅ → **S3 confirm gate ✅** → **S4 payments — EFT v1 (plan ✅, building) · Yoco v2 later** → S5 balance cron → S6 emails (5 Brevo types)
 
 ## Pointers
 - Spec: `docs/superpowers/specs/2026-06-05-lustique-booking-core-design.md`
+- S4-EFT plan (next ▶): `docs/superpowers/plans/2026-06-12-lustique-eft-payments-and-go-live.md`
 - S3 plan (done): `docs/superpowers/plans/2026-06-11-lustique-booking-s3-confirm-gate.md`
 - S2 plan (done): `docs/superpowers/plans/2026-06-11-lustique-booking-s2-request.md`
 - S1 plan (done): `docs/superpowers/plans/2026-06-05-lustique-booking-s1-data-layer.md`
