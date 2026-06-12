@@ -1,24 +1,24 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** S4 A+B ✅ → Phase C go-live (account-gated) · **Updated:** 2026-06-12 (Sonnet — S4 Phases A+B built)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** S4 Phase C go-live — account-gated · **Updated:** 2026-06-12 (Sonnet — merged s4-eft-payments → main, wrangler.toml updated)
 
 ## ▶ NEXT
-🟢 **Phase C — go-live runbook** (account-gated). All code is ✅ DONE + VERIFIED (Phases A+B, 71 tests green, bundle 42.56 KiB, 26 pages). Merge `claude/s4-eft-payments` → `main`, then work through Phase C of the plan (`docs/superpowers/plans/2026-06-12-lustique-eft-payments-and-go-live.md`).
+🛑 **Phase C — waiting on account prerequisites (Pieter/Zandeline)**. All code is ✅ on `main` (71 tests green, bundle 42.56 KiB, 26 pages, `wrangler.toml` has route + all 10 secret slots). Nothing left for Sonnet until the secrets exist.
 
-**Account prerequisites (🛑 Pieter/Zandeline — must be done first, parallelizable):**
-- Supabase project created + `hello@layerzerostudios.com` invited as Administrator + `0001_booking_core.sql` applied
-- Turnstile widget created → site key in `site/src/data/site.ts` + `TURNSTILE_SECRET` secret
-- Brevo sender `info@lustiqueco.co.za` verified + `BREVO_API_KEY` captured
-- EFT details from Zandeline (bank name, account name, account no., branch code)
-- Cloudflare zone `lustiqueco.co.za` created (Free plan)
+**Account prerequisites (🛑 parallelizable — unblock in any order):**
+- [ ] **Supabase:** Zandeline creates project (region `af-south-1`) → invite `hello@layerzerostudios.com` as Administrator → run `supabase/migrations/0001_booking_core.sql` in SQL editor → capture project URL + service-role key
+- [ ] **Turnstile:** create widget for `lustiqueco.co.za` → replace `1x00000000000000000000AA` in `site/src/data/site.ts` with real site key → note secret key
+- [ ] **Brevo:** verify `info@lustiqueco.co.za` as a sender → capture API key
+- [ ] **EFT details:** bank name, account name, account no., branch code from Zandeline
+- [ ] **Cloudflare zone:** add `lustiqueco.co.za` (Free plan) so the worker route resolves
 
-**Once prerequisites done (Sonnet-runnable):**
-- `cd worker && npx wrangler r2 bucket create lustique-audit`
-- Add route + EFT secret names to `wrangler.toml` (see Phase C step 2)
-- `wrangler secret put` for all 10 secrets
-- `cd worker && npx wrangler deploy`; connect GitHub → Cloudflare Pages
-- DNS cutover GoDaddy → Cloudflare; SSL/TLS Full (strict)
-- End-to-end smoke test (3 emails + DB state walk)
+**Once prerequisites done (Sonnet-runnable in order):**
+1. `cd worker && npx wrangler r2 bucket create lustique-audit`
+2. `wrangler secret put` for all 10 secrets: `BREVO_API_KEY` `NOTIFY_EMAIL` `SUPABASE_URL` `SUPABASE_SERVICE_KEY` `SIGNING_SECRET` (random 32-byte hex) `TURNSTILE_SECRET` `EFT_BANK` `EFT_ACCOUNT_NAME` `EFT_ACCOUNT_NO` `EFT_BRANCH_CODE`
+3. `cd worker && npx wrangler deploy`
+4. Connect GitHub repo → Cloudflare Pages (build: `npm run build` in `site/`, output `dist/`); bind apex + `www` custom domains
+5. 🛑 DNS cutover: GoDaddy nameservers → Cloudflare; preserve existing MX + SPF; set SSL/TLS Full (strict)
+6. End-to-end smoke test: 3 emails + DB walk `requested → confirmed → deposit_paid` (see Phase C §6 in plan)
 
 ### 🔑 Product rule locked (Pieter 2026-06-12)
 **The bride is told her date is BOOKED only once the EFT deposit is RECEIVED** — not at Zandeline's confirm. Confirm email = payment *invitation*; mark-paid (deposit received) = the *real* confirmation + `deposit_paid`. Yoco's webhook will automate the mark-paid step in S4-v2.
@@ -80,7 +80,7 @@
 
 ## Build lane / branch
 - **S3 merged → main** (2026-06-12, fast-forward).
-- **S4 Phases A+B on `claude/s4-eft-payments`** — 5 commits, ready to merge → `main` before Phase C deploy.
+- **S4 Phases A+B merged → main** (2026-06-12, fast-forward). `wrangler.toml` Phase C config also on `main`.
 - ⚠️ Stale worktree `infallible-satoshi-95b8fb` still exists (branch `claude/infallible-satoshi-95b8fb` has 0 unique commits). Prune once Claude is no longer running from it: `git worktree remove .claude/worktrees/infallible-satoshi-95b8fb && git branch -d claude/infallible-satoshi-95b8fb`.
 
 ## Booking build sequence
