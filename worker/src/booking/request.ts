@@ -244,9 +244,9 @@ export async function handleBookingRequest(
        </table>
        ${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
        <p style="margin:1.2rem 0;">
-         <a href="${esc(confirmUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Confirm &amp; send deposit link</a>
+         <a href="${esc(confirmUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Confirm &amp; send deposit details</a>
        </p>
-       <p style="font-size:.88rem;color:#8a7d72;">Confirming sends the bride a Yoco deposit link. The token expires in 14 days.</p>`,
+       <p style="font-size:.88rem;color:#8a7d72;">Confirming emails the bride her EFT deposit details. The token expires in 14 days.</p>`,
       fetchImpl,
     );
     await brevoEmail(
@@ -256,7 +256,7 @@ export async function handleBookingRequest(
       `<p>Hi ${esc(body.brideName!.trim())},</p>
        <p>We have your booking request for <strong>${esc(body.weddingDate!)}</strong>.</p>
        <p>Your reference is <strong>${esc(reference)}</strong>.</p>
-       <p>Zandeline will review artist availability and confirm within 24 hours. Once confirmed we'll send you a link to pay your deposit and officially secure your date.</p>
+       <p>Zandeline will review artist availability and confirm within 24 hours. Once confirmed we'll send you your deposit payment details to officially secure your date.</p>
        <p>Blessings,<br/>The Lustique Cosmetology Team</p>`,
       fetchImpl,
     );
