@@ -1,0 +1,38 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+const title = "Request Received — Lustique Co.";
+const desc = "Your booking request is with Zandeline — she'll confirm and send your deposit link shortly.";
+---
+<BaseLayout slug="booking-received.html" title={title} desc={desc}>
+  <section class="page-hero">
+    <span class="eyebrow">Date request received</span>
+    <h1>Your date is being held.</h1>
+    <p id="refLine">Zandeline will confirm availability and send your deposit link — usually within a few hours.</p>
+  </section>
+  <section class="section"><div class="wrap prose">
+    <p style="text-align:center;font-size:1.12rem;">Here's what happens next:</p>
+    <ol style="max-width:46ch;margin:1.5rem auto;line-height:2;">
+      <li>Zandeline reviews your request and confirms artist availability.</li>
+      <li>You receive a Yoco payment link for your deposit — paying it officially secures your date.</li>
+      <li>We'll reach out to start planning the details of your day.</li>
+    </ol>
+    <p class="note center" style="margin-top:2rem;">Didn't receive a confirmation email? Check your spam folder or email <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a>.</p>
+    <p class="note center" style="margin-top:2.4rem;">Blessings,<br>The Lustique Cosmetology Team</p>
+  </div></section>
+
+  <script is:inline>
+    // Show the reference number if it was passed in the URL (?ref=LUS-2026-...)
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      if (ref && /^LUS-\d{4}-[A-Z0-9]+$/.test(ref)) {
+        const line = document.getElementById("refLine");
+        if (line) {
+          line.innerHTML =
+            "Your reference is <strong>" + ref + "</strong>. " +
+            "Zandeline will confirm availability and send your deposit link — usually within a few hours.";
+        }
+      }
+    })();
+  </script>
+</BaseLayout>

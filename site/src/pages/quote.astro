@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { TURNSTILE_SITE_KEY } from "../data/site";
 const title = "Get a Quote — Lustique Co.";
 const desc = "Tell us about your wedding day and receive a personalised bridal hair and makeup quote within 24 hours.";
 ---
@@ -7,6 +8,7 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   
   <section class="page-hero">
     <span class="eyebrow">Get a Quote</span>
@@ -82,8 +84,36 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         <p class="note center" id="enquiryStatus" role="alert" style="margin-top:1rem;color:var(--burgundy);"></p>
         <p class="note center" style="margin-top:1rem;">We reply within 24 hours, often sooner. <strong>Blessings, The Lustique Cosmetology Team.</strong></p>
       </div>
+      <!-- Booking section: weddings only; booking-request.ts shows/hides based on occasion -->
+      <div class="form-step reveal" id="bookingSection" style="display:none;margin-top:2rem;padding-top:2rem;border-top:1px solid rgba(60,42,42,.12);">
+        <h3>Secure your date</h3>
+        <p class="step-sub">Skip the 24-hour wait — request your date right now. Zandeline will confirm availability within a few hours and send you a Yoco deposit link.</p>
+
+        <div class="field">
+          <label>Deposit percentage</label>
+          <p class="note" style="margin:.2rem 0 .7rem;">Your deposit secures the date; the balance is due 14 working days before your wedding. Amounts include the card processing fee.</p>
+          <div style="display:flex;flex-direction:column;gap:.55rem;" id="depositOptions">
+            <label style="display:flex;align-items:center;gap:.7rem;cursor:pointer;"><input type="radio" name="depositPct" value="25" style="width:auto;"> <span><strong>25%</strong> — <span class="deposit-amt" data-pct="25">calculating…</span></span></label>
+            <label style="display:flex;align-items:center;gap:.7rem;cursor:pointer;"><input type="radio" name="depositPct" value="50" checked style="width:auto;"> <span><strong>50%</strong> — <span class="deposit-amt" data-pct="50">calculating…</span></span></label>
+            <label style="display:flex;align-items:center;gap:.7rem;cursor:pointer;"><input type="radio" name="depositPct" value="100" style="width:auto;"> <span><strong>100%</strong> — <span class="deposit-amt" data-pct="100">calculating…</span></span></label>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:1.1rem;">
+          <label style="display:flex;align-items:flex-start;gap:.7rem;font-size:.92rem;color:#5c5048;cursor:pointer;">
+            <input type="checkbox" id="consentBooking" style="width:auto;margin-top:.18em;flex-shrink:0;">
+            <span>I consent to Lustique Co. collecting and storing my personal information to process this booking, in accordance with the <a href="privacy.html" style="color:var(--burgundy);">privacy policy</a>. Required.</span>
+          </label>
+        </div>
+
+        <div class="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} style="margin:1.1rem 0;"></div>
+
+        <button type="button" class="btn btn-primary" id="requestBooking" style="width:100%;justify-content:center;background:var(--burgundy);">Request to book →</button>
+        <p class="note center" id="bookingStatus" role="alert" style="margin-top:1rem;color:var(--burgundy);"></p>
+      </div>
     </form>
   </div></section>
   <script>import "../scripts/estimator.ts";</script>
   <script>import "../scripts/enquiry.ts";</script>
+  <script>import "../scripts/booking-request.ts";</script>
 </BaseLayout>

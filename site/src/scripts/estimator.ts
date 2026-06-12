@@ -45,7 +45,7 @@ function updateLengthHint(): void {
   else counter.textContent = `${placed} placed — ${placed - n} more than need hair`;
 }
 
-function readInput(): EstimateInput {
+export function readInput(): EstimateInput {
   const occasion = val("occasion", "wedding") as Occasion;
   // Only weddings collect a venue. Events & lessons settle travel in the personal quote,
   // so it's always 0 in their live estimate (no stale wedding travel leaks in either).

@@ -1,6 +1,3 @@
 # ACTIVATION — Lustique
 
-`next` reads this. ▶ IMMEDIATE NEXT:
-🔵 Opus plan — S2 request-to-book endpoint. Write the plan for `docs/superpowers/plans/` using superpowers:writing-plans. Spec: `docs/superpowers/specs/2026-06-05-lustique-booking-core-design.md` (§5 flow, §9 request endpoint, §10 validation, §12 security).
-
-Full state: read `SESSION_HANDOFF.md` in this folder.
+`next` reads this, then defers to the real baton. The single source of the rolling ▶ NEXT is **`SESSION_HANDOFF.md`** in this folder — always read it for the current step. This file is only a stable pointer, never the ▶ NEXT itself (it kept going stale whenever it tried to be).

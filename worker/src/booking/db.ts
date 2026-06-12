@@ -42,7 +42,10 @@ export async function getBookingByIdempotencyKey(
     headers: headers(env),
   });
   if (!r.ok) throw new Error(`getBookingByIdempotencyKey ${r.status}`);
-  return ((await r.json()) as Array<{ id: string; reference: string }>)[0]!;
+  const rows = (await r.json()) as Array<{ id: string; reference: string }>;
+  const row = rows[0];
+  if (!row) throw new Error(`getBookingByIdempotencyKey: row not found for key ${key}`);
+  return row;
 }
 
 /** PATCH a booking by id; returns the updated row. */
@@ -105,4 +108,26 @@ export async function insertAudit(
 /** Daily keep-warm: a tiny read resets the free-tier 7-day pause clock (spec §2). */
 export async function keepWarm(env: DbEnv, f: typeof fetch = fetch): Promise<void> {
   await f(rest(env, "bookings?select=id&limit=1"), { headers: headers(env) });
+}
+
+/**
+ * Count active bookings (not expired/declined/cancelled) on a given wedding date.
+ * Used for the same-date warning in Zandeline's confirm email (spec §10).
+ * PostgREST aggregate: select=count() returns [{ count: "N" }].
+ */
+export async function countBookingsOnDate(
+  env: DbEnv,
+  weddingDate: string, // "YYYY-MM-DD"
+  f: typeof fetch = fetch,
+): Promise<number> {
+  const r = await f(
+    rest(
+      env,
+      `bookings?select=count()&wedding_date=eq.${encodeURIComponent(weddingDate)}&status=not.in.(expired,declined,cancelled)`,
+    ),
+    { headers: headers(env) },
+  );
+  if (!r.ok) throw new Error(`countBookingsOnDate ${r.status}`);
+  const rows = (await r.json()) as Array<{ count: string }>;
+  return parseInt(rows[0]?.count ?? "0", 10);
 }
