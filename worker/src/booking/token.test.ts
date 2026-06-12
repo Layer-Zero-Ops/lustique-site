@@ -1,6 +1,6 @@
 // worker/src/booking/token.test.ts
 import { describe, it, expect } from "vitest";
-import { signToken, hashToken, verifyToken } from "./token";
+import { signToken, hashToken, verifyToken, signActionToken, verifyActionToken } from "./token";
 
 const ID = "550e8400-e29b-41d4-a716-446655440000";
 const EXP = new Date("2026-07-01T00:00:00Z");
@@ -94,5 +94,31 @@ describe("signToken — decoded payload", () => {
     expect(embeddedId).toBe(ID);
     expect(embeddedExp).toBe(EXP.toISOString());
     expect(hmac).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("action tokens (purpose-scoped)", () => {
+  const SECRET = "signing-secret";
+  const ID = "11111111-2222-3333-4444-555555555555";
+
+  it("round-trips with the matching purpose", async () => {
+    const t = await signActionToken(ID, new Date(Date.now() + 60_000), SECRET, "deposit");
+    const v = await verifyActionToken(t, SECRET, "deposit");
+    expect(v?.bookingId).toBe(ID);
+  });
+
+  it("rejects a token verified under a different purpose", async () => {
+    const t = await signActionToken(ID, new Date(Date.now() + 60_000), SECRET, "deposit");
+    expect(await verifyActionToken(t, SECRET, "refund")).toBeNull();
+  });
+
+  it("a 3-part confirm token never verifies as an action token", async () => {
+    const confirm = await signToken(ID, new Date(Date.now() + 60_000), SECRET);
+    expect(await verifyActionToken(confirm, SECRET, "deposit")).toBeNull();
+  });
+
+  it("rejects a tampered action token", async () => {
+    const t = await signActionToken(ID, new Date(Date.now() + 60_000), SECRET, "deposit");
+    expect(await verifyActionToken(t + "x", SECRET, "deposit")).toBeNull();
   });
 });

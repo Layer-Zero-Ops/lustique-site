@@ -101,3 +101,39 @@ export async function hashToken(token: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", enc.encode(token));
   return toHex(buf);
 }
+
+/**
+ * Sign a PURPOSE-scoped, single-action token (e.g. "deposit" for the EFT
+ * mark-paid link). 4-part payload `purpose|booking_id|exp|hmac` — structurally
+ * distinct from the 3-part confirm token, so the two can never be cross-replayed.
+ */
+export async function signActionToken(
+  bookingId: string,
+  expiresAt: Date,
+  secret: string,
+  purpose: string,
+): Promise<string> {
+  const exp = expiresAt.toISOString();
+  const payload = `${purpose}|${bookingId}|${exp}`;
+  const hmac = await hmacHex(payload, secret);
+  return toBase64Url(`${payload}|${hmac}`);
+}
+
+/** Verify a purpose-scoped action token. Authenticity only — caller checks expiry. */
+export async function verifyActionToken(
+  token: string,
+  secret: string,
+  purpose: string,
+): Promise<{ bookingId: string; expiresAt: Date } | null> {
+  let decoded: string;
+  try { decoded = fromBase64Url(token); } catch { return null; }
+  const parts = decoded.split("|");
+  if (parts.length !== 4) return null;
+  const [p, bookingId, exp, mac] = parts as [string, string, string, string];
+  if (p !== purpose) return null;
+  const expected = await hmacHex(`${p}|${bookingId}|${exp}`, secret);
+  if (!timingSafeEqualHex(mac, expected)) return null;
+  const expiresAt = new Date(exp);
+  if (Number.isNaN(expiresAt.getTime())) return null;
+  return { bookingId, expiresAt };
+}
