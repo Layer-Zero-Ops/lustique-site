@@ -9,9 +9,9 @@
  *
  * v1 takes deposits by EFT (no Yoco). S4 swaps the EFT block for a Yoco pay-link.
  */
-import { getBookingByTokenHash, transitionRequestedBooking, type ConfirmBookingRow } from "./db";
+import { getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, type ConfirmBookingRow } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
-import { verifyToken, hashToken } from "./token";
+import { verifyToken, hashToken, signActionToken, verifyActionToken } from "./token";
 
 export interface BookingConfirmEnv extends AuditEnv {
   BREVO_API_KEY: string;
@@ -23,6 +23,8 @@ export interface BookingConfirmEnv extends AuditEnv {
   EFT_ACCOUNT_NO: string;
   EFT_BRANCH_CODE: string;
 }
+
+const MARK_PAID_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 const esc = (s = "") =>
   s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] as string));
@@ -195,6 +197,14 @@ export async function handleBookingConfirm(
     } else {
       await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
         "Your date is available — secure it with your deposit · Lustique Co.", confirmEmailHtml(env, b), fetchImpl);
+      const markPaidToken = await signActionToken(b.id, new Date(Date.now() + MARK_PAID_TTL_MS), env.SIGNING_SECRET, "deposit");
+      const markPaidUrl = `${origin}/api/booking/mark-paid?token=${encodeURIComponent(markPaidToken)}`;
+      await brevoEmail(env, { email: env.NOTIFY_EMAIL, name: "Lustique" },
+        `Confirmed — awaiting EFT · ${b.bride_name} · ${b.wedding_date}`,
+        `<p><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — confirmed. The bride has her EFT deposit details (${zar(b.deposit_net_cents)}, ref <strong>${esc(b.reference)}</strong>).</p>
+<p style="margin:1.2rem 0;"><a href="${esc(markPaidUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">When the EFT lands — mark deposit received &amp; secure her date</a></p>
+<p style="font-size:.88rem;color:#8a7d72;">Only click once the deposit reflects in the account. This secures the date and emails her the confirmation. Link valid 90 days.</p>`,
+        fetchImpl);
     }
     await writeAudit(env, { bookingId: b.id, eventType: decline ? "confirm.declined" : "confirm.confirmed", payload: { reference: b.reference } }, fetchImpl);
   } catch {
@@ -202,4 +212,83 @@ export async function handleBookingConfirm(
   }
 
   return redirect(`${origin}/booking-${decline ? "declined" : "confirmed"}.html?ref=${encodeURIComponent(b.reference)}`);
+}
+
+type ConfirmedLoad =
+  | { ok: true; booking: ConfirmBookingRow }
+  | { ok: false; reason: "invalid" | "expired" | "handled" };
+
+async function loadConfirmedBooking(env: BookingConfirmEnv, token: string, f: typeof fetch): Promise<ConfirmedLoad> {
+  const v = await verifyActionToken(token, env.SIGNING_SECRET, "deposit");
+  if (!v) return { ok: false, reason: "invalid" };
+  if (v.expiresAt.getTime() <= Date.now()) return { ok: false, reason: "expired" };
+  const booking = await getBookingById(env, v.bookingId, f);
+  if (!booking) return { ok: false, reason: "invalid" };
+  if (booking.status !== "confirmed") return { ok: false, reason: "handled" };
+  return { ok: true, booking };
+}
+
+function markPaidPageBody(b: ConfirmBookingRow, token: string): string {
+  return `<h1>Record deposit received</h1>
+<p>Confirm you've received <strong>${esc(b.bride_name)}</strong>'s EFT deposit. This secures her date and emails her the confirmation.</p>
+<table>
+<tr><td class="k">Bride</td><td><strong>${esc(b.bride_name)}</strong></td></tr>
+<tr><td class="k">Date</td><td><strong>${esc(b.wedding_date)}</strong></td></tr>
+<tr><td class="k">Deposit</td><td><strong>${zar(b.deposit_net_cents)}</strong></td></tr>
+<tr><td class="k">Reference</td><td>${esc(b.reference)}</td></tr>
+</table>
+<div class="actions">
+<form method="POST" action="/api/booking/mark-paid"><input type="hidden" name="token" value="${esc(token)}"><button class="confirm" type="submit">Deposit received — secure her date</button></form>
+</div>
+<p class="muted" style="margin-top:1.4rem;">Only do this once the money reflects in the account.</p>`;
+}
+
+const depositRecordedHtml = (b: ConfirmBookingRow) =>
+  pageShell("Deposit recorded", `<h1>Deposit recorded ✓</h1><p><strong>${esc(b.bride_name)}</strong>'s date <strong>${esc(b.wedding_date)}</strong> is now secured, and she's been emailed her confirmation. You can close this tab.</p>`);
+
+function depositSecuredEmailHtml(b: ConfirmBookingRow): string {
+  return `<p>Hi ${esc(b.bride_name)},</p>
+<p>🎉 Your deposit is in — <strong>${esc(b.wedding_date)}</strong> is officially secured. We can't wait.</p>
+<p>We've received <strong>${zar(b.deposit_net_cents)}</strong> (ref ${esc(b.reference)}). The balance of <strong>${zar(b.balance_net_cents)}</strong> is payable closer to your day — we'll send a reminder.</p>
+<p>We'll be in touch soon to start planning the details.</p>
+<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+}
+
+/** GET — render-only deposit-received page. */
+export async function renderMarkPaidPage(env: BookingConfirmEnv, req: Request, fetchImpl: typeof fetch = fetch): Promise<Response> {
+  const token = new URL(req.url).searchParams.get("token") ?? "";
+  if (!token) return htmlResponse(invalidHtml(), 400);
+  const loaded = await loadConfirmedBooking(env, token, fetchImpl);
+  if (!loaded.ok) {
+    if (loaded.reason === "expired") return htmlResponse(expiredHtml(), 410);
+    if (loaded.reason === "handled") return htmlResponse(handledHtml(), 200);
+    return htmlResponse(invalidHtml(), 400);
+  }
+  return htmlResponse(pageShell("Record deposit", markPaidPageBody(loaded.booking, token)));
+}
+
+/** POST — guarded confirmed→deposit_paid, email the bride "secured". */
+export async function handleMarkPaid(env: BookingConfirmEnv, req: Request, fetchImpl: typeof fetch = fetch): Promise<Response> {
+  const form = await req.formData().catch(() => null);
+  const token = String(form?.get("token") ?? "");
+  if (!token) return htmlResponse(invalidHtml(), 400);
+
+  const loaded = await loadConfirmedBooking(env, token, fetchImpl);
+  if (!loaded.ok) {
+    if (loaded.reason === "handled") return htmlResponse(handledHtml(), 200);
+    return htmlResponse(loaded.reason === "expired" ? expiredHtml() : invalidHtml(), loaded.reason === "expired" ? 410 : 400);
+  }
+
+  const b = loaded.booking;
+  const updated = await transitionBooking(env, b.id, "confirmed", { status: "deposit_paid", deposit_paid_at: new Date().toISOString() }, fetchImpl);
+  if (!updated) return htmlResponse(handledHtml(), 200);
+
+  try {
+    await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
+      "Your date is secured 🎉 · Lustique Co.", depositSecuredEmailHtml(b), fetchImpl);
+    await writeAudit(env, { bookingId: b.id, eventType: "payment.deposit-recorded", payload: { reference: b.reference } }, fetchImpl);
+  } catch {
+    await writeAudit(env, { bookingId: b.id, eventType: "payment.email-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
+  }
+  return htmlResponse(depositRecordedHtml(b));
 }
