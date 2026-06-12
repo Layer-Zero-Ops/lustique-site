@@ -1,0 +1,27 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+const title = "Booking Confirmed — Lustique Co.";
+const desc = "This booking has been confirmed and the bride has been sent her deposit details.";
+---
+<BaseLayout slug="booking-confirmed.html" title={title} desc={desc}>
+  <section class="page-hero">
+    <span class="eyebrow">Confirmed</span>
+    <h1>Booking confirmed.</h1>
+    <p id="refLine">The bride has been emailed her EFT deposit details. Once the deposit lands, her date is secured.</p>
+  </section>
+  <section class="section"><div class="wrap prose">
+    <p class="note center" style="margin-top:1rem;">You can close this tab. The booking now shows as <strong>confirmed</strong>.</p>
+    <p class="note center" style="margin-top:2.4rem;">Blessings,<br>The Lustique Cosmetology Team</p>
+  </div></section>
+
+  <script is:inline>
+    (function () {
+      const ref = new URLSearchParams(window.location.search).get("ref");
+      if (ref && /^LUS-\d{4}-[A-Z0-9]+$/.test(ref)) {
+        const line = document.getElementById("refLine");
+        if (line) line.innerHTML =
+          "Booking <strong>" + ref + "</strong> is confirmed. The bride has been emailed her EFT deposit details; once it lands, her date is secured.";
+      }
+    })();
+  </script>
+</BaseLayout>

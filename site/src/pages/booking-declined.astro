@@ -1,0 +1,27 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+const title = "Booking Declined — Lustique Co.";
+const desc = "This booking has been declined and the bride has been notified.";
+---
+<BaseLayout slug="booking-declined.html" title={title} desc={desc}>
+  <section class="page-hero">
+    <span class="eyebrow">Declined</span>
+    <h1>Booking declined.</h1>
+    <p id="refLine">The bride has been sent a gentle note letting her know.</p>
+  </section>
+  <section class="section"><div class="wrap prose">
+    <p class="note center" style="margin-top:1rem;">You can close this tab. No further action is needed.</p>
+    <p class="note center" style="margin-top:2.4rem;">Blessings,<br>The Lustique Cosmetology Team</p>
+  </div></section>
+
+  <script is:inline>
+    (function () {
+      const ref = new URLSearchParams(window.location.search).get("ref");
+      if (ref && /^LUS-\d{4}-[A-Z0-9]+$/.test(ref)) {
+        const line = document.getElementById("refLine");
+        if (line) line.innerHTML =
+          "Booking <strong>" + ref + "</strong> has been declined. The bride has been sent a gentle note letting her know.";
+      }
+    })();
+  </script>
+</BaseLayout>
