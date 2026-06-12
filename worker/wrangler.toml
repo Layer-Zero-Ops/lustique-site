@@ -2,19 +2,27 @@ name = "lustique-form-handler"
 main = "src/index.ts"
 compatibility_date = "2026-06-04"
 
+# Route — intercepts /api/* on the live domain while Pages serves everything else.
+# Requires the lustiqueco.co.za zone to exist in this Cloudflare account first.
+routes = [{ pattern = "lustiqueco.co.za/api/*", zone_name = "lustiqueco.co.za" }]
+
 # Public, non-secret config:
 [vars]
-ALLOWED_ORIGIN = "https://lustiqueco.co.za"   # tighten to the live site origin at deploy
+ALLOWED_ORIGIN = "https://lustiqueco.co.za"
 
 # Secrets — set with `wrangler secret put NAME`, NEVER committed:
-#   BREVO_API_KEY         — Brevo transactional-email key (from Zandeline's Brevo, via the secure link)
-#   NOTIFY_EMAIL          — where enquiries land + the verified Brevo sender, e.g. info@lustiqueco.co.za
+#   BREVO_API_KEY         — Brevo transactional-email key
+#   NOTIFY_EMAIL          — Brevo-verified sender + Zandeline's inbox (e.g. info@lustiqueco.co.za)
 #   SUPABASE_URL          — Supabase project URL (e.g. https://abc.supabase.co)
 #   SUPABASE_SERVICE_KEY  — Supabase service-role key (bypasses RLS)
-#   YOCO_SECRET_KEY       — Yoco API secret key
-#   YOCO_WEBHOOK_SECRET   — Yoco webhook signing secret
-#   SIGNING_SECRET        — HMAC secret for confirm-gate tokens (S3)
+#   SIGNING_SECRET        — HMAC secret for confirm + mark-paid tokens (random 32-byte hex)
 #   TURNSTILE_SECRET      — Cloudflare Turnstile secret key (S2 bot protection)
+#   EFT_BANK              — Bank name shown in the bride's payment-invitation email
+#   EFT_ACCOUNT_NAME      — Account holder name
+#   EFT_ACCOUNT_NO        — Account number
+#   EFT_BRANCH_CODE       — Branch / sort code
+#   YOCO_SECRET_KEY       — Yoco API secret key (S4-v2, not yet deployed)
+#   YOCO_WEBHOOK_SECRET   — Yoco webhook signing secret (S4-v2, not yet deployed)
 
 # Booking core (S1):
 [[r2_buckets]]
