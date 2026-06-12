@@ -1,6 +1,7 @@
 import { keepWarm } from "./booking/db";
 import { writeAudit } from "./booking/audit";
 import { handleBookingRequest } from "./booking/request";
+import { renderConfirmPage, handleBookingConfirm } from "./booking/confirm";
 
 /* ============================================================
    LUSTIQUE CO. — form-handler Worker (the stable API boundary)
@@ -28,6 +29,11 @@ export interface Env {
   YOCO_WEBHOOK_SECRET: string;
   SIGNING_SECRET: string;
   TURNSTILE_SECRET: string;
+  // EFT deposit details (v1 — set at deploy; S4 replaces with Yoco)
+  EFT_BANK: string;
+  EFT_ACCOUNT_NAME: string;
+  EFT_ACCOUNT_NO: string;
+  EFT_BRANCH_CODE: string;
   AUDIT: { put(key: string, value: string): Promise<unknown> };
 }
 
@@ -56,7 +62,7 @@ const cap = (s = "", n = 600) => (s.length > n ? s.slice(0, n) + "…" : s);
 function corsHeaders(origin: string): HeadersInit {
   return {
     "access-control-allow-origin": origin,
-    "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
     "access-control-allow-headers": "content-type",
   };
 }
@@ -109,6 +115,15 @@ export default {
     // POST /api/booking/request — request-to-book endpoint (S2)
     if (req.method === "POST" && url.pathname === "/api/booking/request") {
       return handleBookingRequest(env, req);
+    }
+
+    // GET /api/booking/confirm?token= — render-only confirm page (S3, prefetch-safe §12)
+    if (req.method === "GET" && url.pathname === "/api/booking/confirm") {
+      return renderConfirmPage(env, req);
+    }
+    // POST /api/booking/confirm — confirm/decline transition (S3)
+    if (req.method === "POST" && url.pathname === "/api/booking/confirm") {
+      return handleBookingConfirm(env, req);
     }
 
     if (req.method !== "POST" || url.pathname !== "/api/enquiry") {
