@@ -213,3 +213,19 @@ export async function countBookingsOnDate(
   const rows = (await r.json()) as Array<{ count: string }>;
   return parseInt(rows[0]?.count ?? "0", 10);
 }
+
+/** Bookings due a balance reminder: deposit_paid, not yet reminded, real balance, wedding within window. */
+export async function listBookingsDueForBalanceReminder(
+  env: DbEnv,
+  todayYMD: string,
+  windowEndYMD: string,
+  f: typeof fetch = fetch,
+): Promise<Array<ConfirmBookingRow & { balance_reminder_sent_at: string | null }>> {
+  const q =
+    `bookings?status=eq.deposit_paid&balance_reminder_sent_at=is.null&balance_net_cents=gt.0` +
+    `&wedding_date=gte.${todayYMD}&wedding_date=lte.${windowEndYMD}` +
+    `&select=${CONFIRM_COLS},balance_reminder_sent_at`;
+  const r = await f(rest(env, q), { headers: headers(env) });
+  if (!r.ok) throw new Error(`listBookingsDueForBalanceReminder ${r.status}`);
+  return (await r.json()) as Array<ConfirmBookingRow & { balance_reminder_sent_at: string | null }>;
+}

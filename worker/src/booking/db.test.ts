@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking } from "./db";
+import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, listBookingsDueForBalanceReminder } from "./db";
 
 const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc" };
 const res = (body: unknown, status = 200) =>
@@ -133,5 +133,25 @@ describe("countBookingsOnDate", () => {
   it("returns 0 when PostgREST returns an empty array (defensive guard)", async () => {
     const f = vi.fn().mockResolvedValue(res([]));
     expect(await countBookingsOnDate(env, "2026-12-25", f as unknown as typeof fetch)).toBe(0);
+  });
+});
+
+describe("listBookingsDueForBalanceReminder", () => {
+  it("queries deposit_paid, unsent, balance>0, within the wedding-date window", async () => {
+    const rows = [{ id: "b1", status: "deposit_paid", wedding_date: "2026-07-01", balance_reminder_sent_at: null, balance_net_cents: 441300 }];
+    const f = vi.fn().mockResolvedValue(res(rows));
+    const got = await listBookingsDueForBalanceReminder(env, "2026-06-13", "2026-07-04", f as unknown as typeof fetch);
+    expect(got).toEqual(rows);
+    const url = f.mock.calls[0]![0] as string;
+    expect(url).toContain("status=eq.deposit_paid");
+    expect(url).toContain("balance_reminder_sent_at=is.null");
+    expect(url).toContain("balance_net_cents=gt.0");
+    expect(url).toContain("wedding_date=gte.2026-06-13");
+    expect(url).toContain("wedding_date=lte.2026-07-04");
+    expect(url).toContain("balance_reminder_sent_at"); // present in the select list
+  });
+  it("returns [] when nothing is due", async () => {
+    const f = vi.fn().mockResolvedValue(res([]));
+    expect(await listBookingsDueForBalanceReminder(env, "2026-06-13", "2026-07-04", f as unknown as typeof fetch)).toEqual([]);
   });
 });
