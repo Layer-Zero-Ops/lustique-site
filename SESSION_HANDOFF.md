@@ -1,21 +1,14 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** S5 balance cron (plan ✅ → build) ∥ Phase C go-live (account-gated) · **Updated:** 2026-06-13 (Opus — S5 planned; S4 ledger reconciled)
+**Lane:** 🔵 Plan (Opus) · **Phase:** S5 ✅ shipped → Opus to reconcile + plan next · **Updated:** 2026-06-13 (Sonnet — S5 built; branch claude/s5-balance-cron ready to merge)
 
 ## ▶ NEXT
-🟢 **Build S5 — balance automation** (unblocked; no account access needed). Execute
-`docs/superpowers/plans/2026-06-13-lustique-booking-s5-balance-cron.md` task-by-task (TDD,
-5 tasks, commit per task) via `superpowers:executing-plans` (or `subagent-driven-development`).
+🔵 **Opus — reconcile + plan next layer.** S5 is built (branch `claude/s5-balance-cron`, 83/83 green, 54.66 KiB bundle clean). Merge + curate the ledger, then decide: S6 email polish? or go straight to waiting on Phase C account prerequisites?
 
-S5 = *14 working days before the wedding, the daily cron emails the bride her outstanding EFT
-balance; Zandeline marks it received to move the booking `deposit_paid → settled`.* It mirrors
-the S4 EFT `mark-paid` loop one state later (token purpose `"balance"`). **No migration, no new
-secrets** (`settled_at` + `balance_reminder_sent_at` already in the schema; cron already wired) —
-so it builds + unit-tests on today's `main`, fully in parallel with the launch track below.
-
-- Create `worker/src/booking/balance.ts` (+ test); add `listBookingsDueForBalanceReminder` to `db.ts`; wire `GET|POST /api/booking/mark-balance-paid` + call `balanceSweep(env)` in `scheduled()`.
-- Verify (lean): `cd worker && npm test` green · `npx wrangler deploy --dry-run` clean · grep the new route/purpose/stamp.
-- Live end-to-end smoke is **deferred to the account-gated go-live** (same blocked path as Phase C's smoke).
+Merge command (once on `main`):
+```
+git checkout main && git merge --ff-only claude/s5-balance-cron && git push
+```
 
 ## 🛑 Launch (Phase C go-live) — account-gated, PARALLEL track (does not block S5)
 All app code is ✅ on `main`. Go-live is blocked only on these human prerequisites:
@@ -55,15 +48,14 @@ confirmation + `deposit_paid`. Yoco's webhook will automate mark-paid (deposit +
 - **S2 request-to-book ✅** (merged `main` 2026-06-12): token sign/hash, `countBookingsOnDate`, `handleBookingRequest`, quote form, booking-received page.
 - **S3 confirm gate ✅** (merged `main` 2026-06-12): `verifyToken`, guarded `requested→confirmed|declined`, render-only confirm page, EFT deposit email, thank-you pages. 56 tests.
 - **S4 EFT payments A+B ✅** (merged `main` 2026-06-12): confirm email = payment invitation; purpose-scoped action tokens; `getBookingById` + generalized `transitionBooking`; EFT `mark-paid` (`confirmed→deposit_paid`) + routes. 71 tests, bundle 42.56 KiB. `wrangler.toml` Phase C config (live route + 10 secret slots) also on `main`.
-- **S5 balance cron — PLANNED ✅** (Opus 2026-06-13): plan `docs/superpowers/plans/2026-06-13-lustique-booking-s5-balance-cron.md`. Ready to build (see ▶ NEXT).
+- **S5 balance cron — BUILT ✅** (Sonnet 2026-06-13): `balance.ts` (GET+POST+sweep) · `listBookingsDueForBalanceReminder` in `db.ts` · routes + cron wired in `index.ts`. 83 tests, 54.66 KiB. Branch `claude/s5-balance-cron` — ready to merge to `main`.
 
 ## Build lane / branch
-- On `main`, clean. S2/S3/S4 all merged (fast-forward).
-- S5 builds on a fresh branch off `main` (e.g. `claude/s5-balance-cron`).
-- ⚠️ Stale worktree `infallible-satoshi-95b8fb` (branch has 0 unique commits) — prune once Claude isn't running from it: `git worktree remove .claude/worktrees/infallible-satoshi-95b8fb && git branch -d claude/infallible-satoshi-95b8fb`.
+- `claude/s5-balance-cron` — 5 commits, ready to FF-merge to `main`.
+- ⚠️ Stale worktree `infallible-satoshi-95b8fb` — prune once Claude isn't running from it: `git worktree remove .claude/worktrees/infallible-satoshi-95b8fb && git branch -d claude/infallible-satoshi-95b8fb`.
 
 ## Booking build sequence
-S1 ✅ → S2 ✅ → S3 ✅ → **S4 EFT v1 ✅ (deploy-gated) · Yoco v2 later** → **S5 balance cron (plan ✅ → building)** → S6 emails (Brevo polish)
+S1 ✅ → S2 ✅ → S3 ✅ → S4 EFT v1 ✅ → **S5 balance cron ✅** → S6 emails (Brevo polish · deferred) · Yoco v2 (later)
 
 ## Pointers
 - S5 plan (next ▶): `docs/superpowers/plans/2026-06-13-lustique-booking-s5-balance-cron.md`
