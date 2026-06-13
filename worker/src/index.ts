@@ -2,6 +2,7 @@ import { keepWarm } from "./booking/db";
 import { writeAudit } from "./booking/audit";
 import { handleBookingRequest } from "./booking/request";
 import { renderConfirmPage, handleBookingConfirm, renderMarkPaidPage, handleMarkPaid } from "./booking/confirm";
+import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 
 /* ============================================================
    LUSTIQUE CO. — form-handler Worker (the stable API boundary)
@@ -135,6 +136,15 @@ export default {
       return handleMarkPaid(env, req);
     }
 
+    // GET /api/booking/mark-balance-paid?token= — render-only balance-received page (S5, prefetch-safe)
+    if (req.method === "GET" && url.pathname === "/api/booking/mark-balance-paid") {
+      return renderMarkBalancePaidPage(env, req);
+    }
+    // POST /api/booking/mark-balance-paid — record EFT balance → settled (S5)
+    if (req.method === "POST" && url.pathname === "/api/booking/mark-balance-paid") {
+      return handleMarkBalancePaid(env, req);
+    }
+
     if (req.method !== "POST" || url.pathname !== "/api/enquiry") {
       return json({ ok: false, error: "Not found" }, 404, origin);
     }
@@ -196,13 +206,13 @@ export default {
     }
   },
 
-  // Daily cron (wrangler.toml). v1: keep the free-tier DB warm + leave an audit breadcrumb.
-  // The balance-reminder sweep + token expiry land in S5.
+  // Daily cron (wrangler.toml): keep-warm + balance-reminder sweep (S5).
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       (async () => {
         await keepWarm(env);
         await writeAudit(env, { bookingId: null, eventType: "cron.keepwarm", payload: {} });
+        await balanceSweep(env);
       })().catch(() => {}), // never throw out of the scheduled handler
     );
   },
