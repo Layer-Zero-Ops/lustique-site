@@ -1,9 +1,9 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 Plan (Opus) · **Phase:** S5 ✅ merged to `main` (local-only) → Opus planning next layer · **Updated:** 2026-06-13 (Opus — reconciled S5)
+**Lane:** 🟢 Build (Sonnet) next · **Phase:** Launch-readiness planned → Sonnet to build · **Updated:** 2026-06-13 (Opus — reconciled S5; planned launch-readiness pass)
 
 ## ▶ NEXT
-🔵 **Opus — plan the next layer.** Reconcile done: S5 FF-merged into local `main` (`b0575e3`, 83/83 green, 54.66 KiB). Pending decision (Pieter): **S6 email polish** (keep the build lane warm) vs **pause until Phase C account prereqs land**. Once chosen → brainstorm + write the plan, prime ▶ NEXT, 🔵 hand to Sonnet.
+🟢 **Sonnet — build the launch-readiness pass** per `docs/superpowers/plans/2026-06-13-lustique-launch-readiness.md` (4 tasks · fresh branch off `main` · commit per task · subagent-driven-development recommended). Spec: `docs/superpowers/specs/2026-06-13-lustique-launch-readiness-design.md`. Deliverables: a `SMOKE_BASE_URL`-gated live smoke walk (`npm run smoke`) driving `confirmed→deposit_paid→settled` against the deployed worker, extracted pure helpers (TDD'd), and `docs/RUNBOOK-go-live.md`. Verify: `cd worker && npx vitest run` green (walk skips) + `npx wrangler deploy --dry-run` clean. No new deps, no worker source-behaviour change.
 
 > ⚠️ **`main` is local-only — push deferred to launch.** No upstream is set; `origin/main` is still the old `384ecbb` (Pass-1). All of S1–S5 is intentionally unpushed — the first push to GitHub happens at go-live when Cloudflare Pages is wired (Launch step 4). Do **not** push `main` as routine reconcile.
 
@@ -44,6 +44,7 @@ All app code is ✅ on local `main`. Go-live is blocked only on these human prer
 - **S3 confirm gate ✅** — `verifyToken`, guarded `requested→confirmed|declined`, confirm page, EFT deposit email, thank-you pages. 56 tests.
 - **S4 EFT payments A+B ✅** — confirm email = payment invitation; purpose-scoped action tokens; `getBookingById` + generalized `transitionBooking`; EFT `mark-paid` (`confirmed→deposit_paid`) + routes; `wrangler.toml` Phase C config (live route + 10 secret slots). 71 tests, 42.56 KiB.
 - **S5 balance cron ✅ merged to `main` (local) 2026-06-13** — `balance.ts` (GET+POST+sweep) · `listBookingsDueForBalanceReminder` in `db.ts` · routes + `balanceSweep` cron in `index.ts`. 14-working-day EFT balance reminder + `deposit_paid→settled` mark-balance-paid. 83 tests, 54.66 KiB. Commits `b1b68ba..b0575e3`.
+- **Launch-readiness pass — PLANNED ✅** (Opus 2026-06-13): chosen over S6/pause. Spec + plan written (`docs/superpowers/{specs,plans}/2026-06-13-lustique-launch-readiness*.md`). A `SMOKE_BASE_URL`-gated live smoke walk + extracted TDD'd helpers + an authoritative `docs/RUNBOOK-go-live.md`. Red-teamed before speccing (audit dual-write, confirm-token-hash seed, 303 manual-redirect, on-delete-set-null cleanup). Ready for Sonnet.
 
 ## Build lane / branch
 - `main` @ `b0575e3` (local-only — see push note in ▶ NEXT).
@@ -53,11 +54,12 @@ All app code is ✅ on local `main`. Go-live is blocked only on these human prer
   - merged feature branches: `claude/s2-booking-request` · `claude/s3-booking-confirm` · `claude/s4-eft-payments`
 
 ## Booking build sequence
-S1 ✅ → S2 ✅ → S3 ✅ → S4 EFT v1 ✅ → S5 balance cron ✅ → **S6 emails (Brevo polish · candidate next)** · Yoco v2 (later)
+S1 ✅ → S2 ✅ → S3 ✅ → S4 EFT v1 ✅ → S5 balance cron ✅ → **Launch-readiness (planned → build next)** · S6 emails (Brevo polish · later) · Yoco v2 (later)
 
 ## Pointers
 - Spec: `docs/superpowers/specs/2026-06-05-lustique-booking-core-design.md` *(balance section is Yoco-era — superseded by EFT-first)*
 - Plans: `docs/superpowers/plans/` — S1–S5 + go-live (`2026-06-12-lustique-eft-payments-and-go-live.md`, `2026-06-13-lustique-booking-s5-balance-cron.md`)
+- Launch-readiness (▶ build next): spec `docs/superpowers/specs/2026-06-13-lustique-launch-readiness-design.md` + plan `docs/superpowers/plans/2026-06-13-lustique-launch-readiness.md`
 - Key docs: `PLAN.md` · `BRAND.md` · `PRICING.md` · `ARCHITECTURE.md` · `STANDARDS.md` · `SECURITY.md` · `SETUP.md`
 
 ## ⇄ Umbrella  (project ↔ Studio Manager · empty unless pending · see _ops/BRIDGE-PROTOCOL.md)
