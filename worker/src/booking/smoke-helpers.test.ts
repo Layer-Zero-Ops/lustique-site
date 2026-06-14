@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildSmokeBooking } from "./smoke-helpers";
+import { buildSmokeBooking, evaluateStep } from "./smoke-helpers";
 import { hashToken, verifyToken } from "./token";
 
 describe("buildSmokeBooking", () => {
@@ -24,5 +24,38 @@ describe("buildSmokeBooking", () => {
     const { id, confirmToken } = await buildSmokeBooking("s", "a@b.com");
     const v = await verifyToken(confirmToken, "s");
     expect(v?.bookingId).toBe(id);
+  });
+});
+
+const exp = { label: "confirm", status: "confirmed", timestampField: "confirmed_at", successEvent: "confirm.confirmed" };
+
+describe("evaluateStep", () => {
+  it("passes when status, timestamp and success audit are present and no email-failed", () => {
+    const fails = evaluateStep(exp, {
+      row: { status: "confirmed", confirmed_at: "2026-06-13T00:00:00Z" },
+      auditEvents: [{ event_type: "confirm.confirmed" }],
+    });
+    expect(fails).toEqual([]);
+  });
+
+  it("flags a missing timestamp", () => {
+    const fails = evaluateStep(exp, {
+      row: { status: "confirmed", confirmed_at: null },
+      auditEvents: [{ event_type: "confirm.confirmed" }],
+    });
+    expect(fails.join()).toContain("confirmed_at not set");
+  });
+
+  it("flags an email-failed audit even when status advanced", () => {
+    const fails = evaluateStep(exp, {
+      row: { status: "confirmed", confirmed_at: "t" },
+      auditEvents: [{ event_type: "confirm.confirmed" }, { event_type: "confirm.email-failed" }],
+    });
+    expect(fails.join()).toContain("email-failed");
+  });
+
+  it("flags a wrong status and a missing booking", () => {
+    expect(evaluateStep(exp, { row: { status: "requested", confirmed_at: null }, auditEvents: [] }).join()).toContain("status");
+    expect(evaluateStep(exp, { row: null, auditEvents: [] }).join()).toContain("not found");
   });
 });
