@@ -1,38 +1,18 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) next · **Phase:** Launch-readiness planned → Sonnet to build · **Updated:** 2026-06-13 (Opus — reconciled S5; planned launch-readiness pass)
+**Lane:** 🔵 Plan (Opus) next · **Phase:** Launch-readiness ✅ BUILT → Opus reconcile + prune stale worktrees · **Updated:** 2026-06-14 (Sonnet — launch-readiness pass built)
 
 ## ▶ NEXT
-🟢 **Sonnet — build the launch-readiness pass** per `docs/superpowers/plans/2026-06-13-lustique-launch-readiness.md` (4 tasks · fresh branch off `main` · commit per task · subagent-driven-development recommended). Spec: `docs/superpowers/specs/2026-06-13-lustique-launch-readiness-design.md`. Deliverables: a `SMOKE_BASE_URL`-gated live smoke walk (`npm run smoke`) driving `confirmed→deposit_paid→settled` against the deployed worker, extracted pure helpers (TDD'd), and `docs/RUNBOOK-go-live.md`. Verify: `cd worker && npx vitest run` green (walk skips) + `npx wrangler deploy --dry-run` clean. No new deps, no worker source-behaviour change.
+🔵 **Opus — reconcile + hand off to go-live.** Launch-readiness pass ✅ built on `claude/launch-readiness` (4 tasks, 89 tests green, bundle 54.66 KiB unchanged). Merge `claude/launch-readiness` → `main`. Prune stale worktree + merged branches (see Build lane below). Then prime ▶ NEXT for go-live: next Sonnet session = account prereqs checklist runner (once Pieter/Zandeline unblock).
 
 > ⚠️ **`main` is local-only — push deferred to launch.** No upstream is set; `origin/main` is still the old `384ecbb` (Pass-1). All of S1–S5 is intentionally unpushed — the first push to GitHub happens at go-live when Cloudflare Pages is wired (Launch step 4). Do **not** push `main` as routine reconcile.
 
-## 🛑 Launch (Phase C go-live) — account-gated, PARALLEL track (does not block planning)
-All app code is ✅ on local `main`. Go-live is blocked only on these human prerequisites:
-
-**Account prerequisites (🛑 Pieter/Zandeline — parallelizable, any order):**
-- [ ] **Supabase** — create project (`af-south-1`) → invite `hello@layerzerostudios.com` as Admin → run `supabase/migrations/0001_booking_core.sql` → capture URL + service-role key
-- [ ] **Turnstile** — create widget for `lustiqueco.co.za` → replace `1x00000000000000000000AA` in `site/src/data/site.ts` → note secret
-- [ ] **Brevo** — verify `info@lustiqueco.co.za` sender → capture API key
-- [ ] **EFT details** — bank, account name, account no., branch code from Zandeline
-- [ ] **Cloudflare zone** — add `lustiqueco.co.za` (Free plan)
-
-**Once prerequisites done (Sonnet-runnable in order):**
-1. `cd worker && npx wrangler r2 bucket create lustique-audit`
-2. `wrangler secret put` ×10: `BREVO_API_KEY` `NOTIFY_EMAIL` `SUPABASE_URL` `SUPABASE_SERVICE_KEY` `SIGNING_SECRET` (random 32-byte hex) `TURNSTILE_SECRET` `EFT_BANK` `EFT_ACCOUNT_NAME` `EFT_ACCOUNT_NO` `EFT_BRANCH_CODE`
-3. `cd worker && npx wrangler deploy`
-4. Connect GitHub → Cloudflare Pages (build `npm run build` in `site/`, output `dist/`); bind apex + `www`. **← first `git push` of `main` to origin happens here.**
-5. 🛑 DNS cutover: GoDaddy nameservers → Cloudflare; preserve MX + SPF; SSL/TLS Full (strict)
-6. End-to-end smoke: 3 emails + DB walk `requested → confirmed → deposit_paid → settled`
-
-### 🔑 Product rule locked (Pieter 2026-06-12)
-**The bride is told her date is BOOKED only once the EFT deposit is RECEIVED** — not at Zandeline's confirm. Confirm email = payment *invitation*; mark-paid (deposit received) = the *real* confirmation + `deposit_paid`. Yoco's webhook will automate mark-paid (deposit + balance) in S4-v2.
-
-**Open deploy gates (parallel — unblock live launch, not the build):**
-- **Yoco** (v2): verify Payments API endpoints + webhook signature + real online fee rate for `YOCO_FEE_RATE` (deferred; EFT-first is live rail)
-- **WAF rule**: after deploy, Cloudflare WAF rate-limit `POST /api/booking/request` → 5 req/IP/hour
-- Email migration: GoDaddy → Google Workspace (`info@` blocked by personal acct — Admin console Transfer tool)
-- 🔐 Rotate exposed Sanity Viewer token when next touching secrets
+## 🛑 Launch (Phase C go-live) — account-gated, PARALLEL track
+The authoritative go-live procedure now lives in **`docs/RUNBOOK-go-live.md`** (5 account
+prereqs → security gate → secrets → deploy → DNS → manual + `npm run smoke` verification).
+Launch is blocked only on the 5 human prerequisites in that runbook. Product rule locked
+(Pieter 2026-06-12): the bride is told her date is BOOKED only once the EFT deposit is
+*received* (mark-paid), not at confirm.
 
 ## State
 
@@ -44,7 +24,7 @@ All app code is ✅ on local `main`. Go-live is blocked only on these human prer
 - **S3 confirm gate ✅** — `verifyToken`, guarded `requested→confirmed|declined`, confirm page, EFT deposit email, thank-you pages. 56 tests.
 - **S4 EFT payments A+B ✅** — confirm email = payment invitation; purpose-scoped action tokens; `getBookingById` + generalized `transitionBooking`; EFT `mark-paid` (`confirmed→deposit_paid`) + routes; `wrangler.toml` Phase C config (live route + 10 secret slots). 71 tests, 42.56 KiB.
 - **S5 balance cron ✅ merged to `main` (local) 2026-06-13** — `balance.ts` (GET+POST+sweep) · `listBookingsDueForBalanceReminder` in `db.ts` · routes + `balanceSweep` cron in `index.ts`. 14-working-day EFT balance reminder + `deposit_paid→settled` mark-balance-paid. 83 tests, 54.66 KiB. Commits `b1b68ba..b0575e3`.
-- **Launch-readiness pass — PLANNED ✅** (Opus 2026-06-13): chosen over S6/pause. Spec + plan written (`docs/superpowers/{specs,plans}/2026-06-13-lustique-launch-readiness*.md`). A `SMOKE_BASE_URL`-gated live smoke walk + extracted TDD'd helpers + an authoritative `docs/RUNBOOK-go-live.md`. Red-teamed before speccing (audit dual-write, confirm-token-hash seed, 303 manual-redirect, on-delete-set-null cleanup). Ready for Sonnet.
+- **Launch-readiness pass ✅ BUILT 2026-06-14** (Sonnet — branch `claude/launch-readiness`, 4 commits): `buildSmokeBooking` seed helper (TDD) · `evaluateStep` assertion comparator (TDD) · `SMOKE_BASE_URL`-gated live walk (`smoke.test.ts`) + `npm run smoke` · `docs/RUNBOOK-go-live.md` (authoritative; baton Launch section + S4 Phase C superseded). 89 tests green, 3 skipped (live walk gated), bundle 54.66 KiB unchanged. Merge to `main` pending Opus reconcile.
 
 ## Build lane / branch
 - `main` @ `b0575e3` (local-only — see push note in ▶ NEXT).

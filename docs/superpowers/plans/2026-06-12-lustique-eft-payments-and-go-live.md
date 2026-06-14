@@ -483,6 +483,10 @@ export async function handleMarkPaid(env: BookingConfirmEnv, req: Request, fetch
 
 ## Phase C — Go-live runbook (EFT launch)
 
+> **⚠️ Superseded (2026-06-13):** the authoritative go-live procedure is now
+> `docs/RUNBOOK-go-live.md` (covers through S5 + the live smoke walk). This Phase C
+> is kept for history only.
+
 Mechanical `wrangler`/build steps are Sonnet-runnable; 🛑 steps are account-gated (Pieter/Zandeline). Do the account prerequisites first; they unblock the rest.
 
 **1. Account prerequisites (🛑 Pieter/Zandeline — parallelizable):**
