@@ -1,37 +1,92 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🛑 Go-live (account-gated) · **Phase:** All code merged to `main` — standing by for 5 prereqs then go-live · **Updated:** 2026-06-14 (Sonnet — FF-merge + full prune ✅)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Pre-launch — two small tasks, then go-live · **Updated:** 2026-06-15 (umbrella — decisions resolved, baton cleared)
 
 ## ▶ NEXT
 
-**Model:** Opus  **Lane:** Plan  (then Sonnet builds)
+**Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Working tree:** repo root (single tree, no worktree)
 
-🛑 **Go-live (BLOCKED — 2 Opus decisions + 3 Pieter/Zandeline actions).**
+---
 
-**Step 1 — Opus plan session (DECISION 1 + DECISION 2 are Opus-scope: one-way-door code + schema changes):**
+### Context (read first — 2 minutes)
 
-- **DECISION 1 — secrets home:** per-Worker secrets (RUNBOOK step 4 as written; zero code; fastest to launch) vs. wire the account Secrets Store (`[[secrets_store_secrets]]` bindings + `await env.X.get()` refactor across 4 files + 89-test mock rework + `.dev.vars` update). Umbrella read (non-binding): launch on per-Worker; migrate to Store later. **Opus decides + plans.**
-- **DECISION 2 — EFT admin mechanism:** Pieter wants EFT details admin-managed (not secrets). No admin UI exists today. EFT is **not deploy-blocking but is first-booking-blocking**. Options: (a) `business_settings` table seeded via SQL — zero UI, add-later-no-redeploy; (b) simple admin route behind auth. **Opus decides + plans.**
+All S1–S5 code is complete and merged to `main` (`e08f338`, 89 tests green). The only work remaining before go-live is two small tasks below, plus three Pieter actions that run in parallel.
 
-**Step 2 — Sonnet build session:** execute whatever Opus planned for DECISION 1 + 2.
+**Do NOT push `main` to GitHub.** The first push happens inside `docs/RUNBOOK-go-live.md` step 4 when Cloudflare Pages is wired. Routine housekeeping pushes will break the deploy flow.
 
-**Step 3 — Pieter closes 3 remaining checklist items (parallel, no code):**
-1. Turnstile **site key** → update `site/src/data/site.ts` (frontend const, not a secret)
-2. Brevo sender verify → verify `hello@lustiqueco.co.za` as a Brevo sender identity
-3. MX/SPF check → nameservers are on CF (zone active) — confirm MX records carried over or Zandeline's inbox is down
+---
 
-**Step 4 — go-live session:** run `docs/RUNBOOK-go-live.md` end-to-end. `main` is local-only; first push is RUNBOOK step 4.
+### Task A — DECISION 1: secrets binding (document only, no code change)
 
-> ⚠️ **`main` is local-only — push deferred to launch.** Do **not** push as routine housekeeping.
+**Decision (locked):** use per-Worker secrets — the RUNBOOK as-written, zero code change, fastest path to launch. The 5 secrets are already stored in the CF account-level Secrets Store but are NOT visible to the Worker (Workers read per-Worker bindings, not the Store). Pieter must run `wrangler secret put` for each one.
 
-**Prereqs status (2026-06-15):**
-- ✅ CF zone `lustiqueco.co.za` — Active in hello@ account
-- ✅ Supabase project — created in client-builds org; `lustique` schema + `lustique_owner` role provisioned
-- ✅ 5 secrets in CF account-level Secrets Store (see DECISION 1 above for binding plan)
-- ⏳ Turnstile site key → `site.ts` (Pieter)
-- ⏳ Brevo sender verification (Pieter)
-- ⏳ EFT mechanism (DECISION 2 — Opus plans; Sonnet builds)
-- ⏳ MX/SPF carry-over confirm (Pieter)
+**Your job:**
+1. Read `docs/RUNBOOK-go-live.md` step 4 (secrets section)
+2. Confirm the `wrangler secret put` commands are already there and unambiguous — if unclear, tighten the wording
+3. Add a callout box to the RUNBOOK: *"5 secrets are pre-staged in the CF account Secrets Store. Run `wrangler secret put` for each — values are already in the Store dashboard."*
+4. List the 5 secrets explicitly: `BREVO_API_KEY` · `SUPABASE_URL` · `SUPABASE_SERVICE_KEY` · `TURNSTILE_SECRET` · `SIGNING_SECRET` (generate this one: `openssl rand -hex 32`)
+5. Note: `SANITY_API_KEY` is in the Store but the Worker never reads it — skip it
+
+No code change. No migration. RUNBOOK edit only.
+
+---
+
+### Task B — DECISION 2: EFT admin mechanism (migration + Worker code)
+
+**Decision (locked):** `business_settings` table, seeded via SQL. No UI now; add later without a redeploy. EFT is not deploy-blocking but IS first-booking-blocking (Zandeline must enter her bank details before the system can send real payment instructions to brides).
+
+**Your job:**
+
+1. **Migration** — add to `supabase/migrations/` (next number):
+```sql
+CREATE TABLE lustique.business_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE lustique.business_settings ENABLE ROW LEVEL SECURITY;
+-- service_role bypasses RLS; no anon access
+
+-- Seed with placeholders (Zandeline fills in via Supabase dashboard or seed script)
+INSERT INTO lustique.business_settings (key, value) VALUES
+  ('eft_bank_name',        'PLACEHOLDER'),
+  ('eft_account_holder',   'PLACEHOLDER'),
+  ('eft_account_number',   'PLACEHOLDER'),
+  ('eft_branch_code',      'PLACEHOLDER'),
+  ('eft_reference_prefix', 'LUSTIQUE');
+```
+
+2. **Worker** — wherever the confirm email assembles EFT payment instructions, replace any hardcoded values with a lookup:
+```typescript
+const getSetting = async (key: string) => {
+  const { data } = await supabase
+    .from('business_settings')
+    .select('value')
+    .eq('key', key)
+    .single()
+  return data?.value ?? ''
+}
+```
+Read the 5 keys above and inject into the email template. Cache the result for the duration of the request (no need for a global cache at this traffic level).
+
+3. **RUNBOOK** — add a step to the pre-launch checklist: *"Update business_settings in Supabase dashboard: replace the 4 PLACEHOLDER rows with Zandeline's real bank details."*
+
+4. **Tests** — mock the `business_settings` lookup in any test that exercises the confirm email path. Verify all 89 tests still pass.
+
+---
+
+### After both tasks
+
+- Confirm 89 tests still pass (`npm test`)
+- Update this baton:
+  - Mark Tasks A + B done in State
+  - Set `▶ NEXT` = go-live session (Sonnet · `docs/RUNBOOK-go-live.md`)
+  - List the 3 remaining Pieter actions (below) so the go-live session opens with a clear checklist
+
+**3 Pieter actions (parallel — no code, Pieter does these independently):**
+1. Turnstile **site key** → copy from CF dashboard → update `site/src/data/site.ts` (a frontend constant, not a secret)
+2. Brevo → verify `hello@lustiqueco.co.za` as a sender identity (Settings → Senders → Add sender)
+3. CF DNS → confirm MX + SPF records carried over when zone went active (nameservers are already on CF) — if missing, Zandeline's @lustiqueco.co.za inbox is dead
 
 Product rule locked (Pieter 2026-06-12): the bride is told her date is BOOKED only once the EFT deposit is *received* (mark-paid), not at confirm.
 
