@@ -1,6 +1,6 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Pre-launch — two small tasks, then go-live · **Updated:** 2026-06-15 (umbrella — decisions resolved, baton cleared)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Go-live ready — 3 Pieter actions pending · **Updated:** 2026-06-15 (Sonnet — DECISION 1+2 shipped)
 
 ## ▶ NEXT
 
@@ -8,87 +8,16 @@
 
 ---
 
-### Context (read first — 2 minutes)
+### Go-live session
 
-All S1–S5 code is complete and merged to `main` (`e08f338`, 89 tests green). The only work remaining before go-live is two small tasks below, plus three Pieter actions that run in parallel.
+When the 3 Pieter actions below are confirmed complete, open a **go-live session** and run `docs/RUNBOOK-go-live.md` step-by-step.
 
-**Do NOT push `main` to GitHub.** The first push happens inside `docs/RUNBOOK-go-live.md` step 4 when Cloudflare Pages is wired. Routine housekeeping pushes will break the deploy flow.
+**3 Pieter actions (parallel — no code, Pieter does these):**
+1. **Turnstile site key** — copy from CF dashboard → update `site/src/data/site.ts` (`PUBLIC_TURNSTILE_SITE_KEY` constant), commit
+2. **Brevo sender** — verify `hello@lustiqueco.co.za` as a sender identity (Settings → Senders → Add sender)
+3. **CF DNS** — confirm MX + SPF records are present on the `lustiqueco.co.za` CF zone (Zandeline's @lustiqueco.co.za inbox depends on this)
 
----
-
-### Task A — DECISION 1: secrets binding (document only, no code change)
-
-**Decision (locked):** use per-Worker secrets — the RUNBOOK as-written, zero code change, fastest path to launch. The 5 secrets are already stored in the CF account-level Secrets Store but are NOT visible to the Worker (Workers read per-Worker bindings, not the Store). Pieter must run `wrangler secret put` for each one.
-
-**Your job:**
-1. Read `docs/RUNBOOK-go-live.md` step 4 (secrets section)
-2. Confirm the `wrangler secret put` commands are already there and unambiguous — if unclear, tighten the wording
-3. Add a callout box to the RUNBOOK: *"5 secrets are pre-staged in the CF account Secrets Store. Run `wrangler secret put` for each — values are already in the Store dashboard."*
-4. List the 5 secrets explicitly: `BREVO_API_KEY` · `SUPABASE_URL` · `SUPABASE_SERVICE_KEY` · `TURNSTILE_SECRET` · `SIGNING_SECRET` (generate this one: `openssl rand -hex 32`)
-5. Note: `SANITY_API_KEY` is in the Store but the Worker never reads it — skip it
-
-No code change. No migration. RUNBOOK edit only.
-
----
-
-### Task B — DECISION 2: EFT admin mechanism (migration + Worker code)
-
-**Decision (locked):** `business_settings` table, seeded via SQL. No UI now; add later without a redeploy. EFT is not deploy-blocking but IS first-booking-blocking (Zandeline must enter her bank details before the system can send real payment instructions to brides).
-
-**Your job:**
-
-1. **Migration** — add to `supabase/migrations/` (next number):
-```sql
-CREATE TABLE lustique.business_settings (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-ALTER TABLE lustique.business_settings ENABLE ROW LEVEL SECURITY;
--- service_role bypasses RLS; no anon access
-
--- Seed with placeholders (Zandeline fills in via Supabase dashboard or seed script)
-INSERT INTO lustique.business_settings (key, value) VALUES
-  ('eft_bank_name',        'PLACEHOLDER'),
-  ('eft_account_holder',   'PLACEHOLDER'),
-  ('eft_account_number',   'PLACEHOLDER'),
-  ('eft_branch_code',      'PLACEHOLDER'),
-  ('eft_reference_prefix', 'LUSTIQUE');
-```
-
-2. **Worker** — wherever the confirm email assembles EFT payment instructions, replace any hardcoded values with a lookup:
-```typescript
-const getSetting = async (key: string) => {
-  const { data } = await supabase
-    .from('business_settings')
-    .select('value')
-    .eq('key', key)
-    .single()
-  return data?.value ?? ''
-}
-```
-Read the 5 keys above and inject into the email template. Cache the result for the duration of the request (no need for a global cache at this traffic level).
-
-3. **RUNBOOK** — add a step to the pre-launch checklist: *"Update business_settings in Supabase dashboard: replace the 4 PLACEHOLDER rows with Zandeline's real bank details."*
-
-4. **Tests** — mock the `business_settings` lookup in any test that exercises the confirm email path. Verify all 89 tests still pass.
-
----
-
-### After both tasks
-
-- Confirm 89 tests still pass (`npm test`)
-- Update this baton:
-  - Mark Tasks A + B done in State
-  - Set `▶ NEXT` = go-live session (Sonnet · `docs/RUNBOOK-go-live.md`)
-  - List the 3 remaining Pieter actions (below) so the go-live session opens with a clear checklist
-
-**3 Pieter actions (parallel — no code, Pieter does these independently):**
-1. Turnstile **site key** → copy from CF dashboard → update `site/src/data/site.ts` (a frontend constant, not a secret)
-2. Brevo → verify `hello@lustiqueco.co.za` as a sender identity (Settings → Senders → Add sender)
-3. CF DNS → confirm MX + SPF records carried over when zone went active (nameservers are already on CF) — if missing, Zandeline's @lustiqueco.co.za inbox is dead
-
-Product rule locked (Pieter 2026-06-12): the bride is told her date is BOOKED only once the EFT deposit is *received* (mark-paid), not at confirm.
+Product rule locked (Pieter 2026-06-12): bride is told her date is BOOKED only once the EFT deposit is *received* (mark-paid), not at confirm.
 
 ## 🛑 Launch — account-gated
 Authoritative procedure: **`docs/RUNBOOK-go-live.md`** (supersedes scattered Launch notes + S4 Phase C).
@@ -105,13 +34,14 @@ Authoritative procedure: **`docs/RUNBOOK-go-live.md`** (supersedes scattered Lau
 - **S5 balance cron ✅** — `balance.ts` (GET+POST+sweep) · `listBookingsDueForBalanceReminder` · routes + `balanceSweep` cron. 14-working-day EFT balance reminder + `deposit_paid→settled`. 83 tests, 54.66 KiB. (`b1b68ba..b0575e3`)
 - **Launch-readiness ✅ BUILT 2026-06-14 (Sonnet) + Opus-reconciled** — `smoke-helpers.ts` (`buildSmokeBooking` + `evaluateStep`, TDD) · `smoke.test.ts` (`SMOKE_BASE_URL`-gated live walk) · `npm run smoke` · `docs/RUNBOOK-go-live.md` (authoritative). 89 tests green, 3 skipped (live walk gated), bundle 54.66 KiB unchanged.
 - **Integrate + prune ✅ 2026-06-14 (Sonnet)** — `claude/launch-readiness` FF-merged → `main` (`be82436..e08f338`, 7 files +344/−39). All feature branches deleted (`s2/s3/s4/s5/launch-readiness`). Stale worktree `infallible-satoshi-95b8fb` + branch `claude/infallible-satoshi-95b8fb` removed. Repo now: `main` only, single working tree. Local `main` @ `e08f338`.
+- **DECISION 1+2 ✅ 2026-06-15 (Sonnet)** — `061c616`. DECISION 1: per-Worker `wrangler secret put` (RUNBOOK step 4, 6 secrets, 5 pre-staged in CF Secrets Store). DECISION 2: `business_settings` table (`0002_business_settings.sql`); Worker reads EFT details via `getEftSettings()` from DB at request time; EFT fields removed from env. 89 tests pass.
 
 ## Build lane / branch
-- `main` @ `e08f338` (local-only) — complete: S1–S5 + launch-readiness. Only branch; single working tree.
-- ⚠️ No upstream set; push is intentionally deferred to go-live (RUNBOOK step 4).
+- `main` @ `061c616` (local-only) — complete: S1–S5 + launch-readiness + DECISION 1+2. Only branch; single working tree.
+- ⚠️ No upstream set; push is intentionally deferred to go-live (RUNBOOK step 3+6).
 
 ## Booking build sequence
-S1 ✅ → S2 ✅ → S3 ✅ → S4 EFT v1 ✅ → S5 balance cron ✅ → Launch-readiness ✅ → Integrate+prune ✅ → **go-live (account-gated, next)** · S6 emails (Brevo polish · later, needs Opus plan) · Yoco v2 (later, needs Opus plan)
+S1 ✅ → S2 ✅ → S3 ✅ → S4 EFT v1 ✅ → S5 balance cron ✅ → Launch-readiness ✅ → Integrate+prune ✅ → DECISION 1+2 ✅ → **go-live (account-gated, next)** · S6 emails (Brevo polish · later, needs Opus plan) · Yoco v2 (later, needs Opus plan)
 
 ## Pointers
 - Go-live (authoritative): `docs/RUNBOOK-go-live.md`
@@ -121,5 +51,5 @@ S1 ✅ → S2 ✅ → S3 ✅ → S4 EFT v1 ✅ → S5 balance cron ✅ → Launc
 - Key docs: `PLAN.md` · `BRAND.md` · `PRICING.md` · `ARCHITECTURE.md` · `STANDARDS.md` · `SECURITY.md` · `SETUP.md`
 
 ## ⇄ Umbrella  (project ↔ Studio Manager · empty unless pending · see _ops/BRIDGE-PROTOCOL.md)
-**⬆ To umbrella / Pieter:** none
-**⬇ From umbrella:** *(inbox cleared 2026-06-15 — folded into State + ▶ NEXT above)*
+**⬆ To umbrella / Pieter:** 🟢 FYI — DECISION 1+2 shipped (`061c616`). Lustique is go-live ready pending 3 Pieter actions (Turnstile site key · Brevo sender verify · CF DNS check). No further code sessions needed until those land.
+**⬇ From umbrella:** *(inbox cleared 2026-06-15)*
