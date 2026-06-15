@@ -24,8 +24,8 @@ jobs:
         run: npm ci
 
       - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          accountId: d5ae10088a019ff6975fcbe128f8e0be
-          workingDirectory: worker
+        run: npx wrangler deploy
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: d5ae10088a019ff6975fcbe128f8e0be
