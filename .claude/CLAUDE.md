@@ -28,6 +28,12 @@ Bridal hair & makeup website + booking platform for **Lustique Co.** (Pretoria; 
 - Safari caches JS hard — use hard-refresh or private window for verification
 - Accounts: client-owned (Cloudflare · Supabase · Workspace · Yoco · Brevo · Sanity); LZ invited as Administrator
 
+## Studio standards (non-negotiable — read before building)
+- Security: `~/Layer-Zero-Studios/_ops/SECURITY-STANDARDS.md`
+- Quality: `~/Layer-Zero-Studios/_ops/QUALITY-STANDARDS.md`
+- Dev conventions: `~/Layer-Zero-Studios/_ops/DEV-STANDARDS.md`
+- Go-live gate: `~/Layer-Zero-Studios/_ops/CLIENT-DELIVERY-CHECKLIST.md`
+
 ## Studio Manager bridge
 This project may post requests to the Studio Manager — see `_ops/BRIDGE-PROTOCOL.md`.
 
