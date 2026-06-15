@@ -37,8 +37,7 @@ Authoritative procedure: **`docs/RUNBOOK-go-live.md`** (supersedes scattered Lau
 - **DECISION 1+2 ✅ 2026-06-15 (Sonnet)** — `061c616`. DECISION 1: per-Worker `wrangler secret put` (RUNBOOK step 4, 6 secrets, 5 pre-staged in CF Secrets Store). DECISION 2: `business_settings` table (`0002_business_settings.sql`); Worker reads EFT details via `getEftSettings()` from DB at request time; EFT fields removed from env. 89 tests pass.
 
 ## Build lane / branch
-- `main` @ `061c616` (local-only) — complete: S1–S5 + launch-readiness + DECISION 1+2. Only branch; single working tree.
-- ⚠️ No upstream set; push is intentionally deferred to go-live (RUNBOOK step 3+6).
+- `main` @ `a7e631d` — pushed to `github.com/Layer-Zero-Ops/lustique-site` (private). GitHub Actions deploys Worker on push to `main` (needs `CF_API_TOKEN` secret — see Pieter actions). CF Pages connects to this repo for site deploys.
 
 ## Booking build sequence
 S1 ✅ → S2 ✅ → S3 ✅ → S4 EFT v1 ✅ → S5 balance cron ✅ → Launch-readiness ✅ → Integrate+prune ✅ → DECISION 1+2 ✅ → **go-live (account-gated, next)** · S6 emails (Brevo polish · later, needs Opus plan) · Yoco v2 (later, needs Opus plan)
