@@ -17,12 +17,9 @@ ALLOWED_ORIGIN = "https://lustiqueco.co.za"
 #   SUPABASE_SERVICE_KEY  — Supabase service-role key (bypasses RLS)
 #   SIGNING_SECRET        — HMAC secret for confirm + mark-paid tokens (random 32-byte hex)
 #   TURNSTILE_SECRET      — Cloudflare Turnstile secret key (S2 bot protection)
-#   EFT_BANK              — Bank name shown in the bride's payment-invitation email
-#   EFT_ACCOUNT_NAME      — Account holder name
-#   EFT_ACCOUNT_NO        — Account number
-#   EFT_BRANCH_CODE       — Branch / sort code
 #   YOCO_SECRET_KEY       — Yoco API secret key (S4-v2, not yet deployed)
 #   YOCO_WEBHOOK_SECRET   — Yoco webhook signing secret (S4-v2, not yet deployed)
+# EFT bank details are stored in the business_settings table (not Worker secrets).
 
 # Booking core (S1):
 [[r2_buckets]]

@@ -11,7 +11,7 @@ Sonnet-runnable once unblocked. Do the account prerequisites first.
       running it (no CLI config exists). Capture the project URL + the **service-role** key.
 - [ ] **Turnstile** — create a widget for `lustiqueco.co.za`; note the **site key** + **secret**.
 - [ ] **Brevo** — verify `info@lustiqueco.co.za` as a sender; capture the **API key**.
-- [ ] **EFT details** — bank, account name, account no., branch code from Zandeline.
+- [ ] **EFT details** — get bank name, account holder, account no., branch code from Zandeline. You'll enter these into the `business_settings` table (step 4b below), not as Worker secrets.
 - [ ] **Cloudflare** — add `lustiqueco.co.za` (Free plan) so the zone exists.
 
 ## 2. Rehearse the smoke walk (as soon as Supabase exists — before full deploy)
@@ -28,12 +28,28 @@ Sonnet-runnable once unblocked. Do the account prerequisites first.
 - [ ] Only now is `main` safe to push (step 6 connects GitHub to Pages).
 
 ## 4. Worker config + secrets
+
+> **5 secrets are pre-staged in the CF account Secrets Store** (visible in CF dashboard → Workers &
+> Pages → your account → Secrets Store). Run `wrangler secret put` for each — the values are
+> already in the Store; you're just binding them to this Worker:
+> `BREVO_API_KEY` · `SUPABASE_URL` · `SUPABASE_SERVICE_KEY` · `TURNSTILE_SECRET` · `SIGNING_SECRET`
+>
+> `SIGNING_SECRET` was generated with `openssl rand -hex 32`. If you need a new one: run that
+> command, copy the output, and paste it when `wrangler secret put SIGNING_SECRET` prompts you.
+> `NOTIFY_EMAIL` is **not** pre-staged — enter it manually (e.g. `info@lustiqueco.co.za`).
+> Note: `SANITY_API_KEY` is in the Store but the Worker never reads it — skip it.
+
 - [ ] One-time bucket: `cd worker && npx wrangler r2 bucket create lustique-audit`.
-- [ ] Set the 10 secrets with `wrangler secret put`: `BREVO_API_KEY`, `NOTIFY_EMAIL`,
-      `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SIGNING_SECRET` (random 32-byte hex),
-      `TURNSTILE_SECRET`, `EFT_BANK`, `EFT_ACCOUNT_NAME`, `EFT_ACCOUNT_NO`, `EFT_BRANCH_CODE`.
-      (Skip `YOCO_*` until S4-v2.)
+- [ ] Set the 6 secrets with `wrangler secret put`: `BREVO_API_KEY`, `NOTIFY_EMAIL`,
+      `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SIGNING_SECRET`, `TURNSTILE_SECRET`.
+      (Skip `YOCO_*` until S4-v2. EFT bank details go in the database — see step 4b.)
 - [ ] Confirm `ALLOWED_ORIGIN = "https://lustiqueco.co.za"` in `[vars]`.
+
+## 4b. Seed EFT bank details
+- [ ] Open the Supabase dashboard → Table Editor → `business_settings`.
+- [ ] Update the 4 `PLACEHOLDER` rows with Zandeline's real bank details:
+      `eft_bank_name` · `eft_account_holder` · `eft_account_number` · `eft_branch_code`.
+      (Leave `eft_reference_prefix = LUSTIQUE` as-is.)
 
 ## 5. Front-end config
 - [ ] Replace the Turnstile placeholder `1x00000000000000000000AA` in

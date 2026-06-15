@@ -18,10 +18,29 @@ export interface BookingConfirmEnv extends AuditEnv {
   NOTIFY_EMAIL: string;
   ALLOWED_ORIGIN: string;
   SIGNING_SECRET: string;
-  EFT_BANK: string;
-  EFT_ACCOUNT_NAME: string;
-  EFT_ACCOUNT_NO: string;
-  EFT_BRANCH_CODE: string;
+}
+
+interface EftSettings {
+  bankName: string;
+  accountHolder: string;
+  accountNumber: string;
+  branchCode: string;
+}
+
+async function getEftSettings(env: BookingConfirmEnv, f: typeof fetch): Promise<EftSettings> {
+  const url = `${env.SUPABASE_URL}/rest/v1/business_settings?key=in.(eft_bank_name,eft_account_holder,eft_account_number,eft_branch_code)&select=key,value`;
+  const r = await f(url, {
+    headers: { apikey: env.SUPABASE_SERVICE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
+  });
+  if (!r.ok) throw new Error(`getEftSettings ${r.status}`);
+  const rows = (await r.json()) as Array<{ key: string; value: string }>;
+  const m = Object.fromEntries(rows.map(({ key, value }) => [key, value]));
+  return {
+    bankName: m["eft_bank_name"] ?? "",
+    accountHolder: m["eft_account_holder"] ?? "",
+    accountNumber: m["eft_account_number"] ?? "",
+    branchCode: m["eft_branch_code"] ?? "",
+  };
 }
 
 const MARK_PAID_TTL_MS = 90 * 24 * 60 * 60 * 1000;
@@ -132,15 +151,15 @@ async function brevoEmail(
   if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
 }
 
-function confirmEmailHtml(env: BookingConfirmEnv, b: ConfirmBookingRow): string {
+function confirmEmailHtml(eft: EftSettings, b: ConfirmBookingRow): string {
   return `<p>Hi ${esc(b.bride_name)},</p>
 <p>Wonderful news — <strong>${esc(b.wedding_date)}</strong> is available! To book your date, please pay your deposit by EFT. As soon as it reflects, we'll send you your booking confirmation.</p>
 <table style="border-collapse:collapse;font:15px/1.7 system-ui,sans-serif;margin:.6rem 0 1rem;">
 <tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Deposit due</td><td><strong>${zar(b.deposit_net_cents)}</strong> (${b.deposit_pct}%)</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Bank</td><td>${esc(env.EFT_BANK)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account name</td><td>${esc(env.EFT_ACCOUNT_NAME)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account no.</td><td>${esc(env.EFT_ACCOUNT_NO)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Branch code</td><td>${esc(env.EFT_BRANCH_CODE)}</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Bank</td><td>${esc(eft.bankName)}</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account name</td><td>${esc(eft.accountHolder)}</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account no.</td><td>${esc(eft.accountNumber)}</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Branch code</td><td>${esc(eft.branchCode)}</td></tr>
 <tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Payment reference</td><td><strong>${esc(b.reference)}</strong></td></tr>
 </table>
 <p style="font-size:.92rem;color:#8a7d72;">Please use <strong>${esc(b.reference)}</strong> as your payment reference so we can match it to your booking. The balance of ${zar(b.balance_net_cents)} is payable closer to your day.</p>
@@ -195,8 +214,9 @@ export async function handleBookingConfirm(
       await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
         "An update on your Lustique booking", declineEmailHtml(b), fetchImpl);
     } else {
+      const eft = await getEftSettings(env, fetchImpl);
       await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
-        "Your date is available — secure it with your deposit · Lustique Co.", confirmEmailHtml(env, b), fetchImpl);
+        "Your date is available — secure it with your deposit · Lustique Co.", confirmEmailHtml(eft, b), fetchImpl);
       const markPaidToken = await signActionToken(b.id, new Date(Date.now() + MARK_PAID_TTL_MS), env.SIGNING_SECRET, "deposit");
       const markPaidUrl = `${origin}/api/booking/mark-paid?token=${encodeURIComponent(markPaidToken)}`;
       await brevoEmail(env, { email: env.NOTIFY_EMAIL, name: "Lustique" },

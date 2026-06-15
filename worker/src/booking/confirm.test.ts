@@ -15,12 +15,17 @@ const env = {
   NOTIFY_EMAIL: "z@lustique.co.za",
   ALLOWED_ORIGIN: "https://lustiqueco.co.za",
   SIGNING_SECRET,
-  EFT_BANK: "FNB",
-  EFT_ACCOUNT_NAME: "Lustique Co",
-  EFT_ACCOUNT_NO: "62000000000",
-  EFT_BRANCH_CODE: "250655",
   AUDIT: { put: vi.fn().mockResolvedValue(undefined) },
 };
+
+// business_settings rows returned by getEftSettings
+const eftRows = [
+  { key: "eft_bank_name", value: "FNB" },
+  { key: "eft_account_holder", value: "Lustique Co" },
+  { key: "eft_account_number", value: "62000000000" },
+  { key: "eft_branch_code", value: "250655" },
+];
+const eftRes = () => new Response(JSON.stringify(eftRows), { status: 200, headers: { "content-type": "application/json" } });
 
 const bookingRow = (over: Record<string, unknown> = {}) => ({
   id: BOOKING_ID, reference: "LUS-2026-111122", status: "requested",
@@ -89,10 +94,11 @@ describe("handleBookingConfirm (POST) — confirm", () => {
   it("transitions to confirmed, emails EFT details, audits, 303-redirects", async () => {
     const token = await validToken();
     const f = vi.fn()
-      .mockResolvedValueOnce(res([bookingRow()]))                        // 1 getBookingByTokenHash
-      .mockResolvedValueOnce(res([bookingRow({ status: "confirmed" })])) // 2 transitionRequestedBooking
-      .mockResolvedValueOnce(res({ messageId: "m1" }, 201))              // 3 Brevo → bride
-      .mockResolvedValueOnce(res({}, 201));                              // 4 insertAudit (via writeAudit)
+      .mockResolvedValueOnce(res([bookingRow()]))                        // [0] getBookingByTokenHash
+      .mockResolvedValueOnce(res([bookingRow({ status: "confirmed" })])) // [1] transitionRequestedBooking
+      .mockResolvedValueOnce(eftRes())                                   // [2] getEftSettings
+      .mockResolvedValueOnce(res({ messageId: "m1" }, 201))              // [3] Brevo → bride
+      .mockResolvedValueOnce(res({ messageId: "m2" }, 201));             // [4] Brevo → Zandeline
     const resp = await handleBookingConfirm(env, postReq(token, "confirm"), f as unknown as typeof fetch);
     expect(resp.status).toBe(303);
     expect(resp.headers.get("location")).toContain("/booking-confirmed.html?ref=LUS-2026-111122");
@@ -104,8 +110,8 @@ describe("handleBookingConfirm (POST) — confirm", () => {
     expect(patch.confirmed_at).toBeTruthy();
     expect(patch.confirm_token_used_at).toBeTruthy();
 
-    const email = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
-    expect(email.htmlContent).toContain("62000000000");       // EFT account no.
+    const email = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
+    expect(email.htmlContent).toContain("62000000000");       // EFT account no. from business_settings
     expect(email.htmlContent).toContain("LUS-2026-111122");   // payment reference
   });
 
@@ -124,11 +130,12 @@ describe("handleBookingConfirm (POST) — confirm", () => {
     const f = vi.fn()
       .mockResolvedValueOnce(res([bookingRow()]))
       .mockResolvedValueOnce(res([bookingRow({ status: "confirmed" })]))
-      .mockRejectedValueOnce(new Error("Brevo 503"))  // bride email fails
-      .mockResolvedValueOnce(res({}, 201));           // confirm.email-failed audit
+      .mockResolvedValueOnce(eftRes())                 // [2] getEftSettings
+      .mockRejectedValueOnce(new Error("Brevo 503"))  // [3] bride email fails
+      .mockResolvedValueOnce(res({}, 201));            // [4] confirm.email-failed audit
     const resp = await handleBookingConfirm(env, postReq(token, "confirm"), f as unknown as typeof fetch);
     expect(resp.status).toBe(303);
-    const audit = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
+    const audit = JSON.parse((f.mock.calls[4]![1] as RequestInit).body as string);
     expect(audit.event_type).toBe("confirm.email-failed");
   });
 });
@@ -161,11 +168,12 @@ describe("confirm email is a payment invitation (not a confirmation)", () => {
   it("invites payment without claiming the date is booked", async () => {
     const token = await validToken();
     const f = vi.fn()
-      .mockResolvedValueOnce(res([bookingRow()]))                        // getBookingByTokenHash
-      .mockResolvedValueOnce(res([bookingRow({ status: "confirmed" })])) // transition
-      .mockResolvedValue(res({ messageId: "m" }, 201));                  // all emails + audit
+      .mockResolvedValueOnce(res([bookingRow()]))                        // [0] getBookingByTokenHash
+      .mockResolvedValueOnce(res([bookingRow({ status: "confirmed" })])) // [1] transition
+      .mockResolvedValueOnce(eftRes())                                   // [2] getEftSettings
+      .mockResolvedValue(res({ messageId: "m" }, 201));                  // [3+] all emails + audit
     await handleBookingConfirm(env, postReq(token, "confirm"), f as unknown as typeof fetch);
-    const brideEmail = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    const brideEmail = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(brideEmail.htmlContent).toMatch(/available/i);
     expect(brideEmail.htmlContent).not.toMatch(/is confirmed|date is secured|officially secure/i);
     expect(brideEmail.subject).not.toMatch(/confirmed/i);
@@ -239,11 +247,12 @@ describe("confirm also emails Zandeline her mark-paid link", () => {
   it("sends a 2nd email to NOTIFY_EMAIL containing /api/booking/mark-paid", async () => {
     const token = await validToken();
     const f = vi.fn()
-      .mockResolvedValueOnce(res([bookingRow()]))                          // getBookingByTokenHash
-      .mockResolvedValueOnce(res([bookingRow({ status: "confirmed" })]))   // transition
-      .mockResolvedValue(res({ messageId: "m" }, 201));                    // bride + Zandeline + audit
+      .mockResolvedValueOnce(res([bookingRow()]))                          // [0] getBookingByTokenHash
+      .mockResolvedValueOnce(res([bookingRow({ status: "confirmed" })]))   // [1] transition
+      .mockResolvedValueOnce(eftRes())                                     // [2] getEftSettings
+      .mockResolvedValue(res({ messageId: "m" }, 201));                    // [3+] bride + Zandeline + audit
     await handleBookingConfirm(env, postReq(token, "confirm"), f as unknown as typeof fetch);
-    const zandeline = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
+    const zandeline = JSON.parse((f.mock.calls[4]![1] as RequestInit).body as string);
     expect(zandeline.to[0].email).toBe(env.NOTIFY_EMAIL);
     expect(zandeline.htmlContent).toContain("/api/booking/mark-paid?token=");
   });
