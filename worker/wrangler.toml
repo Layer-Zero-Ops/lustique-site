@@ -1,6 +1,7 @@
 name = "lustique-form-handler"
 main = "src/index.ts"
 compatibility_date = "2026-06-04"
+account_id = "d5ae10088a019ff6975fcbe128f8e0be"
 
 # Route — intercepts /api/* on the live domain while Pages serves everything else.
 # Requires the lustiqueco.co.za zone to exist in this Cloudflare account first.
