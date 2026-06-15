@@ -11,16 +11,41 @@ routes = [{ pattern = "lustiqueco.co.za/api/*", zone_name = "lustiqueco.co.za" }
 [vars]
 ALLOWED_ORIGIN = "https://lustiqueco.co.za"
 
-# Secrets — set with `wrangler secret put NAME`, NEVER committed:
-#   BREVO_API_KEY         — Brevo transactional-email key
-#   NOTIFY_EMAIL          — Brevo-verified sender + Zandeline's inbox (e.g. info@lustiqueco.co.za)
-#   SUPABASE_URL          — Supabase project URL (e.g. https://abc.supabase.co)
-#   SUPABASE_SERVICE_KEY  — Supabase service-role key (bypasses RLS)
-#   SIGNING_SECRET        — HMAC secret for confirm + mark-paid tokens (random 32-byte hex)
-#   TURNSTILE_SECRET      — Cloudflare Turnstile secret key (S2 bot protection)
-#   YOCO_SECRET_KEY       — Yoco API secret key (S4-v2, not yet deployed)
-#   YOCO_WEBHOOK_SECRET   — Yoco webhook signing secret (S4-v2, not yet deployed)
+# Secrets — pulled from CF Secrets Store (ff54a0a001304d07beaa3c45d205cb52).
+# To add/rotate a secret: update it in the CF Secrets Store, then redeploy.
+# NOTIFY_EMAIL and SIGNING_SECRET must be created in the Store if not already present.
+# YOCO_SECRET_KEY + YOCO_WEBHOOK_SECRET added to Store when S4-v2 deploys.
 # EFT bank details are stored in the business_settings table (not Worker secrets).
+
+[[secrets_store_secrets]]
+binding = "BREVO_API_KEY"
+secret_name = "BREVO_API_KEY"
+store_id = "ff54a0a001304d07beaa3c45d205cb52"
+
+[[secrets_store_secrets]]
+binding = "SUPABASE_URL"
+secret_name = "SUPABASE_URL"
+store_id = "ff54a0a001304d07beaa3c45d205cb52"
+
+[[secrets_store_secrets]]
+binding = "SUPABASE_SERVICE_KEY"
+secret_name = "SUPABASE_SERVICE_KEY"
+store_id = "ff54a0a001304d07beaa3c45d205cb52"
+
+[[secrets_store_secrets]]
+binding = "TURNSTILE_SECRET"
+secret_name = "TURNSTILE_SECRET"
+store_id = "ff54a0a001304d07beaa3c45d205cb52"
+
+[[secrets_store_secrets]]
+binding = "SIGNING_SECRET"
+secret_name = "SIGNING_SECRET"
+store_id = "ff54a0a001304d07beaa3c45d205cb52"
+
+[[secrets_store_secrets]]
+binding = "NOTIFY_EMAIL"
+secret_name = "NOTIFY_EMAIL"
+store_id = "ff54a0a001304d07beaa3c45d205cb52"
 
 # Booking core (S1):
 [[r2_buckets]]
