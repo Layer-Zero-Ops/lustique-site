@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "npm run dev --workspace site",
     "build": "npm run build --workspace site",
+    "deploy": "wrangler deploy",
     "test": "npm run test --workspace @lustique/pricing"
   }
 }

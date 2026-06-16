@@ -1,0 +1,9 @@
+name = "lustique-site"
+compatibility_date = "2026-06-16"
+account_id = "d5ae10088a019ff6975fcbe128f8e0be"
+
+assets = { directory = "./site/dist" }
+
+routes = [
+  { pattern = "lustiqueco.co.za/*", zone_name = "lustiqueco.co.za" }
+]
