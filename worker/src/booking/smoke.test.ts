@@ -86,7 +86,7 @@ describe.skipIf(!BASE)("live post-intake smoke walk", () => {
       { row: await sbReadBooking(id), auditEvents: await sbReadAudit(id) },
     );
     expect(fails, fails.join("\n")).toEqual([]);
-  });
+  }, 15_000);
 
   it("confirmed -> deposit_paid", async () => {
     const resp = await postForm("/api/booking/mark-paid", { token: await actionToken(id, "deposit") });

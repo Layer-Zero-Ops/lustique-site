@@ -8,7 +8,7 @@
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smoke": "vitest run src/booking/smoke.test.ts"
+    "smoke": "vitest run --env-file .env.smoke src/booking/smoke.test.ts"
   },
   "dependencies": {
     "@lustique/pricing": "*"
