@@ -87,9 +87,11 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
       <!-- Booking section: weddings only; booking-request.ts shows/hides based on occasion -->
       <div class="form-step reveal" id="bookingSection" style="display:none;margin-top:2rem;padding-top:2rem;border-top:1px solid rgba(60,42,42,.12);">
         <h3>Secure your date</h3>
-        <p class="step-sub">Skip the 24-hour wait — request your date right now. Zandeline will confirm availability within a few hours and send you your deposit payment details.</p>
+        <p class="step-sub">Skip the 24-hour wait — request your date right now. Lustique will confirm availability within a few hours and send you your deposit payment details.</p>
 
-        <div class="field">
+        <input type="hidden" name="depositPct" value="50">
+
+        <div class="field" style="display:none;">
           <label>Deposit percentage</label>
           <p class="note" style="margin:.2rem 0 .7rem;">Your deposit secures the date; the balance is due 14 working days before your wedding. Amounts include the card processing fee.</p>
           <div style="display:flex;flex-direction:column;gap:.55rem;" id="depositOptions">
