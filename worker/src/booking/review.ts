@@ -191,13 +191,14 @@ async function createYocoCheckout(
   return r.json() as Promise<{ id: string; redirectUrl: string }>;
 }
 
-/** Deposit invoice email: Yoco "Pay Now" as primary, EFT as fallback. */
+/** Deposit invoice email: Yoco "Pay Now" as primary, EFT as fallback, invoice link included. */
 function depositEmailHtml(
   eft: EftSettings,
   b: ReviewBookingRow,
   depositCents: number,
   balanceCents: number,
   yocoUrl: string,
+  invoiceUrl: string,
 ): string {
   return `<p>Hi ${esc(b.bride_name)},</p>
 <p>Wonderful news — <strong>${esc(b.wedding_date)}</strong> is available! Pay your deposit to officially secure your date.</p>
@@ -216,6 +217,7 @@ function depositEmailHtml(
 <tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Payment reference</td><td><strong>${esc(b.reference)}</strong></td></tr>
 </table>
 <p style="font-size:.88rem;color:#8a7d72;">If paying by EFT, please email proof of payment to <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a> — your date won't be secured until we confirm receipt. The balance of ${zar(balanceCents)} is payable closer to your day.</p>
+<p style="margin-top:1.2rem;"><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View &amp; print your invoice →</a></p>
 <p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
 }
 
@@ -324,6 +326,11 @@ export async function handleReview(
   const markPaidToken = await signActionToken(b.id, new Date(Date.now() + MARK_PAID_TTL_MS), env.SIGNING_SECRET, "deposit");
   const markPaidUrl = `${origin}/api/booking/mark-paid?token=${encodeURIComponent(markPaidToken)}`;
 
+  // S9: invoice link — 2-year TTL, stateless (no DB column needed)
+  const INVOICE_TTL_MS = 2 * 365 * 24 * 60 * 60 * 1000;
+  const invoiceToken = await signActionToken(b.id, new Date(Date.now() + INVOICE_TTL_MS), env.SIGNING_SECRET, "invoice");
+  const invoiceUrl = `${origin}/api/booking/invoice?token=${encodeURIComponent(invoiceToken)}`;
+
   // Create Yoco checkout + insert pending payment row before emailing the bride.
   // If Yoco is down we fall through to EFT-only email (fallback already in the template).
   let yocoUrl = "";
@@ -349,15 +356,16 @@ export async function handleReview(
       env,
       { email: b.bride_email, name: b.bride_name },
       "Your date is available — secure it with your deposit · Lustique Co.",
-      depositEmailHtml(eft, b, finalDepositCents, finalBalanceCents, yocoUrl),
+      depositEmailHtml(eft, b, finalDepositCents, finalBalanceCents, yocoUrl, invoiceUrl),
       fetchImpl,
     );
     await brevoEmail(
       env,
       { email: env.NOTIFY_EMAIL, name: "Lustique" },
       `Approved — awaiting EFT · ${b.bride_name} · ${b.wedding_date}`,
-      `<p><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — approved. EFT deposit details sent (${zar(finalDepositCents)}, ref <strong>${esc(b.reference)}</strong>).</p>
-<p style="margin:1.2rem 0;"><a href="${esc(markPaidUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">When the EFT lands — mark deposit received</a></p>
+      `<p><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — approved. Deposit invoice sent (${zar(finalDepositCents)}, ref <strong>${esc(b.reference)}</strong>).</p>
+<p style="margin:1.2rem 0 .6rem;"><a href="${esc(markPaidUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">When the EFT lands — mark deposit received</a></p>
+<p style="margin:.6rem 0;"><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View bride's invoice →</a></p>
 <p style="font-size:.88rem;color:#8a7d72;">Only click once the deposit reflects in the account. Link valid 90 days.</p>`,
       fetchImpl,
     );

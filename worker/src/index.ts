@@ -6,6 +6,7 @@ import { renderReviewPage, handleReview } from "./booking/review";
 import { handleYocoWebhook } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 import { handleAdminBlockedDates } from "./booking/admin";
+import { renderInvoicePage } from "./booking/invoice";
 
 /* ============================================================
    LUSTIQUE CO. — form-handler Worker (the stable API boundary)
@@ -149,6 +150,11 @@ export default {
     // POST /api/booking/yoco-webhook — Yoco payment event (S7; signature verified inside)
     if (req.method === "POST" && url.pathname === "/api/booking/yoco-webhook") {
       return handleYocoWebhook(env, req);
+    }
+
+    // GET /api/booking/invoice?token= — bride's printable invoice (S9; prefetch-safe, read-only)
+    if (req.method === "GET" && url.pathname === "/api/booking/invoice") {
+      return renderInvoicePage(env, req);
     }
 
     // GET/POST /api/admin/blocked-dates — Zandeline's blocked-dates admin (S8; token-protected)

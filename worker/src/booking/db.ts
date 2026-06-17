@@ -281,6 +281,19 @@ export async function isDateBlocked(
   return rows.length > 0;
 }
 
+/** S9: invoice page needs quote_lines + all confirm fields. */
+export async function getBookingByIdForInvoice(
+  env: DbEnv,
+  id: string,
+  f: typeof fetch = fetch,
+): Promise<(ConfirmBookingRow & { quote_lines: Array<{ label: string; amount: number }> }) | null> {
+  const cols = CONFIRM_COLS + ",quote_lines";
+  const r = await f(rest(env, `bookings?id=eq.${encodeURIComponent(id)}&select=${cols}`), { headers: headers(env) });
+  if (!r.ok) throw new Error(`getBookingByIdForInvoice ${r.status}`);
+  const rows = (await r.json()) as Array<ConfirmBookingRow & { quote_lines: Array<{ label: string; amount: number }> }>;
+  return rows.length ? rows[0]! : null;
+}
+
 // ── Wave ID updaters (S8) ─────────────────────────────────────────────────────
 
 /** Store Wave customer + invoice IDs on a booking after Wave invoice is created. */
