@@ -1,0 +1,99 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { TURNSTILE_SITE_KEY } from "../data/site";
+const title = "Book Your Date — Lustique Co.";
+const desc = "Secure your wedding date with Lustique Co. Submit your booking request and we'll confirm availability within a few hours.";
+---
+<BaseLayout slug="book.html" title={title} desc={desc}>
+
+  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
+  <section class="page-hero">
+    <span class="eyebrow">Secure your date</span>
+    <h1>One step from your day.</h1>
+    <p>We'll confirm your date within a few hours and send through your deposit payment link.</p>
+  </section>
+
+  <section class="section"><div class="wrap form-wrap">
+
+    <!-- No-session fallback: shown by JS when sessionStorage is empty (direct navigation) -->
+    <div id="noSessionMsg" style="display:none;" class="form-step reveal">
+      <h3>Let's start with your estimate</h3>
+      <p class="step-sub">To request a booking, please build your estimate first — it only takes a minute and helps us prepare everything for your day.</p>
+      <a href="quote.html" class="btn btn-primary" style="background:var(--burgundy);">Build my estimate →</a>
+    </div>
+
+    <!-- Main booking form: shown by JS once sessionStorage is confirmed -->
+    <div id="bookForm" style="display:none;">
+
+      <!-- Estimate summary band -->
+      <div class="estimate-box reveal" style="margin-bottom:1.6rem;">
+        <div>
+          <div style="font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;opacity:.85;">Your estimate</div>
+          <div id="estimateDepositNote" style="opacity:.85;font-size:.88rem;margin-top:.25rem;">Calculating…</div>
+        </div>
+        <div class="amt" id="estimateSummaryAmt">—</div>
+      </div>
+
+      <!-- Personal details -->
+      <div class="form-step reveal">
+        <h3>Your details</h3>
+        <p class="step-sub">Check your details are correct — we'll use these to reach you.</p>
+        <div class="field-row">
+          <div class="field"><label for="bkFName">First name</label><input id="bkFName" placeholder="Your name" autocomplete="given-name"></div>
+          <div class="field"><label for="bkLName">Last name</label><input id="bkLName" placeholder="Surname" autocomplete="family-name"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="bkEmail">Email</label><input type="email" id="bkEmail" placeholder="you@email.com" autocomplete="email"></div>
+          <div class="field"><label for="bkPhone">Mobile / WhatsApp</label><input id="bkPhone" placeholder="067 000 0000" autocomplete="tel"></div>
+        </div>
+      </div>
+
+      <!-- Wedding details -->
+      <div class="form-step reveal">
+        <h3>Your big day</h3>
+        <p class="step-sub">Confirm the date and venue so we can reserve it for you.</p>
+        <div class="field-row">
+          <div class="field"><label for="bkDate">Wedding date</label><input type="date" id="bkDate"></div>
+          <div class="field"><label for="bkProvince">Province</label>
+            <select id="bkProvince">
+              <option>Gauteng</option>
+              <option>Limpopo</option>
+              <option>Mpumalanga</option>
+              <option>North West</option>
+              <option>Other / outside SA</option>
+            </select>
+          </div>
+        </div>
+        <div class="field"><label for="bkVenue">Venue name</label><input id="bkVenue" placeholder="e.g. Red Ivory Estate"></div>
+        <div class="field"><label for="bkTown">Town / area</label><input id="bkTown" placeholder="e.g. Hartbeespoort"></div>
+      </div>
+
+      <!-- Confirm & request -->
+      <div class="form-step reveal">
+        <h3>Confirm &amp; request</h3>
+        <p class="step-sub">Once received, Lustique will confirm your date is available and send your deposit payment link.</p>
+
+        <div class="field" style="margin-top:.6rem;">
+          <label style="display:flex;align-items:flex-start;gap:.7rem;font-size:.92rem;color:#5c5048;cursor:pointer;">
+            <input type="checkbox" id="bkConsent" style="width:auto;margin-top:.18em;flex-shrink:0;">
+            <span>I consent to Lustique Co. collecting and storing my personal information to process this booking, in accordance with the <a href="privacy.html" style="color:var(--burgundy);">privacy policy</a>. Required.</span>
+          </label>
+        </div>
+
+        <div class="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} style="margin:1.1rem 0;"></div>
+
+        <button type="button" class="btn btn-primary" id="bkSubmit" style="width:100%;justify-content:center;background:var(--burgundy);">Request to book →</button>
+        <p class="note center" id="bkStatus" role="alert" style="margin-top:1rem;color:var(--burgundy);"></p>
+        <p class="note center" style="margin-top:1rem;">We confirm within a few hours. <strong>Blessings, The Lustique Cosmetology Team.</strong></p>
+      </div>
+
+      <p class="note center" style="margin-top:1.5rem;">
+        Need to adjust your estimate? <a href="quote.html" style="color:var(--burgundy);text-decoration:underline;">Go back and edit →</a>
+      </p>
+    </div>
+
+  </div></section>
+
+  <script>import "../scripts/book-page.ts";</script>
+</BaseLayout>
