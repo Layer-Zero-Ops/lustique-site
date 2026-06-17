@@ -51,26 +51,27 @@ Balance paid → same Yoco → webhook → Wave settled → final confirmation
 | Phase | What | Status |
 |---|---|---|
 | **S6** | Blocked dates availability check | ✅ done — migration + Worker 409 + 90 tests |
-| **S6b** | Zandeline review page | ▶ NEXT |
-| **S7** | Yoco payment links + webhook handler | pending |
+| **S6b** | Zandeline review page | ✅ done — `/api/booking/review` + 11 tests, email CTA updated |
+| **S7** | Yoco payment links + webhook handler | ▶ NEXT |
 | **S7b** | `/book` page redesign | pending |
 | **S8** | Wave API integration | pending |
 
 ---
 
-### S6b — Zandeline review page (start here)
+### S7 — Yoco payment links (start here)
 
-**What:** Zandeline receives the existing booking-request email with a "Confirm" button. Currently clicking Confirm sends EFT details to bride immediately. **S6b changes that** — the button now opens a review page where she can see the form data + proposed line items, adjust amounts if needed, then click "Approve & Send" which then fires the EFT email.
+**What:** Replace the EFT deposit flow with a Yoco payment link. When Zandeline approves on the review page, instead of emailing EFT details, the Worker creates a Yoco payment link for the deposit amount and emails it to the bride. When the bride pays, Yoco fires a webhook → Worker updates status to `deposit_paid`.
+
+**API:** Yoco Checkout API (not the old Yoco SDK). Secret key is `YOCO_SECRET_KEY` (already a Worker secret). Webhook secret is `YOCO_WEBHOOK_SECRET`.
 
 **Steps:**
-1. New Worker route: `GET /api/booking/review?token=…` — renders the review page (same token-auth pattern as confirm/decline)
-2. Review page HTML: booking summary left, editable proposed invoice right (line items from `quote_lines`, editable total)
-3. `POST /api/booking/review` — validate edited amounts, transition booking to `approved`, send EFT email to bride
-4. Update existing confirm email to Zandeline: replace "Confirm & send deposit details" with "Review & approve booking" linking to the review page
+1. `POST https://payments.yoco.com/api/checkouts` — create checkout with `amount`, `currency: "ZAR"`, `successUrl`, `cancelUrl`, `metadata: { bookingId, reference }`
+2. Store `yoco_checkout_id` on the booking row (migration needed: add `yoco_checkout_id TEXT`)
+3. Webhook handler: `POST /api/booking/yoco-webhook` — verify signature, handle `checkout.succeeded` event → transition `confirmed → deposit_paid` → email bride confirmation
+4. Update review page approve path: create Yoco link instead of emailing EFT details; email bride the Yoco checkout URL
+5. Re-enable deposit % selector in the site (hidden in `091e274`)
 
-**Note:** `POST /api/booking/confirm` (the current confirm handler) can remain for backwards-compat or be retired — discuss with Pieter.
-
-**Pieter action needed before going live:** apply `supabase/migrations/0003_blocked_dates.sql` via Supabase SQL editor (paste + run).
+**Note:** keep EFT path as fallback for clients who prefer bank transfer — discuss with Pieter before removing.
 
 ---
 
@@ -86,7 +87,8 @@ Balance paid → same Yoco → webhook → Wave settled → final confirmation
 
 ## State (done-ledger)
 
-- **S6 availability gate ✅ 2026-06-17** — `blocked_dates` migration + `isDateBlocked` in db.ts + step 4 in `handleBookingRequest` (409 + friendly message) + 2 new tests (happy chain mocks + 409 blocked). 90 tests pass. Migration file at `supabase/migrations/0003_blocked_dates.sql` — Pieter to apply via SQL editor.
+- **S6b review page ✅ 2026-06-17** — `7c99b26`. `GET/POST /api/booking/review`: full quote breakdown, editable total, approve/decline. Override total → PATCH includes recalculated deposit+balance. Email CTA updated from `/confirm` to `/review`. Old `/confirm` kept for backwards compat. 11 new tests; 101 total.
+- **S6 availability gate ✅ 2026-06-17** — `089fe4f`. `blocked_dates` migration (applied) + `isDateBlocked` in db.ts + 409 gate in request handler. 90 tests.
 - **Site live ✅ 2026-06-17** — `lustiqueco.co.za` serving Astro via Workers Assets. DNS on CF, Worker route `/*` set.
 - **UI: deposit % hidden, Zandeline → Lustique ✅ 2026-06-17** — `091e274`
 - **Root wrangler.toml ✅ 2026-06-16** — `8c28525`. Workers Assets deployment wired.
