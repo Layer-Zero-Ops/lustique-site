@@ -15,8 +15,9 @@
  */
 import { findPaymentByCheckoutId, markPaymentPaid, transitionBooking, getBookingById } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
+import { recordPayment, type WaveEnv } from "../lib/wave";
 
-export interface YocoWebhookEnv extends AuditEnv {
+export interface YocoWebhookEnv extends AuditEnv, WaveEnv {
   YOCO_WEBHOOK_SECRET: string;
   BREVO_API_KEY: string;
   NOTIFY_EMAIL: string;
@@ -138,6 +139,24 @@ export async function handleYocoWebhook(
   }
 
   const booking = await getBookingById(env, bookingId, fetchImpl);
+
+  // S8: record deposit payment in Wave (fire-and-forget).
+  if (booking?.wave_invoice_id && env.WAVE_API_KEY && env.WAVE_BUSINESS_ID && env.WAVE_BANK_ACCOUNT_ID) {
+    try {
+      await recordPayment(
+        env,
+        booking.wave_invoice_id,
+        booking.deposit_net_cents,
+        new Date().toISOString().slice(0, 10),
+        `Yoco deposit · ${booking.reference}`,
+        fetchImpl,
+      );
+      await writeAudit(env, { bookingId, eventType: "wave.deposit-recorded", payload: { reference: booking.reference } }, fetchImpl).catch(() => {});
+    } catch {
+      await writeAudit(env, { bookingId, eventType: "wave.deposit-failed", payload: { reference: booking.reference } }, fetchImpl).catch(() => {});
+    }
+  }
+
   if (booking) {
     try {
       await brevoEmail(

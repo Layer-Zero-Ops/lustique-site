@@ -153,12 +153,14 @@ export interface ConfirmBookingRow {
   balance_net_cents: number;
   confirm_token_expires_at: string;
   confirm_token_used_at: string | null;
+  wave_customer_id: string | null;
+  wave_invoice_id: string | null;
 }
 
 const CONFIRM_COLS =
   "id,reference,status,bride_name,bride_email,wedding_date,venue,town,province," +
   "party_size,total_cents,deposit_pct,deposit_net_cents,balance_net_cents," +
-  "confirm_token_expires_at,confirm_token_used_at";
+  "confirm_token_expires_at,confirm_token_used_at,wave_customer_id,wave_invoice_id";
 
 /** Look a booking up by its stored confirm_token_hash. Returns null if none. */
 export async function getBookingByTokenHash(
@@ -277,6 +279,81 @@ export async function isDateBlocked(
   if (!r.ok) throw new Error(`isDateBlocked ${r.status}`);
   const rows = (await r.json()) as Array<{ date: string }>;
   return rows.length > 0;
+}
+
+// ── Wave ID updaters (S8) ─────────────────────────────────────────────────────
+
+/** Store Wave customer + invoice IDs on a booking after Wave invoice is created. */
+export async function updateBookingWaveIds(
+  env: DbEnv,
+  id: string,
+  waveCustomerId: string,
+  waveInvoiceId: string,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, `bookings?id=eq.${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: { ...headers(env), prefer: "return=minimal" },
+    body: JSON.stringify({ wave_customer_id: waveCustomerId, wave_invoice_id: waveInvoiceId }),
+  });
+  if (!r.ok) throw new Error(`updateBookingWaveIds ${r.status}: ${await r.text()}`);
+}
+
+/** Store Wave payment/transaction ID on a payment row after Wave payment is recorded. */
+export async function updatePaymentWaveId(
+  env: DbEnv,
+  paymentRowId: string,
+  wavePaymentId: string,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, `payments?id=eq.${encodeURIComponent(paymentRowId)}`), {
+    method: "PATCH",
+    headers: { ...headers(env), prefer: "return=minimal" },
+    body: JSON.stringify({ wave_payment_id: wavePaymentId }),
+  });
+  if (!r.ok) throw new Error(`updatePaymentWaveId ${r.status}: ${await r.text()}`);
+}
+
+// ── Blocked dates admin (S8) ──────────────────────────────────────────────────
+
+/** List all blocked dates sorted ascending — for the admin UI. */
+export async function listBlockedDates(
+  env: DbEnv,
+  f: typeof fetch = fetch,
+): Promise<Array<{ date: string; reason: string | null }>> {
+  const r = await f(rest(env, "blocked_dates?select=date,reason&order=date.asc"), {
+    headers: headers(env),
+  });
+  if (!r.ok) throw new Error(`listBlockedDates ${r.status}`);
+  return r.json() as Promise<Array<{ date: string; reason: string | null }>>;
+}
+
+/** Add a date to the blocked_dates table. Ignores duplicate (upsert on PK). */
+export async function addBlockedDate(
+  env: DbEnv,
+  date: string,
+  reason: string | null,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, "blocked_dates?on_conflict=date"), {
+    method: "POST",
+    headers: { ...headers(env), prefer: "return=minimal,resolution=merge-duplicates" },
+    body: JSON.stringify({ date, reason }),
+  });
+  if (!r.ok) throw new Error(`addBlockedDate ${r.status}: ${await r.text()}`);
+}
+
+/** Remove a date from blocked_dates. No-op if not present. */
+export async function removeBlockedDate(
+  env: DbEnv,
+  date: string,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, `blocked_dates?date=eq.${encodeURIComponent(date)}`), {
+    method: "DELETE",
+    headers: { ...headers(env), prefer: "return=minimal" },
+  });
+  if (!r.ok) throw new Error(`removeBlockedDate ${r.status}: ${await r.text()}`);
 }
 
 /** Bookings due a balance reminder: deposit_paid, not yet reminded, real balance, wedding within window. */

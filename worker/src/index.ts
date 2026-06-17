@@ -5,6 +5,7 @@ import { renderConfirmPage, handleBookingConfirm, renderMarkPaidPage, handleMark
 import { renderReviewPage, handleReview } from "./booking/review";
 import { handleYocoWebhook } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
+import { handleAdminBlockedDates } from "./booking/admin";
 
 /* ============================================================
    LUSTIQUE CO. — form-handler Worker (the stable API boundary)
@@ -37,6 +38,13 @@ export interface Env {
   EFT_ACCOUNT_NAME: string;
   EFT_ACCOUNT_NO: string;
   EFT_BRANCH_CODE: string;
+  // S8: Wave accounting (all optional — if absent, Wave calls are skipped gracefully)
+  WAVE_API_KEY?: string;
+  WAVE_BUSINESS_ID?: string;
+  WAVE_PRODUCT_ID?: string;
+  WAVE_BANK_ACCOUNT_ID?: string;
+  // S8: admin area (blocked dates UI)
+  ADMIN_SECRET?: string;
   AUDIT: { put(key: string, value: string): Promise<unknown> };
 }
 
@@ -141,6 +149,11 @@ export default {
     // POST /api/booking/yoco-webhook — Yoco payment event (S7; signature verified inside)
     if (req.method === "POST" && url.pathname === "/api/booking/yoco-webhook") {
       return handleYocoWebhook(env, req);
+    }
+
+    // GET/POST /api/admin/blocked-dates — Zandeline's blocked-dates admin (S8; token-protected)
+    if (url.pathname === "/api/admin/blocked-dates" && env.ADMIN_SECRET) {
+      return handleAdminBlockedDates({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req);
     }
 
     // GET /api/booking/mark-paid?token= — render-only deposit-received page (S4, prefetch-safe)

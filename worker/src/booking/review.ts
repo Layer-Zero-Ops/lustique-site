@@ -12,12 +12,13 @@
  * GET  = render-only (prefetch-safe — no mutations, spec §12)
  * POST = verify → optional amount override → guarded transition → emails → redirect
  */
-import { getBookingByTokenHashForReview, transitionRequestedBooking, insertPayment, type ReviewBookingRow } from "./db";
+import { getBookingByTokenHashForReview, transitionRequestedBooking, insertPayment, updateBookingWaveIds, type ReviewBookingRow } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken } from "./token";
 import { splitDeposit } from "@lustique/pricing";
+import { createCustomer, createInvoice, type WaveEnv } from "../lib/wave";
 
-export interface BookingReviewEnv extends AuditEnv {
+export interface BookingReviewEnv extends AuditEnv, WaveEnv {
   BREVO_API_KEY: string;
   NOTIFY_EMAIL: string;
   ALLOWED_ORIGIN: string;
@@ -307,6 +308,18 @@ export async function handleReview(
 
   const updated = await transitionRequestedBooking(env, b.id, patch, fetchImpl);
   if (!updated) return htmlResponse(handledHtml(), 200);
+
+  // S8: create Wave customer + invoice (fire-and-forget — never blocks the email send).
+  if (env.WAVE_API_KEY && env.WAVE_BUSINESS_ID) {
+    try {
+      const waveCustomerId = await createCustomer(env, b.bride_name, b.bride_email, fetchImpl);
+      const waveInvoiceId = await createInvoice(env, waveCustomerId, b.reference, finalTotalCents, b.wedding_date, fetchImpl);
+      await updateBookingWaveIds(env, b.id, waveCustomerId, waveInvoiceId, fetchImpl);
+      await writeAudit(env, { bookingId: b.id, eventType: "wave.invoice-created", payload: { waveCustomerId, waveInvoiceId } }, fetchImpl);
+    } catch (e) {
+      await writeAudit(env, { bookingId: b.id, eventType: "wave.invoice-failed", payload: { reference: b.reference, error: String(e) } }, fetchImpl).catch(() => {});
+    }
+  }
 
   const markPaidToken = await signActionToken(b.id, new Date(Date.now() + MARK_PAID_TTL_MS), env.SIGNING_SECRET, "deposit");
   const markPaidUrl = `${origin}/api/booking/mark-paid?token=${encodeURIComponent(markPaidToken)}`;

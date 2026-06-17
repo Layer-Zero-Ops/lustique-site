@@ -12,8 +12,9 @@ import { getBookingById, transitionBooking, listBookingsDueForBalanceReminder, t
 import { writeAudit, type AuditEnv } from "./audit";
 import { signActionToken, verifyActionToken } from "./token";
 import { workingDaysBefore } from "./util";
+import { recordPayment, type WaveEnv } from "../lib/wave";
 
-export interface BookingBalanceEnv extends AuditEnv {
+export interface BookingBalanceEnv extends AuditEnv, WaveEnv {
   BREVO_API_KEY: string;
   NOTIFY_EMAIL: string;
   ALLOWED_ORIGIN: string;
@@ -147,6 +148,23 @@ export async function handleMarkBalancePaid(
   const b = loaded.booking;
   const updated = await transitionBooking(env, b.id, "deposit_paid", { status: "settled", settled_at: new Date().toISOString() }, fetchImpl);
   if (!updated) return htmlResponse(handledHtml(), 200);
+
+  // S8: record balance payment in Wave (fire-and-forget).
+  if (b.wave_invoice_id && env.WAVE_API_KEY && env.WAVE_BUSINESS_ID && env.WAVE_BANK_ACCOUNT_ID) {
+    try {
+      await recordPayment(
+        env,
+        b.wave_invoice_id,
+        b.balance_net_cents,
+        new Date().toISOString().slice(0, 10),
+        `EFT balance · ${b.reference}`,
+        fetchImpl,
+      );
+      await writeAudit(env, { bookingId: b.id, eventType: "wave.balance-recorded", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
+    } catch {
+      await writeAudit(env, { bookingId: b.id, eventType: "wave.balance-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
+    }
+  }
 
   try {
     await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
