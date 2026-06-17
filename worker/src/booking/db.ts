@@ -214,6 +214,20 @@ export async function countBookingsOnDate(
   return parseInt(rows[0]?.count ?? "0", 10);
 }
 
+/** Check if a date is blocked by admin (S6 availability gate). */
+export async function isDateBlocked(
+  env: DbEnv,
+  date: string, // "YYYY-MM-DD"
+  f: typeof fetch = fetch,
+): Promise<boolean> {
+  const r = await f(rest(env, `blocked_dates?date=eq.${encodeURIComponent(date)}&select=date&limit=1`), {
+    headers: headers(env),
+  });
+  if (!r.ok) throw new Error(`isDateBlocked ${r.status}`);
+  const rows = (await r.json()) as Array<{ date: string }>;
+  return rows.length > 0;
+}
+
 /** Bookings due a balance reminder: deposit_paid, not yet reminded, real balance, wedding within window. */
 export async function listBookingsDueForBalanceReminder(
   env: DbEnv,

@@ -51,15 +51,16 @@ const validBody = {
   travel: { band: "mid" },
 };
 
-/** Build a happy-path fetch chain: Turnstile → count → insert → audit_log → Brevo ×2 */
+/** Build a happy-path fetch chain: Turnstile → isDateBlocked → count → insert → audit → Brevo ×2 */
 function happyChain() {
   return vi.fn()
     .mockResolvedValueOnce(res({ success: true }))                                       // 1. Turnstile
-    .mockResolvedValueOnce(res([{ count: "0" }]))                                        // 2. countBookingsOnDate
-    .mockResolvedValueOnce(res([{ id: BOOKING_ID, reference: "LUS-2026-111122" }], 201)) // 3. insertBooking
-    .mockResolvedValueOnce(res({}, 201))                                                 // 4. audit_log
-    .mockResolvedValueOnce(res({ messageId: "m1" }, 201))                               // 5. Brevo → Zandeline
-    .mockResolvedValueOnce(res({ messageId: "m2" }, 201));                              // 6. Brevo → bride
+    .mockResolvedValueOnce(res([]))                                                      // 2. isDateBlocked → not blocked
+    .mockResolvedValueOnce(res([{ count: "0" }]))                                        // 3. countBookingsOnDate
+    .mockResolvedValueOnce(res([{ id: BOOKING_ID, reference: "LUS-2026-111122" }], 201)) // 4. insertBooking
+    .mockResolvedValueOnce(res({}, 201))                                                 // 5. audit_log
+    .mockResolvedValueOnce(res({ messageId: "m1" }, 201))                               // 6. Brevo → Lustique
+    .mockResolvedValueOnce(res({ messageId: "m2" }, 201));                              // 7. Brevo → bride
 }
 
 function makeReq(body: unknown) {
@@ -81,34 +82,35 @@ describe("handleBookingRequest — happy path", () => {
     expect(data.reference).toMatch(/^LUS-/);
   });
 
-  it("sends two Brevo emails (Zandeline + bride)", async () => {
+  it("sends two Brevo emails (Lustique + bride)", async () => {
     const f = happyChain();
     await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
-    expect(f).toHaveBeenCalledTimes(6);
-    const brevoCall1 = f.mock.calls[4]![0] as string;
-    const brevoCall2 = f.mock.calls[5]![0] as string;
+    expect(f).toHaveBeenCalledTimes(7);
+    const brevoCall1 = f.mock.calls[5]![0] as string;
+    const brevoCall2 = f.mock.calls[6]![0] as string;
     expect(brevoCall1).toBe("https://api.brevo.com/v3/smtp/email");
     expect(brevoCall2).toBe("https://api.brevo.com/v3/smtp/email");
   });
 
-  it("includes the confirm URL in Zandeline's email body", async () => {
+  it("includes the confirm URL in Lustique's email body", async () => {
     const f = happyChain();
     await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
-    const zandelineBody = JSON.parse((f.mock.calls[4]![1] as RequestInit).body as string);
-    expect(zandelineBody.htmlContent).toContain("/api/booking/confirm?token=");
+    const lustiqueBody = JSON.parse((f.mock.calls[5]![1] as RequestInit).body as string);
+    expect(lustiqueBody.htmlContent).toContain("/api/booking/confirm?token=");
   });
 
   it("includes the same-date warning when another booking holds the date", async () => {
     const f = vi.fn()
-      .mockResolvedValueOnce(res({ success: true }))
-      .mockResolvedValueOnce(res([{ count: "2" }]))
+      .mockResolvedValueOnce(res({ success: true }))    // Turnstile
+      .mockResolvedValueOnce(res([]))                   // isDateBlocked
+      .mockResolvedValueOnce(res([{ count: "2" }]))     // countBookingsOnDate
       .mockResolvedValueOnce(res([{ id: BOOKING_ID, reference: "LUS-2026-111122" }], 201))
       .mockResolvedValueOnce(res({}, 201))
       .mockResolvedValueOnce(res({ messageId: "1" }, 201))
       .mockResolvedValueOnce(res({ messageId: "2" }, 201));
     await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
-    const zandelineBody = JSON.parse((f.mock.calls[4]![1] as RequestInit).body as string);
-    expect(zandelineBody.htmlContent).toContain("2 other active booking");
+    const lustiqueBody = JSON.parse((f.mock.calls[5]![1] as RequestInit).body as string);
+    expect(lustiqueBody.htmlContent).toContain("2 other active booking");
   });
 
   it("flags bookings over R200,000 in notes but still returns 200", async () => {
@@ -116,18 +118,19 @@ describe("handleBookingRequest — happy path", () => {
     const f = happyChain();
     const resp = await handleBookingRequest(env, makeReq(validBody), f, bigCompute, () => BOOKING_ID);
     expect(resp.status).toBe(200);
-    const insertedBody = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    const insertedBody = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(JSON.stringify(insertedBody)).toContain("manual review");
   });
 
   it("returns 502 and writes audit when Brevo fails after a successful insert", async () => {
     const f = vi.fn()
       .mockResolvedValueOnce(res({ success: true }))                                       // 1. Turnstile
-      .mockResolvedValueOnce(res([{ count: "0" }]))                                        // 2. countBookingsOnDate
-      .mockResolvedValueOnce(res([{ id: BOOKING_ID, reference: "LUS-2026-111122" }], 201)) // 3. insertBooking
-      .mockResolvedValueOnce(res({}, 201))                                                 // 4. insertAudit (request.created)
-      .mockRejectedValueOnce(new Error("Brevo 503"))                                       // 5. Zandeline email fails
-      .mockResolvedValueOnce(res({}, 201));                                                // 6. insertAudit (request.email-failed)
+      .mockResolvedValueOnce(res([]))                                                      // 2. isDateBlocked
+      .mockResolvedValueOnce(res([{ count: "0" }]))                                        // 3. countBookingsOnDate
+      .mockResolvedValueOnce(res([{ id: BOOKING_ID, reference: "LUS-2026-111122" }], 201)) // 4. insertBooking
+      .mockResolvedValueOnce(res({}, 201))                                                 // 5. insertAudit (request.created)
+      .mockRejectedValueOnce(new Error("Brevo 503"))                                       // 6. Lustique email fails
+      .mockResolvedValueOnce(res({}, 201));                                                // 7. insertAudit (request.email-failed)
     const resp = await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
     expect(resp.status).toBe(502);
     expect((await resp.json() as { ok: boolean }).ok).toBe(false);
@@ -184,12 +187,23 @@ describe("handleBookingRequest — dedupe", () => {
   it("returns 200 without re-emailing when the idempotency_key already exists", async () => {
     const EXISTING_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     const f = vi.fn()
-      .mockResolvedValueOnce(res({ success: true }))
-      .mockResolvedValueOnce(res([{ count: "0" }]))
-      .mockResolvedValueOnce(res([{ id: EXISTING_ID, reference: "LUS-2026-EXIST" }], 201));
+      .mockResolvedValueOnce(res({ success: true }))  // Turnstile
+      .mockResolvedValueOnce(res([]))                 // isDateBlocked
+      .mockResolvedValueOnce(res([{ count: "0" }]))   // countBookingsOnDate
+      .mockResolvedValueOnce(res([{ id: EXISTING_ID, reference: "LUS-2026-EXIST" }], 201)); // insertBooking (dedupe)
     const resp = await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
     expect(resp.status).toBe(200);
     expect((await resp.json() as { reference: string }).reference).toBe("LUS-2026-EXIST");
-    expect(f).toHaveBeenCalledTimes(3);
+    expect(f).toHaveBeenCalledTimes(4);
+  });
+
+  it("returns 409 when the requested date is blocked", async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce(res({ success: true }))   // Turnstile
+      .mockResolvedValueOnce(res([{ date: validBody.weddingDate }])); // isDateBlocked → blocked
+    const resp = await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
+    expect(resp.status).toBe(409);
+    expect((await resp.json() as { error: string }).error).toMatch(/no longer available/i);
+    expect(f).toHaveBeenCalledTimes(2);
   });
 });

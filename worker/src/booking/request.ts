@@ -7,7 +7,7 @@ import {
   computeEstimate, randToCents, splitDeposit,
   type EstimateInput, type EstimateResult,
 } from "@lustique/pricing";
-import { insertBooking, countBookingsOnDate } from "./db";
+import { insertBooking, countBookingsOnDate, isDateBlocked } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { signToken, hashToken } from "./token";
 import { makeReference } from "./util";
@@ -154,7 +154,16 @@ export async function handleBookingRequest(
   // 3. Field validation
   if (problem) return json({ ok: false, error: problem }, 422);
 
-  // 4. Server-authoritative price recompute (spec §8 — never trust client total)
+  // 4. Availability gate — check blocked_dates before any further work (S6)
+  const blocked = await isDateBlocked(env, body.weddingDate!, fetchImpl);
+  if (blocked) {
+    return json({
+      ok: false,
+      error: "We're sorry — that date is no longer available. Please choose another date or contact us at info@lustiqueco.co.za.",
+    }, 409);
+  }
+
+  // 5. Server-authoritative price recompute (spec §8 — never trust client total)
   const estimateInput = toEstimateInput(body);
   const result = computeFn(estimateInput);
   const totalCents = randToCents(result.total);
@@ -164,17 +173,17 @@ export async function handleBookingRequest(
     ? `⚠️ Total R${result.total.toLocaleString()} exceeds R${SANITY_CAP_RAND.toLocaleString()} — manual review.`
     : null;
 
-  // 5. Pre-generate bookingId + sign token before insert (spec §12)
+  // 6. Pre-generate bookingId + sign token before insert (spec §12)
   const bookingId = newId();
   const tokenExpiry = new Date(Date.now() + TOKEN_TTL_MS);
   const token = await signToken(bookingId, tokenExpiry, env.SIGNING_SECRET);
   const tokenHash = await hashToken(token);
   const reference = makeReference(bookingId, new Date().getUTCFullYear());
 
-  // 6. Same-date count for the warning in Zandeline's email (spec §10)
+  // 7. Same-date count for the warning in Lustique's confirm email (spec §10)
   const sameDateCount = await countBookingsOnDate(env, body.weddingDate!, fetchImpl);
 
-  // 7. Insert (idempotent — on conflict returns the existing row)
+  // 8. Insert (idempotent — on conflict returns the existing row)
   const returned = await insertBooking(
     env,
     {
@@ -210,14 +219,14 @@ export async function handleBookingRequest(
     return json({ ok: true, reference: returned.reference }, 200);
   }
 
-  // 8. Audit
+  // 9. Audit
   await writeAudit(
     env,
     { bookingId, eventType: "request.created", payload: { reference, totalCents, depositPct } },
     fetchImpl,
   );
 
-  // 9 + 10. Emails — Zandeline (confirm link) + bride (received)
+  // 10 + 11. Emails — Lustique (confirm link) + bride (received)
   // If either call fails: write audit, return 502 so the client knows.
   // IMPORTANT: retrying with the same idempotencyKey will short-circuit at the dedupe
   // branch above and never re-send emails. The "request.email-failed" audit event is
@@ -256,7 +265,7 @@ export async function handleBookingRequest(
       `<p>Hi ${esc(body.brideName!.trim())},</p>
        <p>We have your booking request for <strong>${esc(body.weddingDate!)}</strong>.</p>
        <p>Your reference is <strong>${esc(reference)}</strong>.</p>
-       <p>Zandeline will review artist availability and confirm within 24 hours. Once confirmed we'll send you your deposit payment details to officially secure your date.</p>
+       <p>Our team will review artist availability and confirm within 24 hours. Once confirmed we'll send you your deposit payment details to officially secure your date.</p>
        <p>Blessings,<br/>The Lustique Cosmetology Team</p>`,
       fetchImpl,
     );
