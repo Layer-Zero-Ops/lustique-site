@@ -1,6 +1,6 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Site live — building to full booking→payment flow · **Updated:** 2026-06-17 (Sonnet)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Site live — building to full booking→payment flow · **Updated:** 2026-06-17 (Sonnet, S7b)
 
 ## ▶ NEXT
 
@@ -53,26 +53,26 @@ Balance paid → same Yoco → webhook → Wave settled → final confirmation
 | **S6** | Blocked dates availability check | ✅ done — migration + Worker 409 + 90 tests |
 | **S6b** | Zandeline review page | ✅ done — `/api/booking/review` + 11 tests, email CTA updated |
 | **S7** | Yoco payment links + webhook handler | ✅ done — 108 tests, commit `9b5a7f9` |
-| **S7b** | `/book` page redesign | ▶ NEXT |
-| **S8** | Wave API integration | pending |
+| **S7b** | `/book` page redesign | ✅ done — `e833b65`, sessionStorage handoff, mobile-verified |
+| **S8** | Wave API integration | ▶ NEXT |
 
 ---
 
-### S7b — `/book` page redesign (start here)
+### S8 — Wave API integration (start here)
 
-**What:** Build a clean standalone `/book` page to replace the bolted-on booking section that lives at the bottom of `/quote`. The current flow sends the bride from the quote page to the booking form — this should be a dedicated page that loads with her quote pre-filled (via URL params or sessionStorage).
+**What:** After Zandeline approves a quote on the review page, create a Wave customer + invoice and record the deposit payment when Yoco webhook fires.
 
-**Constraints:**
-- Keep the booking form logic unchanged (same `POST /api/booking/request` endpoint)
-- Quiet-luxury brand: no clutter, generous white space, one clear CTA — see `BRAND.md`
-- Mobile-first (brides are on phones)
-- The deposit % selector was hidden in `091e274` — decide with Pieter whether to re-enable here or leave hidden
+**Context:**
+- Wave = accounting SaaS; Lustique uses it for invoicing + bookkeeping
+- S6b review page calls approve → S7 creates Yoco checkout. S8 plugs in between/after to mirror state to Wave
+- Need Wave API credentials in Worker secrets: `WAVE_API_KEY` (+ `WAVE_BUSINESS_ID`)
 
 **Steps:**
-1. Create `site/src/pages/book.astro` — standalone page, pulls in `BookingForm` component
-2. Wire quote-to-book transition: pass estimate + quote lines as URL params or sessionStorage so the bride doesn't re-enter data
-3. Verify on mobile viewport
-4. Update any `/quote` nav links to point to `/book`
+1. Add Wave API client to `worker/src/lib/wave.ts` — `createCustomer`, `createInvoice`, `recordPayment`
+2. On review approve (`POST /api/booking/review`): call Wave `createCustomer` + `createInvoice`, store `wave_invoice_id` on the booking
+3. On Yoco deposit webhook: call Wave `recordPayment` against the invoice
+4. On balance paid webhook: call Wave `recordPayment` (balance) → invoice settled
+5. Add tests for Wave client + integration points
 
 ---
 
@@ -88,6 +88,7 @@ Balance paid → same Yoco → webhook → Wave settled → final confirmation
 
 ## State (done-ledger)
 
+- **S7b /book page ✅ 2026-06-17** — `e833b65`. Standalone `/book` page with sessionStorage handoff from `/quote`. Estimate summary + deposit calc shown, all fields pre-filled, Turnstile + consent on the booking page. Falls back to "Build estimate first" if accessed directly. 108 worker tests still passing.
 - **S7 Yoco payment links ✅ 2026-06-17** — `9b5a7f9`. `createYocoCheckout` on review approve → `insertPayment (pending)` → bride email with Yoco Pay Now + EFT fallback. Webhook `POST /api/booking/yoco-webhook`: HMAC-SHA256 sig verify → `markPaymentPaid` → `transitionBooking confirmed→deposit_paid` → bride 'date secured' email. Idempotent + race-safe. 108 tests (was 101).
 - **S6b review page ✅ 2026-06-17** — `7c99b26`. `GET/POST /api/booking/review`: full quote breakdown, editable total, approve/decline. Override total → PATCH includes recalculated deposit+balance. Email CTA updated from `/confirm` to `/review`. Old `/confirm` kept for backwards compat. 11 new tests; 101 total.
 - **S6 availability gate ✅ 2026-06-17** — `089fe4f`. `blocked_dates` migration (applied) + `isDateBlocked` in db.ts + 409 gate in request handler. 90 tests.
