@@ -52,26 +52,27 @@ Balance paid → same Yoco → webhook → Wave settled → final confirmation
 |---|---|---|
 | **S6** | Blocked dates availability check | ✅ done — migration + Worker 409 + 90 tests |
 | **S6b** | Zandeline review page | ✅ done — `/api/booking/review` + 11 tests, email CTA updated |
-| **S7** | Yoco payment links + webhook handler | ▶ NEXT |
-| **S7b** | `/book` page redesign | pending |
+| **S7** | Yoco payment links + webhook handler | ✅ done — 108 tests, commit `9b5a7f9` |
+| **S7b** | `/book` page redesign | ▶ NEXT |
 | **S8** | Wave API integration | pending |
 
 ---
 
-### S7 — Yoco payment links (start here)
+### S7b — `/book` page redesign (start here)
 
-**What:** Replace the EFT deposit flow with a Yoco payment link. When Zandeline approves on the review page, instead of emailing EFT details, the Worker creates a Yoco payment link for the deposit amount and emails it to the bride. When the bride pays, Yoco fires a webhook → Worker updates status to `deposit_paid`.
+**What:** Build a clean standalone `/book` page to replace the bolted-on booking section that lives at the bottom of `/quote`. The current flow sends the bride from the quote page to the booking form — this should be a dedicated page that loads with her quote pre-filled (via URL params or sessionStorage).
 
-**API:** Yoco Checkout API (not the old Yoco SDK). Secret key is `YOCO_SECRET_KEY` (already a Worker secret). Webhook secret is `YOCO_WEBHOOK_SECRET`.
+**Constraints:**
+- Keep the booking form logic unchanged (same `POST /api/booking/request` endpoint)
+- Quiet-luxury brand: no clutter, generous white space, one clear CTA — see `BRAND.md`
+- Mobile-first (brides are on phones)
+- The deposit % selector was hidden in `091e274` — decide with Pieter whether to re-enable here or leave hidden
 
 **Steps:**
-1. `POST https://payments.yoco.com/api/checkouts` — create checkout with `amount`, `currency: "ZAR"`, `successUrl`, `cancelUrl`, `metadata: { bookingId, reference }`
-2. Store `yoco_checkout_id` on the booking row (migration needed: add `yoco_checkout_id TEXT`)
-3. Webhook handler: `POST /api/booking/yoco-webhook` — verify signature, handle `checkout.succeeded` event → transition `confirmed → deposit_paid` → email bride confirmation
-4. Update review page approve path: create Yoco link instead of emailing EFT details; email bride the Yoco checkout URL
-5. Re-enable deposit % selector in the site (hidden in `091e274`)
-
-**Note:** keep EFT path as fallback for clients who prefer bank transfer — discuss with Pieter before removing.
+1. Create `site/src/pages/book.astro` — standalone page, pulls in `BookingForm` component
+2. Wire quote-to-book transition: pass estimate + quote lines as URL params or sessionStorage so the bride doesn't re-enter data
+3. Verify on mobile viewport
+4. Update any `/quote` nav links to point to `/book`
 
 ---
 
@@ -87,6 +88,7 @@ Balance paid → same Yoco → webhook → Wave settled → final confirmation
 
 ## State (done-ledger)
 
+- **S7 Yoco payment links ✅ 2026-06-17** — `9b5a7f9`. `createYocoCheckout` on review approve → `insertPayment (pending)` → bride email with Yoco Pay Now + EFT fallback. Webhook `POST /api/booking/yoco-webhook`: HMAC-SHA256 sig verify → `markPaymentPaid` → `transitionBooking confirmed→deposit_paid` → bride 'date secured' email. Idempotent + race-safe. 108 tests (was 101).
 - **S6b review page ✅ 2026-06-17** — `7c99b26`. `GET/POST /api/booking/review`: full quote breakdown, editable total, approve/decline. Override total → PATCH includes recalculated deposit+balance. Email CTA updated from `/confirm` to `/review`. Old `/confirm` kept for backwards compat. 11 new tests; 101 total.
 - **S6 availability gate ✅ 2026-06-17** — `089fe4f`. `blocked_dates` migration (applied) + `isDateBlocked` in db.ts + 409 gate in request handler. 90 tests.
 - **Site live ✅ 2026-06-17** — `lustiqueco.co.za` serving Astro via Workers Assets. DNS on CF, Worker route `/*` set.
