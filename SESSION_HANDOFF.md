@@ -6,13 +6,14 @@
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-**Immediate unblock needed from Pieter:**
-1. Apply `supabase/migrations/0004_wave_fields.sql` in Supabase dashboard SQL editor (adds Wave columns — 2 SQL statements)
-2. Once Wave developer access is approved: add 4 Worker secrets via `wrangler secret put`: `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID`
-3. Set `ADMIN_SECRET` via `wrangler secret put ADMIN_SECRET` — unlock `/api/admin/blocked-dates` admin page
-4. **Get WAVE_PRODUCT_ID**: Zandeline must create a "Bridal services" product in Wave > Products & Services; copy its ID
+**Secrets to set (via `wrangler secret put`):**
+- `ADMIN_SECRET` — unlocks `/api/admin/blocked-dates` page
+- `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID` — once Wave credentials arrive
 
-**▶ NEXT task (once Wave is configured):** live domain smoke test on `lustiqueco.co.za` → end-to-end booking flow verification
+**Migration to apply (Supabase SQL editor):**
+- `supabase/migrations/0004_wave_fields.sql` — 2 ALTER TABLE statements ✅ applied by Pieter
+
+**▶ NEXT task:** live domain smoke test on `lustiqueco.co.za` — end-to-end booking flow verification (form → Worker → emails → review page → approve → invoice link → Yoco pay). See smoke.test.ts for the pattern.
 
 ---
 
@@ -62,6 +63,7 @@ Balance paid → same Yoco → webhook → Wave settled → final confirmation
 | **S7** | Yoco payment links + webhook handler | ✅ done — 108 tests, commit `9b5a7f9` |
 | **S7b** | `/book` page redesign | ✅ done — `e833b65`, sessionStorage handoff, mobile-verified |
 | **S8** | Wave API integration + blocked-dates admin | ✅ done — 136 tests, commit `67de542` |
+| **S9** | In-house invoice system | ✅ done — 152 tests, commit `86db29c` |
 
 ---
 
@@ -95,6 +97,7 @@ Balance paid → same Yoco → webhook → Wave settled → final confirmation
 
 ## State (done-ledger)
 
+- **S9 Invoice system ✅ 2026-06-17** — `86db29c`. `GET /api/booking/invoice?token=<signed>` — Lustique-branded printable invoice, line items, deposit/balance split, live payment status badge, EFT bank details, print-to-PDF button. 2-year signed token, stateless, no new DB column. Invoice link added to bride deposit email + Zandeline admin email. Works with or without Wave. 152 tests (was 136).
 - **S8 Wave integration ✅ 2026-06-17** — `67de542`. Wave GraphQL client (`worker/src/lib/wave.ts`): `createCustomer`, `createInvoice`, `recordPayment`. Wired into review (on approve), yoco webhook (deposit paid), balance (settled). All calls fire-and-forget; audit-logged on failure; skipped gracefully if env vars absent. Blocked-dates admin UI (`/api/admin/blocked-dates`) with WebCrypto timing-safe auth, list/add/remove. Migration `0004_wave_fields.sql` (needs manual apply). 136 tests (was 108). Secrets needed: `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID`, `ADMIN_SECRET`.
 - **S7b /book page ✅ 2026-06-17** — `e833b65`. Standalone `/book` page with sessionStorage handoff from `/quote`. Estimate summary + deposit calc shown, all fields pre-filled, Turnstile + consent on the booking page. Falls back to "Build estimate first" if accessed directly. 108 worker tests still passing.
 - **S7 Yoco payment links ✅ 2026-06-17** — `9b5a7f9`. `createYocoCheckout` on review approve → `insertPayment (pending)` → bride email with Yoco Pay Now + EFT fallback. Webhook `POST /api/booking/yoco-webhook`: HMAC-SHA256 sig verify → `markPaymentPaid` → `transitionBooking confirmed→deposit_paid` → bride 'date secured' email. Idempotent + race-safe. 108 tests (was 101).
