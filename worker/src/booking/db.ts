@@ -214,6 +214,27 @@ export async function countBookingsOnDate(
   return parseInt(rows[0]?.count ?? "0", 10);
 }
 
+/** S6b review page: ConfirmBookingRow + quote_lines for the editable breakdown. */
+export interface ReviewBookingRow extends ConfirmBookingRow {
+  quote_lines: Array<{ label: string; amount: number }>;
+}
+
+const REVIEW_COLS = CONFIRM_COLS + ",quote_lines";
+
+export async function getBookingByTokenHashForReview(
+  env: DbEnv,
+  hash: string,
+  f: typeof fetch = fetch,
+): Promise<ReviewBookingRow | null> {
+  const r = await f(
+    rest(env, `bookings?confirm_token_hash=eq.${encodeURIComponent(hash)}&select=${REVIEW_COLS}`),
+    { headers: headers(env) },
+  );
+  if (!r.ok) throw new Error(`getBookingByTokenHashForReview ${r.status}`);
+  const rows = (await r.json()) as ReviewBookingRow[];
+  return rows.length ? rows[0]! : null;
+}
+
 /** Check if a date is blocked by admin (S6 availability gate). */
 export async function isDateBlocked(
   env: DbEnv,

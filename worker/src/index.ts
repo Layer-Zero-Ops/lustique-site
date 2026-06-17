@@ -2,6 +2,7 @@ import { keepWarm } from "./booking/db";
 import { writeAudit } from "./booking/audit";
 import { handleBookingRequest } from "./booking/request";
 import { renderConfirmPage, handleBookingConfirm, renderMarkPaidPage, handleMarkPaid } from "./booking/confirm";
+import { renderReviewPage, handleReview } from "./booking/review";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 
 /* ============================================================
@@ -125,6 +126,15 @@ export default {
     // POST /api/booking/confirm — confirm/decline transition (S3)
     if (req.method === "POST" && url.pathname === "/api/booking/confirm") {
       return handleBookingConfirm(env, req);
+    }
+
+    // GET /api/booking/review?token= — review page: quote breakdown + editable total (S6b, prefetch-safe)
+    if (req.method === "GET" && url.pathname === "/api/booking/review") {
+      return renderReviewPage(env, req);
+    }
+    // POST /api/booking/review — approve (optional amount override) or decline (S6b)
+    if (req.method === "POST" && url.pathname === "/api/booking/review") {
+      return handleReview(env, req);
     }
 
     // GET /api/booking/mark-paid?token= — render-only deposit-received page (S4, prefetch-safe)

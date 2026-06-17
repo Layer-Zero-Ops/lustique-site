@@ -232,7 +232,7 @@ export async function handleBookingRequest(
   // branch above and never re-send emails. The "request.email-failed" audit event is
   // the recovery trace until S5 adds a cron retry sweep.
   try {
-    const confirmUrl = `${env.ALLOWED_ORIGIN}/api/booking/confirm?token=${encodeURIComponent(token)}`;
+    const confirmUrl = `${env.ALLOWED_ORIGIN}/api/booking/review?token=${encodeURIComponent(token)}`;
     const sameDateHtml = sameDateCount > 0
       ? `<p style="color:#b91c1c;font-weight:600;margin:0 0 .8rem;">⚠️ ${sameDateCount} other active booking${sameDateCount === 1 ? "" : "s"} already hold${sameDateCount === 1 ? "s" : ""} this date.</p>`
       : "";
@@ -253,7 +253,7 @@ export async function handleBookingRequest(
        </table>
        ${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
        <p style="margin:1.2rem 0;">
-         <a href="${esc(confirmUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Confirm &amp; send deposit details</a>
+         <a href="${esc(confirmUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Review &amp; approve booking</a>
        </p>
        <p style="font-size:.88rem;color:#8a7d72;">Confirming emails the bride her EFT deposit details. The token expires in 14 days.</p>`,
       fetchImpl,

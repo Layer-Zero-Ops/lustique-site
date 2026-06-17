@@ -96,7 +96,7 @@ describe("handleBookingRequest — happy path", () => {
     const f = happyChain();
     await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
     const lustiqueBody = JSON.parse((f.mock.calls[5]![1] as RequestInit).body as string);
-    expect(lustiqueBody.htmlContent).toContain("/api/booking/confirm?token=");
+    expect(lustiqueBody.htmlContent).toContain("/api/booking/review?token=");
   });
 
   it("includes the same-date warning when another booking holds the date", async () => {
