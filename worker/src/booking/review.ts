@@ -12,7 +12,7 @@
  * GET  = render-only (prefetch-safe — no mutations, spec §12)
  * POST = verify → optional amount override → guarded transition → emails → redirect
  */
-import { getBookingByTokenHashForReview, transitionRequestedBooking, type ReviewBookingRow } from "./db";
+import { getBookingByTokenHashForReview, transitionRequestedBooking, insertPayment, type ReviewBookingRow } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken } from "./token";
 import { splitDeposit } from "@lustique/pricing";
@@ -22,6 +22,7 @@ export interface BookingReviewEnv extends AuditEnv {
   NOTIFY_EMAIL: string;
   ALLOWED_ORIGIN: string;
   SIGNING_SECRET: string;
+  YOCO_SECRET_KEY: string;
 }
 
 interface EftSettings {
@@ -161,18 +162,59 @@ async function brevoEmail(
   if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
 }
 
-function eftEmailHtml(eft: EftSettings, b: ReviewBookingRow, depositCents: number, balanceCents: number): string {
+/** S7: create a Yoco checkout and return { id, redirectUrl }. */
+async function createYocoCheckout(
+  secretKey: string,
+  depositCents: number,
+  bookingId: string,
+  reference: string,
+  origin: string,
+  f: typeof fetch,
+): Promise<{ id: string; redirectUrl: string }> {
+  const r = await f("https://payments.yoco.com/api/checkouts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `${bookingId}-deposit`,
+    },
+    body: JSON.stringify({
+      amount: depositCents,
+      currency: "ZAR",
+      successUrl: `${origin}/booking-deposit-paid.html?ref=${encodeURIComponent(reference)}`,
+      cancelUrl: `${origin}/quote?payment=cancelled`,
+      metadata: { bookingId, reference },
+    }),
+  });
+  if (!r.ok) throw new Error(`Yoco checkout ${r.status}: ${await r.text()}`);
+  return r.json() as Promise<{ id: string; redirectUrl: string }>;
+}
+
+/** Deposit invoice email: Yoco "Pay Now" as primary, EFT as fallback. */
+function depositEmailHtml(
+  eft: EftSettings,
+  b: ReviewBookingRow,
+  depositCents: number,
+  balanceCents: number,
+  yocoUrl: string,
+): string {
   return `<p>Hi ${esc(b.bride_name)},</p>
-<p>Wonderful news — <strong>${esc(b.wedding_date)}</strong> is available! To secure your date, please pay your deposit by EFT. As soon as it reflects, we'll send you your booking confirmation.</p>
-<table style="border-collapse:collapse;font:15px/1.7 system-ui,sans-serif;margin:.6rem 0 1rem;">
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Deposit due</td><td><strong>${zar(depositCents)}</strong> (${b.deposit_pct}%)</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Bank</td><td>${esc(eft.bankName)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account name</td><td>${esc(eft.accountHolder)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account no.</td><td>${esc(eft.accountNumber)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Branch code</td><td>${esc(eft.branchCode)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Payment reference</td><td><strong>${esc(b.reference)}</strong></td></tr>
+<p>Wonderful news — <strong>${esc(b.wedding_date)}</strong> is available! Pay your deposit to officially secure your date.</p>
+<p style="margin:1.6rem 0;text-align:center;">
+  <a href="${esc(yocoUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.8em 2em;border-radius:9px;text-decoration:none;font-weight:700;font-size:1.05rem;">Pay deposit now — ${zar(depositCents)}</a>
+</p>
+<p style="text-align:center;font-size:.88rem;color:#8a7d72;margin-top:-.6rem;">Secure card payment via Yoco · takes about 30 seconds</p>
+<hr style="border:0;border-top:1px solid #ede7e0;margin:1.6rem 0;">
+<p style="font-weight:600;color:#6b5d52;margin:0 0 .5rem;">Prefer to pay by EFT?</p>
+<table style="border-collapse:collapse;font:14px/1.7 system-ui,sans-serif;margin:0 0 .8rem;">
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Deposit due</td><td><strong>${zar(depositCents)}</strong> (${b.deposit_pct}%)</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Bank</td><td>${esc(eft.bankName)}</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Account name</td><td>${esc(eft.accountHolder)}</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Account no.</td><td>${esc(eft.accountNumber)}</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Branch code</td><td>${esc(eft.branchCode)}</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Payment reference</td><td><strong>${esc(b.reference)}</strong></td></tr>
 </table>
-<p style="font-size:.92rem;color:#8a7d72;">Please use <strong>${esc(b.reference)}</strong> as your payment reference so we can match it to your booking. The balance of ${zar(balanceCents)} is payable closer to your day.</p>
+<p style="font-size:.88rem;color:#8a7d72;">If paying by EFT, please email proof of payment to <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a> — your date won't be secured until we confirm receipt. The balance of ${zar(balanceCents)} is payable closer to your day.</p>
 <p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
 }
 
@@ -269,13 +311,32 @@ export async function handleReview(
   const markPaidToken = await signActionToken(b.id, new Date(Date.now() + MARK_PAID_TTL_MS), env.SIGNING_SECRET, "deposit");
   const markPaidUrl = `${origin}/api/booking/mark-paid?token=${encodeURIComponent(markPaidToken)}`;
 
+  // Create Yoco checkout + insert pending payment row before emailing the bride.
+  // If Yoco is down we fall through to EFT-only email (fallback already in the template).
+  let yocoUrl = "";
+  try {
+    const checkout = await createYocoCheckout(env.YOCO_SECRET_KEY, finalDepositCents, b.id, b.reference, origin, fetchImpl);
+    await insertPayment(env, {
+      booking_id: b.id,
+      kind: "deposit",
+      net_cents: finalDepositCents,
+      payable_cents: finalDepositCents,
+      yoco_checkout_id: checkout.id,
+      pay_url: checkout.redirectUrl,
+      status: "pending",
+    }, fetchImpl);
+    yocoUrl = checkout.redirectUrl;
+  } catch {
+    await writeAudit(env, { bookingId: b.id, eventType: "payment.checkout-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
+  }
+
   try {
     const eft = await getEftSettings(env, fetchImpl);
     await brevoEmail(
       env,
       { email: b.bride_email, name: b.bride_name },
       "Your date is available — secure it with your deposit · Lustique Co.",
-      eftEmailHtml(eft, b, finalDepositCents, finalBalanceCents),
+      depositEmailHtml(eft, b, finalDepositCents, finalBalanceCents, yocoUrl),
       fetchImpl,
     );
     await brevoEmail(

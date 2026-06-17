@@ -3,6 +3,7 @@ import { writeAudit } from "./booking/audit";
 import { handleBookingRequest } from "./booking/request";
 import { renderConfirmPage, handleBookingConfirm, renderMarkPaidPage, handleMarkPaid } from "./booking/confirm";
 import { renderReviewPage, handleReview } from "./booking/review";
+import { handleYocoWebhook } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 
 /* ============================================================
@@ -135,6 +136,11 @@ export default {
     // POST /api/booking/review — approve (optional amount override) or decline (S6b)
     if (req.method === "POST" && url.pathname === "/api/booking/review") {
       return handleReview(env, req);
+    }
+
+    // POST /api/booking/yoco-webhook — Yoco payment event (S7; signature verified inside)
+    if (req.method === "POST" && url.pathname === "/api/booking/yoco-webhook") {
+      return handleYocoWebhook(env, req);
     }
 
     // GET /api/booking/mark-paid?token= — render-only deposit-received page (S4, prefetch-safe)

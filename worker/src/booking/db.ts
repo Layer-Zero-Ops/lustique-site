@@ -78,6 +78,36 @@ export async function insertPayment(
   return ((await r.json()) as Array<{ id: string }>)[0]!;
 }
 
+/** S7: look up a pending payment by Yoco checkout ID (webhook idempotency + status check). */
+export async function findPaymentByCheckoutId(
+  env: DbEnv,
+  checkoutId: string,
+  f: typeof fetch = fetch,
+): Promise<Record<string, unknown> | null> {
+  const r = await f(rest(env, `payments?yoco_checkout_id=eq.${encodeURIComponent(checkoutId)}&select=*`), {
+    headers: headers(env),
+  });
+  if (!r.ok) throw new Error(`findPaymentByCheckoutId ${r.status}`);
+  const rows = (await r.json()) as Array<Record<string, unknown>>;
+  return rows.length ? rows[0]! : null;
+}
+
+/** S7: mark a payment paid, record the Yoco payment ID and raw webhook payload. */
+export async function markPaymentPaid(
+  env: DbEnv,
+  paymentRowId: string,
+  yocoPaymentId: string,
+  raw: unknown,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, `payments?id=eq.${encodeURIComponent(paymentRowId)}`), {
+    method: "PATCH",
+    headers: { ...headers(env), prefer: "return=minimal" },
+    body: JSON.stringify({ yoco_payment_id: yocoPaymentId, status: "paid", paid_at: new Date().toISOString(), raw }),
+  });
+  if (!r.ok) throw new Error(`markPaymentPaid ${r.status}: ${await r.text()}`);
+}
+
 /** The webhook's idempotency lookup: has this Yoco payment already been recorded paid? */
 export async function findPaymentByYocoId(
   env: DbEnv,
