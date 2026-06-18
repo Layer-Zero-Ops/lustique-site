@@ -10,11 +10,18 @@ The full re-plan is committed (4 docs below). The build lane starts at **Wave 0*
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-**▶ NEXT task:** Read `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` (the master sequence), then build **🔴 Wave 0 — the CRITICAL Yoco webhook hotfix**, TDD-first. It has no dependencies and no open decisions, and it unblocks real payments.
+**▶ NEXT task:** Build the **Wave-S launch-gating security subset** (see build-sequence §Wave S). These are launch-blocking and run in parallel with Wave A. Priority items:
+1. **Security headers** — `Content-Security-Policy` (report-only first), `Strict-Transport-Security`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` in the Worker `fetch` handler
+2. **HSTS + Full-strict TLS** — set in Cloudflare dashboard (not code); document in RUNBOOK
+3. **Admin + booking rate limits** — simple in-memory or KV-backed counter in the Worker; protect `/api/booking/request` and `/api/admin/*`
+4. **`/api/health`** — lightweight `GET /api/health` → `{ ok: true, ts: "<iso>" }` (for uptime monitoring)
+5. **`/api/enquiry` Turnstile** — already has Turnstile on `/book`; wire the same verify to `/api/enquiry` as well
+6. **Consent-gated GA4** — block GA4 script load until cookie consent given (see SEO/security plan §3)
+7. **Supabase Pro upgrade** — Pieter action: upgrade billing tier before first live deposit (backups, no pause)
 
-> **Why Wave 0 is critical (verified against Yoco's live docs):** the deployed webhook listens only for `checkout.succeeded`, but Yoco emits **`payment.succeeded`** — so **no real bride's payment ever auto-confirms** (the booking never advances to `deposit_paid`). The HMAC signature scheme is also wrong (uses `x-yoco-signature`+hex; Yoco uses Standard Webhooks: `webhook-signature`, base64 HMAC over `id.timestamp.body`, 3-min tolerance). (Fee handling: Lustique **absorbs** the fee — locked — so charging the net amount is correct; the only fee fix is removing the misleading "incl. card fee" copy from the site display.) The "smoke-tested 3/3" loop passed only because it POSTs a synthetic `checkout.succeeded` to the handler — it never exercised a real Yoco event. **Full detail + the fix:** spec §0.
+See `docs/superpowers/plans/2026-06-18-lustique-seo-security-infra-plan.md` for full detail on each.
 
-After Wave 0: the **Wave-S launch-gating security subset** (headers, TLS, rate limits, `/api/health`, enquiry Turnstile, consent-gated GA4, Supabase Pro), then **Wave A** (corrected booking core on token-links). **Both early-gating decisions are resolved — Wave A is fully unblocked.**
+After Wave-S: **Wave A** (corrected booking core — capacity, state machine, accept/reject, per-line editing). Both early-gating decisions are resolved — Wave A is fully unblocked.
 
 ## 🟦 Decisions
 Both decisions that gated early build are resolved; #3–#7 (build-sequence doc §Decisions) are operational confirmations for Wave B/C.
@@ -49,6 +56,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Wave 0 DONE ✅ 2026-06-18 (Sonnet)** — `a3990a5`. Fixed 3 live defects: C-A wrong event name (`checkout.succeeded` → `payment.succeeded`/`payment.failed`), C-B wrong sig scheme (custom hex → Standard Webhooks: `webhook-signature`, base64, `id.ts.body`, 3-min window), C-C misleading "incl. card fee" copy removed (absorb model locked). Added `payment.failed` → EFT fallback emails + `pendingPaymentSweep` cron (24h stale-pending). Migration `0005_payment_failure.sql`. `YOCO_FEE_PCT` var (margin reporting only). Kind-branched transitions. 160 tests (was 152). **Gate still pending:** register webhook in Yoco portal (events: `payment.succeeded`, `payment.failed`, `refund.succeeded`), apply migration 0005, capture one real test event each, verify fee rate in portal → record in PRICING.md.
 - **Booking re-plan PLANNED ✅ 2026-06-18 (Opus)** — 4 docs (spec + dashboard/data + SEO/security + build-sequence) from a 14-agent code map + design fan-out. **Verified the live Yoco webhook is broken** (wrong event name + signature scheme) against Yoco docs → Wave 0 hotfix is the new ▶ NEXT. All 19 Jun-18 corrections folded into the spec/plans. Old 2026-06-05 booking-core spec superseded.
 - **Live domain smoke 3/3 ✅ 2026-06-18** — `4331191`. (Note: smoke used a synthetic `checkout.succeeded`; did NOT exercise a real Yoco event — see Wave 0.)
 - **S9 Invoice system ✅ 2026-06-17** — `86db29c`. Branded printable invoice, 2-year signed token. 152 tests.
