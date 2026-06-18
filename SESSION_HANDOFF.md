@@ -1,15 +1,69 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Site live — full booking→payment loop verified on production · **Updated:** 2026-06-18 (Sonnet, S10 smoke)
+**Lane:** 🔵 Plan (Opus) · **Phase:** Re-planning booking flow + dashboard — Pieter corrections received · **Updated:** 2026-06-18 (Opus handoff)
 
 ## ▶ NEXT
 
-**Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
+**Model:** Opus · **Lane:** Plan · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
 **Secrets still to set (via `wrangler secret put`):**
 - `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID` — once Wave credentials arrive
 
-**▶ NEXT task:** Agency Platform — Phase 0 gate is cleared. Advance to Phase 1: Supabase Auth magic-link spine + RLS updates. Read `docs/ROADMAP-agency-platform.md` §3 for the plan.
+**▶ NEXT task (Opus):** Full re-plan of the booking flow and Zandeline's dashboard. Pieter has corrected several fundamental assumptions. Read the "Pieter corrections" section below before planning anything. Produce: (1) corrected booking flow spec, (2) Zandeline dashboard plan, (3) full Yoco integration plan, (4) CRM plan. Then hand back to Sonnet to build.
+
+---
+
+## ⚠️ Pieter corrections — SUPERSEDES earlier flow assumptions
+
+These are business-logic corrections from Pieter (2026-06-18) that change several built assumptions. Opus must design around these; Sonnet must not build the old flow.
+
+### 1. Availability: soft-block, not hard-block
+The current system sends a 409 if a date is blocked and stops the booking. **This is wrong.**
+- Every request MUST reach Zandeline regardless of date availability.
+- If the date has a conflict (blocked or at capacity), Zandeline is informed in her notification — she decides whether to proceed or decline.
+- The 409 hard-block stays only for truly impossible cases (if Pieter confirms one exists).
+- **Multiple weddings per day are allowed** — Lustique can serve multiple clients on the same day given artist availability. Zandeline sets how many slots a given day has (1, 2, 3…). This is a capacity model, not a binary blocked/available model.
+
+### 2. Zandeline's review → invoice edit → approve flow
+Current S6b review page shows booking details + editable total. **This must be rethought:**
+- Zandeline receives notification of a new request.
+- She opens her dashboard (not a one-time email link), sees the request.
+- The system has already generated a **proposed invoice** from the form data — line items pre-populated from the estimator.
+- She does a **quality check**: can edit any line item, quantities, amounts, add/remove lines.
+- Only after she's satisfied does she click **"Approve & Send"** — which sends the invoice to the bride.
+- The invoice IS the quote (the estimator doubles as the quoting tool) — accuracy is critical.
+
+### 3. Bride's acceptance + deposit selection flow
+Current flow: bride receives invoice with a fixed Yoco "Pay Now" button. **This is wrong.**
+- Bride receives the invoice/quote.
+- She clicks **"Accept"**.
+- She is presented with **3 deposit options**: 25% / 50% / 100% — each showing the exact rand amount AND the card fee for that amount.
+- She selects one → Yoco checkout fires with that exact amount.
+- **Date is only locked/confirmed after a successful Yoco payment** — not on invoice approval.
+
+### 4. Date booking is payment-gated
+- "Request received" does NOT secure the date. Nothing secures the date until payment clears.
+- The bride receives a friendly acknowledgement ("we've received your request, Zandeline will be in touch") — NOT an "okay to proceed."
+- The **"okay to proceed"** comes only after: (a) date is available, (b) payment is successful.
+
+### 5. Balance payment — 14 days out
+- If the bride paid 25% or 50% deposit, 14 days before the wedding she receives a balance reminder.
+- The reminder email includes a Yoco payment link for the **exact outstanding balance**.
+- This is already partially built (balance cron exists) but the Yoco link for balance is not.
+
+### 6. Yoco failure → EFT fallback (not silent)
+- If a Yoco payment fails, it must NOT be silent.
+- The system detects the failure and falls back to EFT instructions.
+- The bride gets a clear "payment didn't go through — here's how to pay by EFT" email.
+- Zandeline gets notified of the failed payment attempt.
+- Plan the exact failure detection mechanism (Yoco webhook for failed? polling? timeout?).
+
+### 7. CRM
+- Zandeline needs a CRM inside the platform.
+- She has an **existing CRM** (likely Google Sheets or similar) she wants to import.
+- The CRM must support: client history, contact details, past bookings, notes.
+- Plan: what data model, what import mechanism (CSV? Google Sheets sync?), what views.
+- Future brides who book become CRM contacts automatically.
 
 ---
 
