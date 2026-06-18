@@ -1,28 +1,28 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Site live — full booking→payment loop built, pending Wave credentials · **Updated:** 2026-06-17 (Sonnet, S8)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Site live — full booking→payment loop verified on production · **Updated:** 2026-06-18 (Sonnet, S10 smoke)
 
 ## ▶ NEXT
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-**Secrets to set (via `wrangler secret put`):**
+**Secrets still to set (via `wrangler secret put`):**
 - `ADMIN_SECRET` — unlocks `/api/admin/blocked-dates` page
 - `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID` — once Wave credentials arrive
+- `TURNSTILE_SECRET`, `YOCO_SECRET_KEY`, `YOCO_WEBHOOK_SECRET` — not yet bound on deployed Worker (intake form + Yoco flow untested on production)
 
-**Migration to apply (Supabase SQL editor):**
-- `supabase/migrations/0004_wave_fields.sql` — 2 ALTER TABLE statements ✅ applied by Pieter
-
-**▶ NEXT task:** live domain smoke test on `lustiqueco.co.za` — end-to-end booking flow verification (form → Worker → emails → review page → approve → invoice link → Yoco pay). See smoke.test.ts for the pattern.
+**▶ NEXT task:** Agency Platform — Phase 0 gate is cleared. Advance to Phase 1: Supabase Auth magic-link spine + RLS updates. Read `docs/ROADMAP-agency-platform.md` §3 for the plan.
 
 ---
 
 ### Current state
 
 - `lustiqueco.co.za` is **live** serving the Astro site via CF Workers Assets ✅
-- Worker (`lustique-form-handler`) deployed, smoke-tested 3/3 ✅
-- **Full booking→payment loop is built** — S6 through S8 complete, 136 tests passing
+- Worker (`lustique-form-handler`) deployed, **smoke-tested 3/3 on live domain** ✅ (`4331191`)
+- **Full booking→payment loop is built** — S6 through S9 complete, 152 tests passing
 - Wave integration is live-ready; all Wave calls gracefully skip if env vars absent
+- Worker secrets bound: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SIGNING_SECRET`, `BREVO_API_KEY`, `NOTIFY_EMAIL` ✅
+- Worker secrets pending: `TURNSTILE_SECRET`, `YOCO_SECRET_KEY`, `YOCO_WEBHOOK_SECRET`, `ADMIN_SECRET`, Wave keys
 
 ---
 
@@ -97,6 +97,7 @@ Balance paid → same Yoco → webhook → Wave settled → final confirmation
 
 ## State (done-ledger)
 
+- **Live domain smoke 3/3 ✅ 2026-06-18** — `4331191`. Worker secrets bound. `npm run smoke` script fixed (vitest 2.x). All 3 transitions verified on `lustiqueco.co.za`: requested→confirmed→deposit_paid→settled. Emails sent via Brevo. Phase 0 gate cleared.
 - **S9 Invoice system ✅ 2026-06-17** — `86db29c`. `GET /api/booking/invoice?token=<signed>` — Lustique-branded printable invoice, line items, deposit/balance split, live payment status badge, EFT bank details, print-to-PDF button. 2-year signed token, stateless, no new DB column. Invoice link added to bride deposit email + Zandeline admin email. Works with or without Wave. 152 tests (was 136).
 - **S8 Wave integration ✅ 2026-06-17** — `67de542`. Wave GraphQL client (`worker/src/lib/wave.ts`): `createCustomer`, `createInvoice`, `recordPayment`. Wired into review (on approve), yoco webhook (deposit paid), balance (settled). All calls fire-and-forget; audit-logged on failure; skipped gracefully if env vars absent. Blocked-dates admin UI (`/api/admin/blocked-dates`) with WebCrypto timing-safe auth, list/add/remove. Migration `0004_wave_fields.sql` (needs manual apply). 136 tests (was 108). Secrets needed: `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID`, `ADMIN_SECRET`.
 - **S7b /book page ✅ 2026-06-17** — `e833b65`. Standalone `/book` page with sessionStorage handoff from `/quote`. Estimate summary + deposit calc shown, all fields pre-filled, Turnstile + consent on the booking page. Falls back to "Build estimate first" if accessed directly. 108 worker tests still passing.
@@ -124,24 +125,19 @@ S1–S5 ✅ → CI ✅ → Worker ✅ → Smoke 3/3 ✅ → Site live ✅ → **
 
 ## ⇄ Umbrella
 
-**⬆ To umbrella — 🟣 FABLE-REQUEST: Lustique Agency Platform roadmap**
+**⬆ To umbrella — 🟢 SHIPPED (was 🟣 FABLE-REQUEST): Agency Platform roadmap delivered**
 
-Pieter wants a roadmap planned in parallel while Sonnet builds the booking→payment loop.
+Roadmap planned + written → [`docs/ROADMAP-agency-platform.md`](docs/ROADMAP-agency-platform.md) (Opus, 2026-06-17, via a 9-agent analysis fan-out). Covers all requested scope (admin/artist/client portals · internal comms · central calendar · white-label question) as a phased plan with effort + architecture decisions.
 
-**Vision:** Full agency management platform for Lustique Co. (and reusable as a studio template for future clients).
+**4 locked calls:** (1) **Auth** = Supabase Auth passwordless **magic-link** for all three audiences — one spine: admin-by-role, artist-by-join, bride-by-verified-email; Worker stays sole writer (service-role bypasses RLS), new policies read-only. (2) **White-label** = Hybrid, **deferred** — ship single-tenant-per-deploy now, extract `@lz/booking-core` only at a real client #2; multi-tenant **cut** (POPIA collapse). (3) **Comms** = Hybrid `messages` thread + Brevo fan-out, concierge-not-chat. (4) **Calendar** = native-on-Supabase first, Google sync deferred.
 
-**Scope to plan:**
-- Artist portal — personal dashboard, assigned weddings schedule, bride comms, availability management
-- Client portal — post-booking onboarding, invoice/payment history, direct comms with assigned artist + agency
-- Admin dashboard (Zandeline) — central calendar, artist coordination, availability insights, all bookings
-- Internal comms layer — agency ↔ artists ↔ clients (replaces ad-hoc WhatsApp/email)
-- Central calendar — bookings + artist availability in one view
+**Pieter input (this session):** bride portal access = magic link authenticated by booking email, required to reach her mini-dashboard — locked as decision AP-1 (overrides the analysis's capability-URL-only lean).
 
-**Reusability question:** should this become a Layer Zero Studios white-label SaaS template (deployable per client), or stay Lustique-specific? Pieter wants to explore both.
+**Sequence:** Phase 0 (go-live sign-off = the current ▶ NEXT smoke test) → 1 auth/RLS spine → 2 admin console → 3 bride portal (parallelizable) → 4 artist portal+allocation → 5 comms → 6 white-label (triggered). ~24–36 build-days Phases 1–5 + ~3–4 d artist onboarding.
 
-**Foundation already exists:** Supabase schema (bookings, audit_log, business_settings), Worker API, signing tokens, R2 audit log. Build on top, don't replace.
+**Open decisions for Pieter** (see roadmap §9): go-live gate · staging vs prod DB for the auth migration · one lane vs two · legacy-route fate · white-label trigger · AXIS stays out of the sequence.
 
-**Output wanted:** a phased roadmap (what to build in what order, rough effort per phase) + architecture decisions (auth layer for portals, comms strategy, calendar solution). Save as `docs/ROADMAP-agency-platform.md` in the Lustique repo.
+> Build lane unaffected — Phase 0 of this roadmap **is** the current ▶ NEXT (live-domain smoke test). No change to the build baton.
 
 **⬆ To umbrella — ⚪ DECISION: Studio-wide secrets architecture**
 Two-tier pattern (client secrets in client Supabase vault, LZ as directory). Already logged. Defer to post-launch.
