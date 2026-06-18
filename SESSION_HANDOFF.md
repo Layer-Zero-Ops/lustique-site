@@ -10,18 +10,15 @@ The full re-plan is committed (4 docs below). The build lane starts at **Wave 0*
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-**▶ NEXT task:** Build the **Wave-S launch-gating security subset** (see build-sequence §Wave S). These are launch-blocking and run in parallel with Wave A. Priority items:
-1. **Security headers** — `Content-Security-Policy` (report-only first), `Strict-Transport-Security`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` in the Worker `fetch` handler
-2. **HSTS + Full-strict TLS** — set in Cloudflare dashboard (not code); document in RUNBOOK
-3. **Admin + booking rate limits** — simple in-memory or KV-backed counter in the Worker; protect `/api/booking/request` and `/api/admin/*`
-4. **`/api/health`** — lightweight `GET /api/health` → `{ ok: true, ts: "<iso>" }` (for uptime monitoring)
-5. **`/api/enquiry` Turnstile** — already has Turnstile on `/book`; wire the same verify to `/api/enquiry` as well
-6. **Consent-gated GA4** — block GA4 script load until cookie consent given (see SEO/security plan §3)
-7. **Supabase Pro upgrade** — Pieter action: upgrade billing tier before first live deposit (backups, no pause)
+**▶ NEXT task:** **Wave A** — corrected booking core (capacity soft-block, state machine, accept/reject, per-line invoice editing on token review page). Both gating decisions are resolved — Wave A is fully unblocked. See `docs/superpowers/specs/2026-06-18-lustique-replan-spec.md` for the full spec and `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` for the wave breakdown.
 
-See `docs/superpowers/plans/2026-06-18-lustique-seo-security-infra-plan.md` for full detail on each.
-
-After Wave-S: **Wave A** (corrected booking core — capacity, state machine, accept/reject, per-line editing). Both early-gating decisions are resolved — Wave A is fully unblocked.
+**Pieter dashboard tasks still pending (Wave-S; no code):**
+1. CF Zone Transform Rule — set security headers (CSP/HSTS/X-Frame/Referrer/Permissions-Policy) on `http.host eq "lustiqueco.co.za"` (full values in SEO/security plan §1a)
+2. CF WAF Rate-Limit Rules — 5 rules (booking/request, enquiry, admin, token pages, zone fallback; plan §3)
+3. CF Health Checks — `/api/health` + `/` → email alerts (plan §5)
+4. TLS Full-strict + Always Use HTTPS in CF dashboard
+5. Supabase Pro upgrade (before first live deposit — plan §6)
+6. GA4 property → replace `G-XXXXXXXXXX` in `site/src/data/site.ts` with real Measurement ID, then redeploy
 
 ## 🟦 Decisions
 Both decisions that gated early build are resolved; #3–#7 (build-sequence doc §Decisions) are operational confirmations for Wave B/C.
@@ -56,6 +53,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Wave-S DONE ✅ 2026-06-18 (Sonnet)** — `c67e19c`. Security headers (`withSec`/`secHeaderMap`) on every Worker response — JSON gets baseline, all token-bearing HTML (review/confirm/invoice/mark-paid/balance/admin) gets strict CSP + noindex. `/api/health` endpoint (liveness + 2s DB ping). Turnstile verify on `/api/enquiry` (mirrors booking). Consent-gated GA4 in `site.js` (dynamically injected only on Accept; no-op until real `G-` ID set). "Manage cookies" footer link. Turnstile widget on `/quote` enquiry form. Twitter meta tags in BaseLayout. `noindex` on `your-quote.html`/`invoice.html`. `Disallow: /api/` in robots.txt. Sitemap cleaned (no 404/transactional, added lastmod). JSON-LD enriched (geo, hours). **Dashboard items remaining for Pieter** — see ▶ NEXT above.
 - **Wave 0 DONE ✅ 2026-06-18 (Sonnet)** — `a3990a5`. Fixed 3 live defects: C-A wrong event name (`checkout.succeeded` → `payment.succeeded`/`payment.failed`), C-B wrong sig scheme (custom hex → Standard Webhooks: `webhook-signature`, base64, `id.ts.body`, 3-min window), C-C misleading "incl. card fee" copy removed (absorb model locked). Added `payment.failed` → EFT fallback emails + `pendingPaymentSweep` cron (24h stale-pending). Migration `0005_payment_failure.sql`. `YOCO_FEE_PCT` var (margin reporting only). Kind-branched transitions. 160 tests (was 152). **Gate still pending:** register webhook in Yoco portal (events: `payment.succeeded`, `payment.failed`, `refund.succeeded`), apply migration 0005, capture one real test event each, verify fee rate in portal → record in PRICING.md.
 - **Booking re-plan PLANNED ✅ 2026-06-18 (Opus)** — 4 docs (spec + dashboard/data + SEO/security + build-sequence) from a 14-agent code map + design fan-out. **Verified the live Yoco webhook is broken** (wrong event name + signature scheme) against Yoco docs → Wave 0 hotfix is the new ▶ NEXT. All 19 Jun-18 corrections folded into the spec/plans. Old 2026-06-05 booking-core spec superseded.
 - **Live domain smoke 3/3 ✅ 2026-06-18** — `4331191`. (Note: smoke used a synthetic `checkout.succeeded`; did NOT exercise a real Yoco event — see Wave 0.)
