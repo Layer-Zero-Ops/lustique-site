@@ -72,6 +72,7 @@ function collect() {
   add("Style", val("style"));
   add("Inspiration", val("inspo"));
 
+  const tsInput = document.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"]');
   return {
     name: [val("fName"), val("lName")].filter(Boolean).join(" "),
     email: val("email"),
@@ -83,6 +84,7 @@ function collect() {
     message: val("message"),
     details,
     hp_company: val("hp_company"), // honeypot — the Worker drops it if filled
+    cfTurnstileToken: tsInput?.value ?? "",
   };
 }
 

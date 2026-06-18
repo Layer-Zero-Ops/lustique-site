@@ -2,10 +2,10 @@
 import "../styles/global.css";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
-import { SITE, OG_IMG, SITE_JSONLD } from "../data/site";
+import { SITE, OG_IMG, SITE_JSONLD, GA_MEASUREMENT_ID } from "../data/site";
 
-interface Props { slug: string; title: string; desc: string; jsonld?: object; breadcrumb?: Array<{name: string; item?: string}>; }
-const { slug, title, desc, jsonld, breadcrumb } = Astro.props;
+interface Props { slug: string; title: string; desc: string; jsonld?: object; breadcrumb?: Array<{name: string; item?: string}>; robots?: "noindex"; }
+const { slug, title, desc, jsonld, breadcrumb, robots } = Astro.props;
 const breadcrumbJsonLd = breadcrumb ? {
   "@context": "https://schema.org", "@type": "BreadcrumbList",
   itemListElement: [
@@ -34,7 +34,12 @@ const canonical = `${SITE}/${slug === "index.html" ? "" : slug}`;
   <meta property="og:image" content={OG_IMG} />
   <meta property="og:url" content={canonical} />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={desc} />
+  <meta name="twitter:image" content={OG_IMG} />
+  {robots && <meta name="robots" content={robots} />}
   <meta name="theme-color" content="#A0625E" />
+  <script is:inline define:vars={{ gaId: GA_MEASUREMENT_ID }}>window.LUSTIQUE_GA_ID = gaId;</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet" />

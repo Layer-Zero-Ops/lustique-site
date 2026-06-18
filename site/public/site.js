@@ -24,17 +24,48 @@ document.addEventListener("DOMContentLoaded", () => {
   }, { threshold: 0.14, rootMargin: "0px 0px -8% 0px" });
   document.querySelectorAll(".reveal").forEach(el => io.observe(el));
 
-  // cookie consent (POPIA) — only fire analytics after "accept" (wired in the live build)
+  // Cookie consent (POPIA) — GA4 is NOT loaded until explicit Accept.
+  // GA4 placeholder: replace window.LUSTIQUE_GA_ID (injected by BaseLayout) with real Measurement ID at deploy.
   const banner = document.getElementById("cookieBanner");
   if (banner) {
+    const loadGA4 = () => {
+      const gaId = window.LUSTIQUE_GA_ID;
+      if (!gaId || gaId === "G-XXXXXXXXXX") return; // placeholder — skip until real ID is set
+      const s = document.createElement("script");
+      s.src = "https://www.googletagmanager.com/gtag/js?id=" + gaId;
+      s.async = true;
+      document.head.appendChild(s);
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function() { window.dataLayer.push(arguments); };
+      window.gtag("js", new Date());
+      window.gtag("consent", "default", { analytics_storage: "denied" });
+      window.gtag("config", gaId);
+      window.gtag("consent", "update", { analytics_storage: "granted" });
+    };
     let consent = null;
     try { consent = localStorage.getItem("lc_cookie"); } catch (e) {}
-    if (!consent) banner.hidden = false;
-    const decide = (val) => { try { localStorage.setItem("lc_cookie", val); } catch (e) {} banner.hidden = true; };
+    if (!consent) {
+      banner.hidden = false;
+    } else if (consent === "accepted") {
+      loadGA4();
+    }
+    const decide = (val) => {
+      try { localStorage.setItem("lc_cookie", val); } catch (e) {}
+      banner.hidden = true;
+      if (val === "accepted") loadGA4();
+    };
     const a = document.getElementById("cookieAccept");
     const d = document.getElementById("cookieDecline");
     if (a) a.addEventListener("click", () => decide("accepted"));
     if (d) d.addEventListener("click", () => decide("declined"));
+    // "Manage cookies" link: clears consent and re-opens the banner
+    document.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "manageCookies") {
+        e.preventDefault();
+        try { localStorage.removeItem("lc_cookie"); } catch (_e) {}
+        banner.hidden = false;
+      }
+    });
   }
 
   // back to top

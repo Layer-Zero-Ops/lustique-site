@@ -67,6 +67,7 @@ interface Enquiry {
   message?: string;
   details?: Detail[]; // occasion-specific rows (party, hair, style…) built client-side
   hp_company?: string; // honeypot — bots fill it; humans never see it
+  cfTurnstileToken?: string;
 }
 
 const esc = (s = "") => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
@@ -81,11 +82,49 @@ function corsHeaders(origin: string): HeadersInit {
   };
 }
 
+function secHeaderMap(opts: { html: boolean; noindex?: boolean }): Record<string, string> {
+  const h: Record<string, string> = {
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "permissions-policy": "geolocation=(), microphone=(), camera=(), payment=(), interest-cohort=()",
+  };
+  if (opts.html) {
+    // Strict CSP for Worker-rendered HTML — no third-party scripts; only inline styles/scripts we own.
+    h["content-security-policy"] =
+      "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; " +
+      "form-action 'self'; img-src 'self' data:; font-src 'self'; " +
+      "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self';";
+  }
+  if (opts.noindex) h["x-robots-tag"] = "noindex, nofollow";
+  return h;
+}
+
+function withSec(res: Response, opts: { html: boolean; noindex?: boolean }): Response {
+  const headers = new Headers(res.headers);
+  for (const [k, v] of Object.entries(secHeaderMap(opts))) headers.set(k, v);
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
 const json = (data: unknown, status: number, origin: string) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json", ...corsHeaders(origin) },
+    headers: { "content-type": "application/json", ...corsHeaders(origin), ...secHeaderMap({ html: false }) },
   });
+
+async function verifyTurnstile(token: string, secret: string): Promise<boolean> {
+  try {
+    const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ secret, response: token }),
+    });
+    if (!r.ok) return false;
+    return ((await r.json()) as { success: boolean }).success === true;
+  } catch {
+    return false;
+  }
+}
 
 /** Returns an error message, "spam" for honeypot hits, or null if valid. */
 function validate(e: Enquiry): string | null {
@@ -126,6 +165,26 @@ export default {
 
     const url = new URL(req.url);
 
+    // GET /api/health — liveness + shallow DB ping (Wave-S)
+    if (req.method === "GET" && url.pathname === "/api/health") {
+      let dbOk = false;
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2000);
+        const r = await fetch(`${env.SUPABASE_URL}/rest/v1/business_settings?select=key&limit=1`, {
+          headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
+          signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        dbOk = r.ok;
+      } catch { /* timeout or network — dbOk stays false */ }
+      const ok = dbOk;
+      return new Response(JSON.stringify({ ok, service: ok, db: dbOk, ts: new Date().toISOString() }), {
+        status: ok ? 200 : 503,
+        headers: { "content-type": "application/json", ...secHeaderMap({ html: false }) },
+      });
+    }
+
     // POST /api/booking/request — request-to-book endpoint (S2)
     if (req.method === "POST" && url.pathname === "/api/booking/request") {
       return handleBookingRequest(env, req);
@@ -133,20 +192,20 @@ export default {
 
     // GET /api/booking/confirm?token= — render-only confirm page (S3, prefetch-safe §12)
     if (req.method === "GET" && url.pathname === "/api/booking/confirm") {
-      return renderConfirmPage(env, req);
+      return withSec(await renderConfirmPage(env, req), { html: true, noindex: true });
     }
     // POST /api/booking/confirm — confirm/decline transition (S3)
     if (req.method === "POST" && url.pathname === "/api/booking/confirm") {
-      return handleBookingConfirm(env, req);
+      return withSec(await handleBookingConfirm(env, req), { html: true, noindex: true });
     }
 
     // GET /api/booking/review?token= — review page: quote breakdown + editable total (S6b, prefetch-safe)
     if (req.method === "GET" && url.pathname === "/api/booking/review") {
-      return renderReviewPage(env, req);
+      return withSec(await renderReviewPage(env, req), { html: true, noindex: true });
     }
     // POST /api/booking/review — approve (optional amount override) or decline (S6b)
     if (req.method === "POST" && url.pathname === "/api/booking/review") {
-      return handleReview(env, req);
+      return withSec(await handleReview(env, req), { html: true, noindex: true });
     }
 
     // POST /api/booking/yoco-webhook — Yoco payment event (S7; signature verified inside)
@@ -156,30 +215,30 @@ export default {
 
     // GET /api/booking/invoice?token= — bride's printable invoice (S9; prefetch-safe, read-only)
     if (req.method === "GET" && url.pathname === "/api/booking/invoice") {
-      return renderInvoicePage(env, req);
+      return withSec(await renderInvoicePage(env, req), { html: true, noindex: true });
     }
 
     // GET/POST /api/admin/blocked-dates — Zandeline's blocked-dates admin (S8; token-protected)
     if (url.pathname === "/api/admin/blocked-dates" && env.ADMIN_SECRET) {
-      return handleAdminBlockedDates({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req);
+      return withSec(await handleAdminBlockedDates({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req), { html: true, noindex: true });
     }
 
     // GET /api/booking/mark-paid?token= — render-only deposit-received page (S4, prefetch-safe)
     if (req.method === "GET" && url.pathname === "/api/booking/mark-paid") {
-      return renderMarkPaidPage(env, req);
+      return withSec(await renderMarkPaidPage(env, req), { html: true, noindex: true });
     }
     // POST /api/booking/mark-paid — record EFT deposit → deposit_paid (S4)
     if (req.method === "POST" && url.pathname === "/api/booking/mark-paid") {
-      return handleMarkPaid(env, req);
+      return withSec(await handleMarkPaid(env, req), { html: true, noindex: true });
     }
 
     // GET /api/booking/mark-balance-paid?token= — render-only balance-received page (S5, prefetch-safe)
     if (req.method === "GET" && url.pathname === "/api/booking/mark-balance-paid") {
-      return renderMarkBalancePaidPage(env, req);
+      return withSec(await renderMarkBalancePaidPage(env, req), { html: true, noindex: true });
     }
     // POST /api/booking/mark-balance-paid — record EFT balance → settled (S5)
     if (req.method === "POST" && url.pathname === "/api/booking/mark-balance-paid") {
-      return handleMarkBalancePaid(env, req);
+      return withSec(await handleMarkBalancePaid(env, req), { html: true, noindex: true });
     }
 
     if (req.method !== "POST" || url.pathname !== "/api/enquiry") {
@@ -196,6 +255,12 @@ export default {
     const problem = validate(body);
     if (problem === "spam") return json({ ok: true }, 200, origin); // silently swallow bots
     if (problem) return json({ ok: false, error: problem }, 422, origin);
+
+    // Turnstile bot-check on enquiry (Wave-S) — mirrors /api/booking/request
+    if (env.TURNSTILE_SECRET) {
+      const tsOk = await verifyTurnstile(body.cfTurnstileToken ?? "", env.TURNSTILE_SECRET);
+      if (!tsOk) return json({ ok: false, error: "Security check failed. Please refresh and try again." }, 422, origin);
+    }
 
     const name = body.name!.trim();
     try {
