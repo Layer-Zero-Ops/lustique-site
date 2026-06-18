@@ -54,7 +54,7 @@ ALTER TABLE quote_revisions ENABLE ROW LEVEL SECURITY;  -- deny-all; admin read 
 - `POST /api/admin/quote/:id/approve` — T1 `requested→quote_sent`; mint bride **accept**+**reject** tokens; send invoice email w/ both buttons; fire-and-forget Wave invoice; `writeAudit('quote.approved')`.
 - `POST /api/admin/quote/:id/decline` (admin decline, distinct from bride reject) · `POST /api/admin/quote/:id/requote` (clone latest rev into editable draft after a bride reject).
 
-**Money invariant:** recompute uses `@lustique/pricing` only; the deposit-selection page (spec §4.2) applies `grossUp` under `YOCO_FEE_PCT`. Line edits never bypass `splitDeposit`.
+**Money invariant:** recompute uses `@lustique/pricing` only; the deposit-selection page (spec §4.2) charges the **net** slice — Lustique absorbs the Yoco fee (locked, spec §4.1), so no gross-up. Line edits never bypass `splitDeposit`.
 
 ### A.3 Reject + re-quote loop (#9)
 ```sql

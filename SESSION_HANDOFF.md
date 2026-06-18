@@ -12,14 +12,14 @@ The full re-plan is committed (4 docs below). The build lane starts at **Wave 0*
 
 **▶ NEXT task:** Read `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` (the master sequence), then build **🔴 Wave 0 — the CRITICAL Yoco webhook hotfix**, TDD-first. It has no dependencies and no open decisions, and it unblocks real payments.
 
-> **Why Wave 0 is critical (verified against Yoco's live docs):** the deployed webhook listens only for `checkout.succeeded`, but Yoco emits **`payment.succeeded`** — so **no real bride's payment ever auto-confirms** (the booking never advances to `deposit_paid`). The HMAC signature scheme is also wrong (uses `x-yoco-signature`+hex; Yoco uses Standard Webhooks: `webhook-signature`, base64 HMAC over `id.timestamp.body`, 3-min tolerance), and the card fee is never grossed-up server-side. The "smoke-tested 3/3" loop passed only because it POSTs a synthetic `checkout.succeeded` to the handler — it never exercised a real Yoco event. **Full detail + the fix:** spec §0.
+> **Why Wave 0 is critical (verified against Yoco's live docs):** the deployed webhook listens only for `checkout.succeeded`, but Yoco emits **`payment.succeeded`** — so **no real bride's payment ever auto-confirms** (the booking never advances to `deposit_paid`). The HMAC signature scheme is also wrong (uses `x-yoco-signature`+hex; Yoco uses Standard Webhooks: `webhook-signature`, base64 HMAC over `id.timestamp.body`, 3-min tolerance). (Fee handling: Lustique **absorbs** the fee — locked — so charging the net amount is correct; the only fee fix is removing the misleading "incl. card fee" copy from the site display.) The "smoke-tested 3/3" loop passed only because it POSTs a synthetic `checkout.succeeded` to the handler — it never exercised a real Yoco event. **Full detail + the fix:** spec §0.
 
-After Wave 0: the **Wave-S launch-gating security subset** (headers, TLS, rate limits, `/api/health`, enquiry Turnstile, consent-gated GA4, Supabase Pro), then **Wave A** (corrected booking core on token-links). Settle Decisions #1 (Yoco fee rate/model) and #2 (review interim vs dashboard-first) before Wave A's deposit-selection + review changes.
+After Wave 0: the **Wave-S launch-gating security subset** (headers, TLS, rate limits, `/api/health`, enquiry Turnstile, consent-gated GA4, Supabase Pro), then **Wave A** (corrected booking core on token-links). Only Decision #2 (review interim vs dashboard-first) gates Wave A's review changes — Decision #1 (fee model) is resolved.
 
-## 🟦 Decisions waiting on Pieter (none block Wave 0)
-See build-sequence doc §Decisions for all 7 with recommendations. The two that gate Wave A:
-1. **Yoco fee model** — bride pays on top (Model A, *recommended*) vs Lustique absorbs (Model B). Built as a `business_settings.fee_model` toggle (default A). **Plus: verify the real Yoco rate** from the portal — the `0.029`/`2.95%` are both placeholders (only Pieter/Zandeline can read it).
-2. **Review step** — ship #2's per-line editing on the **interim token-link review page now** (*recommended* — corrected flow live in days), or wait for the Wave-B dashboard (~2 weeks)?
+## 🟦 Decisions (none block Wave 0)
+See build-sequence doc §Decisions for all 7 with recommendations.
+1. **Yoco fee model — ✅ RESOLVED 2026-06-18: Lustique ABSORBS the fee.** Bride pays exactly the quoted amount; no fee added; no gross-up in the live path; `business_settings.fee_model='absorb'`. (Still pending, non-blocking: verify the real Yoco rate from the portal — now only for margin reporting, not for charging.)
+2. **Review step (gates Wave A)** — ship #2's per-line editing on the **interim token-link review page now** (*recommended* — corrected flow live in days), or wait for the Wave-B dashboard (~2 weeks)?
 
 ---
 

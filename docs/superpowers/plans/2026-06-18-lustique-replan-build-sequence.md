@@ -14,11 +14,11 @@ The corrected **booking core** (state machine, capacity, payment-gating, Yoco fi
 ### 🔴 Wave 0 — CRITICAL Yoco hotfix (do FIRST; no dependencies; this is ▶ NEXT)
 The deployed payment webhook would never confirm a real payment (spec §0, verified). Fix before anything else; it ships on the *current* flow.
 1. `0005_payment_failure.sql` — `payments.failed_at`, `payments.failure_notified_at`.
-2. Fee config: `YOCO_FEE_PCT` Worker `var` + `business_settings.fee_pct`/`fee_model`; pass `feeRate` through `grossUp` server-side; fix `payable_cents` (C-C).
+2. Fee config (🔒 **absorb model locked** — Pieter 2026-06-18): `YOCO_FEE_PCT` Worker `var` + `business_settings.fee_pct`/`fee_model` (default `absorb`); **charge net to Yoco — no gross-up** (the bride pays the quoted amount; `payable_cents = net_cents` is already correct); **remove the "incl. card fee" gross-up from the site display** (`book-page.ts:92`). `YOCO_FEE_PCT` is now a margin/reporting figure only.
 3. Webhook rewrite: Standard-Webhooks signature (C-B), `payment.succeeded`/`payment.failed`/`refund.succeeded` routing (C-A), `findPaymentByYocoId` dedupe, `kind`-branched transitions.
 4. `sendEftFallback` helper + bride/Zandeline failure emails (#6); `pendingPaymentSweep` cron (24h stale-pending poll).
-5. Tests: parameterize `payments.test.ts:26`; add checkout-grosses-up, Standard-Webhooks verify (valid/bad/stale/wrong-header), `payment.failed`→fallback idempotent.
-**Gate:** capture one real Yoco test `payment.succeeded` + one `payment.failed` against the deployed webhook; verify `YOCO_FEE_PCT` from the portal → record in `PRICING.md`.
+5. Tests: keep + parameterize `payments.test.ts:26` (`grossUp` is the dormant toggle path); add **checkout-charges-net** (`amount==net`), Standard-Webhooks verify (valid/bad/stale/wrong-header), `payment.failed`→fallback idempotent.
+**Gate:** capture one real Yoco test `payment.succeeded` + one `payment.failed` against the deployed webhook; verify the real Yoco rate from the portal → record it + the **absorb model** in `PRICING.md` (for margin reporting, not for charging).
 **Effort:** ~2–3 build-days. **Blocks live deposits until done.**
 
 ### Wave A — Corrected booking core on token-links (no auth)
@@ -61,7 +61,7 @@ Wave 0: ~2–3 d · Wave A: ~6–9 d · Wave B: ~10–14 d · Wave C: ~7–10 d 
 ## 🟦 DECISIONS FOR PIETER (with recommendations)
 These shape the build; the ▶ NEXT (Wave 0) needs **none** of them, so building can start immediately while you decide.
 
-1. **Yoco fee model (#19)** — bride pays the fee **on top** (Model A) or Lustique **absorbs** it (Model B)? *Recommend **A**, shown softly, EFT offered as the zero-fee alternative* (thin bridal margins; matches existing code/copy; "whisper, don't shout" ≠ hide costs). Built as a `business_settings.fee_model` toggle (default A), flippable without redeploy. **Also: verify the real rate** from the Yoco portal (the `0.029`/`2.95%` are both placeholders) — only you/Zandeline can read it.
+1. **Yoco fee model (#19)** — ✅ **RESOLVED (Pieter, 2026-06-18): Lustique ABSORBS the fee (Model B).** The bride pays exactly the quoted amount; no fee added; no gross-up in the live path. Built as `business_settings.fee_model='absorb'` (toggle retained for reversibility). **Still pending (not blocking):** verify the real Yoco rate from the portal — now only for margin reporting (what Lustique pays), not for what the bride is charged.
 2. **Review step: interim or dashboard-first?** Ship #2's per-line editing on the **extended token-link review page now** (corrected flow live in days), or **wait for the Wave-B dashboard** (the "her dashboard, not a link" experience, ~2 weeks later)? *Recommend the interim* — same endpoints, the dashboard upgrades the surface later without rework.
 3. **Migration test target** — the auth migration + enum additions touch the live `bookings` table. Test on a **Supabase branch/staging** first, or apply directly to prod (`af-south-1`)? *Recommend staging branch first.*
 4. **Supabase Pro timing** — launch-gating before the first live deposit (backups; you own the billing as Responsible Party). Confirm the upgrade + region.
@@ -72,7 +72,7 @@ These shape the build; the ▶ NEXT (Wave 0) needs **none** of them, so building
 ---
 
 ## ▶ NEXT (for the build lane / Sonnet)
-**Wave 0 — the CRITICAL Yoco webhook hotfix** (spec §0). It has no dependencies and no open decisions, and it unblocks real payments. Build it TDD-first, then the Wave-S launch-gating security subset, then Wave A. Decisions #1 (fee rate/model) and #2 (review interim) should be settled before Wave A's deposit-selection page and review changes; the rest before Wave B.
+**Wave 0 — the CRITICAL Yoco webhook hotfix** (spec §0). It has no dependencies and no open decisions, and it unblocks real payments. Build it TDD-first, then the Wave-S launch-gating security subset, then Wave A. Decision #1 (fee model) is **resolved = absorb**; only Decision #2 (review interim vs dashboard-first) should be settled before Wave A's review changes; the rest before Wave B.
 
 ## Secrets still pending
 Wave keys only (`WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID`) — when Wave credentials arrive. New: `YOCO_FEE_PCT` is a **var**, not a secret. Supabase Auth (Wave B) needs Brevo SMTP wired for magic links.

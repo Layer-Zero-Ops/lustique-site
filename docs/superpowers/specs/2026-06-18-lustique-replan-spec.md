@@ -17,7 +17,7 @@ Verified against Yoco's live developer docs (2026-06-18), three load-bearing def
 |----|--------|--------------|--------------------|
 | **C-A** | Wrong event name | Handles only `checkout.succeeded` (`yoco.ts:105`); all else 200-noop | Yoco emits **`payment.succeeded`** and **`payment.failed`** (+ `refund.succeeded`). The current handler **never fires on a real payment** → bookings never auto-advance to `deposit_paid`. |
 | **C-B** | Wrong signature scheme | `"sha256=" + hex(HMAC(rawBody))` vs header `x-yoco-signature` (`yoco.ts:46`) | Yoco uses **Standard Webhooks**: header **`webhook-signature`** (`v1,<base64>`, strip the `v1,`), signed content **`${webhook-id}.${webhook-timestamp}.${rawBody}`**, **base64** HMAC-SHA256, **3-minute** timestamp tolerance. Secret is dispatched `whsec_`-prefixed (Standard-Webhooks convention — confirm key handling against the portal when registering). |
-| **C-C** | Fee never grossed-up server-side | Worker passes the **net** deposit to Yoco (`review.ts:338`); `payable_cents` wrongly = `net_cents` (`review.ts:342-343`). `grossUp` runs only in site display (`book-page.ts:92`). | Lustique silently absorbs the card fee on every real transaction, contradicting both spec §8 and the site copy "incl. card fee". |
+| **C-C** | Site copy misstates the (now locked) fee model | Worker passes the **net** deposit to Yoco (`review.ts:338`); `payable_cents = net_cents` (`review.ts:342-343`) — **this is *correct* under the locked absorb model** (§4.1). But the site shows "incl. card fee" via `grossUp` (`book-page.ts:92`), implying a fee the bride is never charged. | **Locked decision: Lustique absorbs the Yoco fee** (Pieter, 2026-06-18). The bride pays the quoted net; **remove the "incl. card fee" gross-up from the site display** so copy matches reality. `payable_cents = net_cents` stays. This is a small copy fix, not a revenue bug (absorbing is intended). |
 
 **Why the "smoke-tested 3/3" loop passed anyway:** the smoke test POSTs a synthetic `checkout.succeeded` to the handler — it validates the handler against its own wrong assumption, never against a real Yoco event. C-A/C-B mean no real bride's payment would confirm.
 
@@ -131,35 +131,38 @@ insertBooking({ ..., availability_conflict: conflict });  // never 409 on capaci
 
 ## 4. Yoco integration v2 (deliverable 3 · #3, #5, #6, #19)
 
-### 4.1 Fee config (#19)
-- The code constant is `YOCO_FEE_RATE = 0.029` (2.9%) at `shared/pricing/src/payments.ts:8` — **not** the "2.95%" in the correction note. Both are placeholders. **Verify the real online rate** from the Yoco Business Portal → Settings → Pricing (capture % and any per-txn component); record in `PRICING.md` with the date.
-- Add **`YOCO_FEE_PCT`** as a Worker **`var`** (not secret — it's a public business number) in `worker/wrangler.toml [vars]` + `Env` (`index.ts:25`). Parse with a guard (`Number.isFinite && 0 ≤ f < 0.5`, else fall back to the package default + audit `config.fee-rate-invalid`). Set the `shared/pricing` constant to the same verified number so site display == server charge. Mirror to `business_settings.fee_pct` for display reads.
-- **Fee model toggle** `business_settings.fee_model ∈ {on_top, absorb}`, default **`on_top`** (reversible without redeploy):
-  - **Model A (on_top, recommended):** `gross = ceil(net / (1 − f))` → Yoco `amount = gross`; Lustique nets ~`net`. (Existing `grossUp`.)
-  - **Model B (absorb):** Yoco `amount = net`; Lustique nets `floor(net × (1 − f))`.
-- **Worked example, R8,000 @ f=3.5% (illustrative — re-derive at the verified rate):**
+### 4.1 Fee config (#19) — 🔒 LOCKED: Lustique absorbs the fee (Model B)
 
-  | Deposit | net | A: bride pays `ceil(net/0.965)` | A: fee shown | B: bride pays | B: Lustique nets |
-  |---|---|---|---|---|---|
-  | 25% | R2,000.00 | **R2,072.54** | R72.54 | R2,000.00 | R1,930.00 |
-  | 50% | R4,000.00 | **R4,145.08** | R145.08 | R4,000.00 | R3,860.00 |
-  | 100% | R8,000.00 | **R8,290.16** | R290.16 | R8,000.00 | R7,720.00 |
+**Decision (Pieter, 2026-06-18): Lustique absorbs the Yoco card fee. The bride pays exactly the quoted amount — no fee is ever added to her.** This is the more on-brand choice ("the price is the price"; no surprise line on a quiet-luxury invoice).
 
-  Useful invariant under both models: the chosen split never changes the bride's total or Lustique's fee cost (25%+balance == 100%).
-- **Recommendation (planner): Model A, shown softly, with EFT offered as the zero-fee alternative on the same page.** Brand mandate is "whisper, don't shout," not "hide costs"; bridal margins are thin and the fee compounds at peak season; A matches existing code + spec + site copy (least churn). **DECISION FOR PIETER/ZANDELINE** — see build-sequence doc §Decisions. Default A regardless; flip via the toggle.
+What this means concretely:
+- **The bride is charged the net amount** (the deposit slice, or the balance, or the full total). Yoco `amount = net`. **No gross-up on any bride-facing charge.** Lustique receives `net` minus Yoco's fee (Yoco deducts it at settlement); Lustique effectively nets `net × (1 − f)`.
+- **`grossUp` is NOT used in the live payment path.** It stays in `shared/pricing` only behind the optional toggle (below). The site display must **stop** showing "incl. card fee" (see C-C, §0) — the bride pays the plain deposit amount.
+- **`YOCO_FEE_PCT` is now a margin/reporting figure, not a charge input.** It no longer affects what the bride pays. **Still verify the real online rate** from the Yoco Business Portal → Settings → Pricing and record it + the date + the absorb model in `PRICING.md` — so analytics (View B) can report "card fees paid" and Zandeline sees her true net. Add `YOCO_FEE_PCT` as a Worker **`var`** + mirror `business_settings.fee_pct` for reporting reads.
+- **Keep a `business_settings.fee_model ∈ {absorb, on_top}` toggle, default `absorb`** (locked choice), so the decision is reversible without a redeploy if Zandeline ever changes her mind. `on_top` (gross-up via `ceil(net/(1−f))`) is the dormant alternative.
+
+- **Worked example, R8,000 @ f=3.5% (absorb model — illustrative; re-derive at the verified rate for reporting):**
+
+  | Deposit chosen | Bride pays (net, no fee) | Yoco fee Lustique absorbs | Lustique nets |
+  |---|---|---|---|
+  | 25% | **R2,000.00** | R70.00 | R1,930.00 |
+  | 50% | **R4,000.00** | R140.00 | R3,860.00 |
+  | 100% | **R8,000.00** | R280.00 | R7,720.00 |
+
+  Invariant: the bride always pays exactly the booking total regardless of split (25%+balance == 100% == R8,000); Lustique's absorbed fee is also split-invariant (~R280 either way).
 
 ### 4.2 Deposit-selection page (#3, #4)
-New **Worker-rendered** page (matches `renderReviewPage`/`renderInvoicePage` so money is server-authoritative): `GET /api/booking/accept?token=` (new action-token purpose **`accept`**, TTL = invoice validity ~30d, minted at T1 alongside a **`reject`** token). Renders 3 options, each via `splitDeposit(total,pct)` then `grossUp(net, feeRate)`:
+New **Worker-rendered** page (matches `renderReviewPage`/`renderInvoicePage` so money is server-authoritative): `GET /api/booking/accept?token=` (new action-token purpose **`accept`**, TTL = invoice validity ~30d, minted at T1 alongside a **`reject`** token). Renders 3 options, each via `splitDeposit(total,pct)` — the bride pays the **net** slice (absorb model: **no fee line, no gross-up**):
 ```
-○ Pay 25% now   R2,072.54  (deposit R2,000 + card processing R72.54)   Balance R6,000 — link 14 days before
-● Pay 50% now   R4,145.08  (deposit R4,000 + card processing R145.08)  Balance R4,000 — link 14 days before   ← suggested
-○ Pay in full   R8,290.16  (R8,000 + card processing R290.16)          Nothing more to pay
-   Prefer EFT? Pay by bank transfer with no card fee — [details]
+○ Pay 25% now   R2,000.00    Balance R6,000 due 14 days before — we'll send a link
+● Pay 50% now   R4,000.00    Balance R4,000 due 14 days before — we'll send a link   ← suggested
+○ Pay in full   R8,000.00    Nothing more to pay
+   Prefer to pay by EFT instead? [bank details]
 ```
-Headline number = exactly what Yoco will charge (no checkout surprise). Voice = Lustique team; "Your date is secured the moment your payment clears" (#4). `POST /api/booking/accept {token, depositPct}` → re-verify token, re-load booking, **recompute server-side**, persist deposit fields, T3, create Yoco checkout for the **grossed** amount, 303 → Yoco `redirectUrl`. Date is *not* locked here.
+Headline = the plain quoted figure, exactly what Yoco charges (no fee, no checkout surprise — on-brand for quiet luxury). EFT is offered as an equal payment method (the bride pays the same either way; EFT simply saves Lustique the absorbed fee — frame it neutrally, not as a bride-side discount). Voice = Lustique team; "Your date is secured the moment your payment clears" (#4). `POST /api/booking/accept {token, depositPct}` → re-verify token, re-load booking, **recompute server-side**, persist deposit fields, T3, create Yoco checkout for the **net** amount, 303 → Yoco `redirectUrl`. Date is *not* locked here.
 
 ### 4.3 Checkout call changes
-1. **Gross up server-side** (C-C): `amount = grossUp(net, feeRate)`; persist `net_cents = net`, `payable_cents = grossUp(...)` (fixes the `review.ts:342-343` bug).
+1. **Charge net — do NOT gross up** (absorb model, §4.1): `amount = net`; persist `net_cents = net`, `payable_cents = net` (the current `review.ts:342-343` `payable_cents = net_cents` is **correct** under absorb — no change). `grossUp` is not called in the live path.
 2. **Move checkout creation** out of approval (`review.ts:337-347`) into `POST /api/booking/accept` — deposit % isn't known until the bride picks it.
 3. **Idempotency key includes the %**: `${bookingId}-deposit-${depositPct}` (so re-picking a different % yields a correct new checkout; mark superseded pending rows `expired` so the webhook can't later mark a stale one paid).
 4. Metadata: add `kind:"deposit"|"balance"` + `depositPct` so the webhook knows which slice. `cancelUrl` → new `/payment-cancelled` page (UX only, mutates nothing).
@@ -174,11 +177,11 @@ Headline number = exactly what Yoco will charge (no checkout surprise). Voice = 
   default           → 200 no-op
   ```
   Wire the dead `findPaymentByYocoId` (`db.ts:112`) for second-axis idempotency (dedupe on `yoco_payment_id`).
-- **Failed path (#6) — `handleFailed`:** find pending payment row; if none/already paid → 200; `markPaymentFailed` (`status='failed'`, `failed_at`, `raw`); **do NOT transition the booking** (stays `accepted`/`deposit_paid`); send bride EFT-fallback email (net amount — no card fee on EFT, reinforcing §4.2's EFT line — + bank details + reference + "try card again" link) and Zandeline notification (+ mark-paid link); stamp `failure_notified_at` (idempotent — skip emails if already failed); audit; return 200.
+- **Failed path (#6) — `handleFailed`:** find pending payment row; if none/already paid → 200; `markPaymentFailed` (`status='failed'`, `failed_at`, `raw`); **do NOT transition the booking** (stays `accepted`/`deposit_paid`); send bride EFT-fallback email (the exact outstanding amount — same figure as card, since Lustique absorbs the fee — + bank details + reference + "try card again" link) and Zandeline notification (+ mark-paid link); stamp `failure_notified_at` (idempotent — skip emails if already failed); audit; return 200.
 - **Defence-in-depth (#6, the explicit ask):** `payment.failed` webhook (primary, instant for declined cards) **+ a 24h stale-pending poll-sweep** in cron (`pendingPaymentSweep`: pending rows >24h → `GET https://payments.yoco.com/api/checkouts/{id}` for ground truth → same EFT fallback if terminal-failed; catches *abandoned* checkouts that fire no event) **+ a `/payment-cancelled` page** (UX, non-mutating). Both detectors funnel into one shared `sendEftFallback(booking, payment, kind)`.
 
 ### 4.5 Balance Yoco link (#5)
-Today the balance reminder (`balance.ts:181`) is EFT-only. In `balanceSweep` (`balance.ts:203`, already finds the right bookings), for each due booking: `grossUp(balance_net_cents, feeRate)`; `createYocoCheckout(..., kind:"balance", key:${id}-balance)`; `insertPayment(kind:balance, pending)`; add a **"Pay balance now — R{payable}"** button to the reminder (EFT fallback beneath). `payment.succeeded` kind=balance → T8 + Wave `recordPayment` + "fully paid 🎉". If checkout creation fails → EFT-only fallback (like `review.ts:349`). Guard the stale-pending sweep to skip if booking already `settled`.
+Today the balance reminder (`balance.ts:181`) is EFT-only. In `balanceSweep` (`balance.ts:203`, already finds the right bookings), for each due booking: `createYocoCheckout(..., amount = balance_net_cents, kind:"balance", key:${id}-balance)` (net — absorb model, no gross-up); `insertPayment(kind:balance, pending)`; add a **"Pay balance now — R{balance}"** button to the reminder (EFT fallback beneath). `payment.succeeded` kind=balance → T8 + Wave `recordPayment` + "fully paid 🎉". If checkout creation fails → EFT-only fallback (like `review.ts:349`). Guard the stale-pending sweep to skip if booking already `settled`.
 
 ---
 
@@ -235,7 +238,7 @@ Frontend: `/book` drops hardcoded `depositPct:50`; new bride **Accept/Reject** +
 
 ## 8. Conflicts resolved (vs 2026-06-05 spec & legacy docs)
 
-`C1` 409 hard-block → soft-block capacity. `C2` email-link confirm → dashboard review (see data plan). `C3` deposit-% at request → at bride-accept. `C4` approval ≠ secured → only `deposit_paid` secures. `C5` add bride reject-with-reason + re-quote. `C6` explicit Yoco failure → EFT. `C7` add full-pay check-in. `C8` `0.029` invalid → verify + configurable `YOCO_FEE_PCT` + model toggle. `C9` template voice audit. `C11` PLAN.md "no online payments v1" obsolete — Yoco is live. `C12` PLAN.md travel/address stale (PRICING.md wins: 30km / La Montagne). `C13` Google-Sheets CRM → in-platform CRM (data plan). Also fix `payable_cents` bug, retire legacy `/confirm`, fix `workingDaysBefore` holidays.
+`C1` 409 hard-block → soft-block capacity. `C2` email-link confirm → dashboard review (see data plan). `C3` deposit-% at request → at bride-accept. `C4` approval ≠ secured → only `deposit_paid` secures. `C5` add bride reject-with-reason + re-quote. `C6` explicit Yoco failure → EFT. `C7` add full-pay check-in. `C8` 🔒 **fee model LOCKED = absorb** (Lustique pays the fee, bride pays the quoted amount); `YOCO_FEE_PCT` becomes a margin/reporting figure (verify the real rate for reporting), no gross-up in the live path, `business_settings.fee_model` toggle defaults `absorb`. `C9` template voice audit. `C11` PLAN.md "no online payments v1" obsolete — Yoco is live. `C12` PLAN.md travel/address stale (PRICING.md wins: 30km / La Montagne). `C13` Google-Sheets CRM → in-platform CRM (data plan). Also: remove the misleading "incl. card fee" site display, retire legacy `/confirm`, fix `workingDaysBefore` holidays. (`payable_cents = net_cents` is correct under absorb — not a bug.)
 
 ## 9. Tests (TDD, per project convention)
-Parameterize `payments.test.ts:26` (`grossUp(500000,0.029)===514934` breaks at the real rate) on `feeRate`. Add: Worker checkout grosses up (the invisible C-C gap); Standard-Webhooks verify (valid/bad-sig/stale-ts/wrong-header); `payment.failed`→EFT fallback fires once + idempotent; balance card path `deposit_paid→settled`; Model-A split-invariance; stale-pending poll→fallback; capacity gate never 409s + conflict flag persists; each new transition T1–T10; nudge/check-in stamp idempotency.
+`grossUp` stays unit-tested in `shared/pricing` (it's the dormant `on_top` toggle path) but is **not exercised in the live payment path** under the locked absorb model — keep its test, parameterize the hardcoded `0.029`/`514934` (`payments.test.ts:26`) on `feeRate` so a rate change doesn't break it. Add: **Worker checkout charges the net amount** (absorb model — assert `amount == net`, `payable_cents == net_cents`); **site display shows no added fee** (the bride is quoted/charged the plain deposit); Standard-Webhooks verify (valid/bad-sig/stale-ts/wrong-header); `payment.failed`→EFT fallback fires once + idempotent; balance card path `deposit_paid→settled`; **bride's total == booking total regardless of split** (25%+balance == 100%); stale-pending poll→fallback; capacity gate never 409s + conflict flag persists; each new transition T1–T10; nudge/check-in stamp idempotency.
