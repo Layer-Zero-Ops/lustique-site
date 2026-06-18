@@ -9,7 +9,7 @@
 **Secrets still to set (via `wrangler secret put`):**
 - `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID` — once Wave credentials arrive
 
-**▶ NEXT task (Opus):** Full re-plan of the booking flow and Zandeline's dashboard. Pieter has corrected several fundamental assumptions. Read the "Pieter corrections" section below before planning anything. Produce: (1) corrected booking flow spec, (2) Zandeline dashboard plan, (3) full Yoco integration plan, (4) CRM plan. Then hand back to Sonnet to build.
+**▶ NEXT task (Opus):** Full re-plan of the booking flow and Zandeline's dashboard. Two rounds of Pieter corrections received — read ALL corrections below before planning. Produce: (1) corrected booking flow spec, (2) Zandeline dashboard plan incl. real-time notifications + analytics, (3) full Yoco integration plan (verify actual card fees from Yoco dashboard), (4) CRM plan incl. IMAP integration, (5) analytics system recommendation, (6) ML recommendation. Then hand back to Sonnet to build.
 
 ---
 
@@ -64,6 +64,53 @@ Current flow: bride receives invoice with a fixed Yoco "Pay Now" button. **This 
 - The CRM must support: client history, contact details, past bookings, notes.
 - Plan: what data model, what import mechanism (CSV? Google Sheets sync?), what views.
 - Future brides who book become CRM contacts automatically.
+
+### 8. Real-time notification system in the dashboard
+- While Zandeline is working in the dashboard, she must receive **real-time notifications**.
+- Each notification links directly to the relevant item (new booking request, payment received, payment failed, etc.).
+- Plan the delivery mechanism: Supabase Realtime? Server-Sent Events from the Worker? Polling? What fits the CF Workers + no-auth-yet constraints?
+- Notifications must persist (she shouldn't miss something if she wasn't online).
+
+### 9. Accept/Reject flow on the invoice email — exact UX
+- The invoice/quote email has **two dedicated buttons**: "Accept" and "Reject" — placed correctly in the email layout.
+- **Accept** → opens the deposit selection page (25%/50%/100% with card fees) → Yoco checkout.
+- **Reject** → opens a form asking the bride for her reasons. Possible options: price, date, other. Her feedback is sent to Lustique and surfaces in the dashboard so Zandeline can consider adjustments and potentially re-quote.
+- Plan the reject flow fully: what data is captured, where it surfaces, can Zandeline send a revised quote?
+
+### 10. Brand voice — "Lustique" not "Zandeline"
+- All system-generated communications must come from **Lustique** (the brand), not Zandeline personally.
+- Even though Zandeline does the work, the public image is a larger team-facing business.
+- Fix: remove any "Zandeline will be in touch" language. Use "The Lustique team will be in touch" or equivalent.
+- This applies to ALL emails, SMS, notifications — audit every template.
+
+### 11. Full-pay brides — 14-day check-in, not balance reminder
+- Brides who paid **100% upfront** do NOT receive a balance reminder (they have no balance).
+- They DO receive a **warm check-in email** 14 days before their wedding.
+- Content: heartfelt confirmation, last-minute logistics, excitement — NOT transactional.
+- **Zandeline can customise what this email says** — it should be editable from the dashboard (not hardcoded in the Worker).
+- Plan where this template lives and how Zandeline edits it.
+
+### 12. Analytics system
+- The platform currently has **no analytics layer** beyond the raw `audit_log` table.
+- Pieter is asking: what should the analytics system look like?
+- Consider: booking conversion rates, revenue by month/quarter, popular dates, average booking value, deposit choice breakdown (25/50/100%), no-show / declined rates, source attribution (how brides found Lustique).
+- Plan what to track, how to store it (derived from existing data? separate analytics events?), and what Zandeline sees in the dashboard.
+
+### 13. IMAP email integration
+- Zandeline connects her **IMAP email account** (likely `info@lustiqueco.co.za` on Google Workspace) to the platform.
+- This feeds into the platform's email system — the platform can read her inbox, surface relevant threads, potentially reply via the platform.
+- Consider: this enables linking email conversations to bookings/contacts in the CRM, surfacing replies from brides in the dashboard, and potentially letting Zandeline compose replies from within the platform.
+- Plan the integration: what protocol (IMAP/SMTP), where it runs (Worker can't maintain long connections — consider a separate service or Supabase Edge Function), what data is stored, POPIA implications of storing email content.
+
+### 14. Machine learning — do we need it?
+- Pieter is asking whether ML is appropriate/needed for this platform.
+- Consider: lead scoring (which enquiries are likely to convert), pricing optimisation, demand forecasting (busy dates/seasons), churn prediction (brides who don't respond), upsell recommendations.
+- Plan recommendation: what ML would add genuine value vs. what is over-engineering for a single-business platform at this stage. Be honest about complexity vs. ROI. If yes, what's the minimal viable ML feature and how does it integrate?
+
+### 15. Yoco card fees — verify exact rate
+- Pieter believes the card fee is **more than 2.95%**.
+- The 2.95% figure was a placeholder — do NOT use it in the plan.
+- Opus must: (a) note the need to verify the exact rate from Zandeline's Yoco Business Portal (Settings → Pricing), (b) design the fee display as a configurable `YOCO_FEE_PCT` Worker variable, (c) provide a formula for the fee-inclusive amount shown to the bride (gross-up: `amount / (1 - fee_pct)` or `amount * (1 + fee_pct)` depending on who absorbs the fee — clarify which model Pieter/Zandeline prefer: bride pays the fee on top, or Lustique absorbs it).
 
 ---
 
