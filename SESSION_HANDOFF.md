@@ -141,3 +141,4 @@ Roadmap planned + written → [`docs/ROADMAP-agency-platform.md`](docs/ROADMAP-a
 Two-tier pattern (client secrets in client Supabase vault, LZ as directory). Already logged. Defer to post-launch.
 
 **⬇ From umbrella:** ⚪ DECISION (secrets architecture) received + folded into umbrella planning agenda 2026-06-16.
+**⬇ From umbrella (2026-06-18):** 🟢 SHIPPED folded — roadmap + Phase 0 cleared logged in umbrella done-ledger. Umbrella project state updated to Phase 1 as ▶ NEXT. No new requests from umbrella.
