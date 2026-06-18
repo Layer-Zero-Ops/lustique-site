@@ -107,7 +107,42 @@ Current flow: bride receives invoice with a fixed Yoco "Pay Now" button. **This 
 - Consider: lead scoring (which enquiries are likely to convert), pricing optimisation, demand forecasting (busy dates/seasons), churn prediction (brides who don't respond), upsell recommendations.
 - Plan recommendation: what ML would add genuine value vs. what is over-engineering for a single-business platform at this stage. Be honest about complexity vs. ROI. If yes, what's the minimal viable ML feature and how does it integrate?
 
-### 15. Yoco card fees — verify exact rate
+### 16. SEO, security and backend infrastructure
+- The site is live but no explicit SEO layer has been planned or built beyond the Astro static output.
+- Plan the full backend infrastructure a professional wedding services site needs:
+  - **SEO:** structured data (Schema.org `LocalBusiness`, `Service`, `FAQPage`), XML sitemap, `robots.txt`, Open Graph + Twitter card meta, canonical URLs, hreflang (English only but still needs canonical), page-speed / Core Web Vitals baseline, local SEO (Google Business Profile data seeding).
+  - **Security headers:** CSP, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS — where do these live in the CF Worker / Pages config?
+  - **Rate limiting:** the booking form, Yoco webhook, and admin endpoints need rate limiting. CF Workers has built-in rate limiting — plan thresholds per endpoint.
+  - **Bot protection:** Turnstile is already on the booking form. What else needs protection? Admin endpoints? The invoice/review pages?
+  - **HTTPS / certificate:** managed by Cloudflare — confirm it's automatic and note any edge cases.
+  - **Cookie & consent banner:** the site will use analytics cookies (GA4 or equivalent). POPIA requires consent — plan the banner and what fires before/after consent.
+  - **Backups:** Supabase handles DB backups on the paid plan — note what tier Lustique needs and who (Zandeline/LZ) is responsible.
+  - **Monitoring & uptime:** what alerting is in place if the Worker or site goes down? Plan a simple health-check endpoint + Cloudflare Notifications.
+
+### 17. Data collection strategy — purposeful, revenue-boosting
+- Plan what data Lustique should collect **with intent** — not just what's captured incidentally.
+- Every data point must serve a clear purpose: improve conversion, increase average booking value, fill the calendar, reduce no-shows, enable re-engagement.
+- Consider:
+  - **Enquiry-to-booking funnel:** where do brides drop off? At what step? Tracking this identifies the biggest conversion lever.
+  - **Estimator usage data:** which services are most often selected? Which are removed? This informs pricing, package design, and upsells.
+  - **Date demand heatmap:** which dates/months/seasons are most requested? Which are declined? Informs pricing strategy (peak surcharge?) and capacity planning.
+  - **Deposit tier selection:** do brides skew toward 25% or 100%? This affects cash flow planning.
+  - **Rejection reasons:** when brides reject an invoice, why? Price? Timing? This is direct product feedback.
+  - **Source attribution:** how did the bride find Lustique? (form field — Instagram, referral, Google, etc.) Which source converts best?
+  - **Repeat clients / referrals:** has this bride (or her network) booked before? Is there a referral pattern?
+  - **Time-to-decision:** how long does it take from enquiry to payment? Are there patterns by season, lead source, price bracket?
+  - **Artist allocation patterns:** which artists are most in demand? Are some over/under-utilised?
+- For each data point: what's collected, where it's stored, how it surfaces in the dashboard, and what action it enables.
+
+### 18. Churn — clarification and correct framing
+- **Post-payment churn does not apply** in the traditional sense. Once a bride has paid any deposit (25%, 50%, or 100%), she has committed to her date and has a financial stake. She is not going to "churn" — she has a wedding to attend.
+- The correct risk model:
+  - **Pre-payment drop-off** (enquiry → no booking): THIS is the real churn risk. A bride enquires, receives an invoice, and goes silent or rejects. This is a conversion problem, not a retention problem. Track it as funnel drop-off, address it with follow-up sequences and rejection reason analysis.
+  - **Cancellation** (post-payment, rare): a bride may cancel — illness, divorce, venue collapse. Plan a cancellation policy field on bookings and a `cancelled` status. What happens to the deposit? This is a business policy decision for Zandeline, not a technical one — but the system must support recording it.
+  - **No-show / ghost** (no payment, no response after invoice sent): a bride receives the invoice and simply never responds. Plan a follow-up nudge sequence (automated, 3 days after invoice sent, then 7 days) with a final "closing the file" email. Track as `invoice_expired` status.
+- Opus must plan the correct vocabulary and status states for these three scenarios, and what the system does automatically vs. what surfaces in the dashboard for Zandeline to act on.
+
+### 19. Yoco card fees — verify exact rate
 - Pieter believes the card fee is **more than 2.95%**.
 - The 2.95% figure was a placeholder — do NOT use it in the plan.
 - Opus must: (a) note the need to verify the exact rate from Zandeline's Yoco Business Portal (Settings → Pricing), (b) design the fee display as a configurable `YOCO_FEE_PCT` Worker variable, (c) provide a formula for the fee-inclusive amount shown to the bride (gross-up: `amount / (1 - fee_pct)` or `amount * (1 + fee_pct)` depending on who absorbs the fee — clarify which model Pieter/Zandeline prefer: bride pays the fee on top, or Lustique absorbs it).
