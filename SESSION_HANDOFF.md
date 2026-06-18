@@ -14,12 +14,12 @@ The full re-plan is committed (4 docs below). The build lane starts at **Wave 0*
 
 > **Why Wave 0 is critical (verified against Yoco's live docs):** the deployed webhook listens only for `checkout.succeeded`, but Yoco emits **`payment.succeeded`** — so **no real bride's payment ever auto-confirms** (the booking never advances to `deposit_paid`). The HMAC signature scheme is also wrong (uses `x-yoco-signature`+hex; Yoco uses Standard Webhooks: `webhook-signature`, base64 HMAC over `id.timestamp.body`, 3-min tolerance). (Fee handling: Lustique **absorbs** the fee — locked — so charging the net amount is correct; the only fee fix is removing the misleading "incl. card fee" copy from the site display.) The "smoke-tested 3/3" loop passed only because it POSTs a synthetic `checkout.succeeded` to the handler — it never exercised a real Yoco event. **Full detail + the fix:** spec §0.
 
-After Wave 0: the **Wave-S launch-gating security subset** (headers, TLS, rate limits, `/api/health`, enquiry Turnstile, consent-gated GA4, Supabase Pro), then **Wave A** (corrected booking core on token-links). Only Decision #2 (review interim vs dashboard-first) gates Wave A's review changes — Decision #1 (fee model) is resolved.
+After Wave 0: the **Wave-S launch-gating security subset** (headers, TLS, rate limits, `/api/health`, enquiry Turnstile, consent-gated GA4, Supabase Pro), then **Wave A** (corrected booking core on token-links). **Both early-gating decisions are resolved — Wave A is fully unblocked.**
 
-## 🟦 Decisions (none block Wave 0)
-See build-sequence doc §Decisions for all 7 with recommendations.
+## 🟦 Decisions
+Both decisions that gated early build are resolved; #3–#7 (build-sequence doc §Decisions) are operational confirmations for Wave B/C.
 1. **Yoco fee model — ✅ RESOLVED 2026-06-18: Lustique ABSORBS the fee.** Bride pays exactly the quoted amount; no fee added; no gross-up in the live path; `business_settings.fee_model='absorb'`. (Still pending, non-blocking: verify the real Yoco rate from the portal — now only for margin reporting, not for charging.)
-2. **Review step (gates Wave A)** — ship #2's per-line editing on the **interim token-link review page now** (*recommended* — corrected flow live in days), or wait for the Wave-B dashboard (~2 weeks)?
+2. **Review step — ✅ RESOLVED 2026-06-18: INTERIM.** Per-line invoice editing ships on the **token-link review page in Wave A** (token-gated, live in days); Wave B re-homes the same editing logic behind the logged-in dashboard (no rework). `quote_revisions`/`rejections` move into the Wave-A migration.
 
 ---
 

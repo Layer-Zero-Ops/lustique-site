@@ -25,18 +25,18 @@ The deployed payment webhook would never confirm a real payment (spec §0, verif
 Delivers most corrections without waiting for auth. Ships the corrected flow live.
 - **Capacity / soft-block (#1):** `0006` — `date_capacity` (slots), `default_slots_per_day`; `getDateAvailability`; remove the 409; `availability_conflict`; admin capacity editor.
 - **State machine (spec §1):** enum adds `quote_sent`/`accepted`/`rejected`/`invoice_expired`; wire `cancelled`; new status/reason/stamp columns; `deposit_pct` nullable.
-- **Bride Accept/Reject + deposit-selection (#3, #9):** new `accept`/`reject` tokens; `GET/POST /api/booking/accept` (deposit-selection page, grossed per `fee_model`); `POST /api/booking/reject` + reason form + `rejections` table; move checkout creation to accept.
+- **Bride Accept/Reject + deposit-selection (#3, #9):** new `accept`/`reject` tokens; `GET/POST /api/booking/accept` (deposit-selection page — charges **net**, absorb model, no fee line); `POST /api/booking/reject` + reason form + `rejections` table; move checkout creation to accept.
 - **Payment-gating + voice (#4, #10):** reword `/booking-received`; retire legacy `/confirm`; consolidate duplicate "date secured" email; brand-voice the new emails.
 - **Balance Yoco link (#5):** add to `balanceSweep`.
 - **Nudges + check-in + expiry (#5/#11/#18):** `invoiceExpirySweep`, `fullPayCheckInSweep`; fix `workingDaysBefore` SA holidays. (Check-in template is hardcoded-then-editable: ship a seeded default now; becomes dashboard-editable in Wave B.)
 - **Attribution + analytics columns (#17/#12):** carry `source`/`utm_*` through the booking path; `decline_reason`; Layer-1 derived views (A–D).
-- **`#2` interim:** extend the token-link review page to **per-line editing** (see Decision #2) so Zandeline gets editing now.
-**Effort:** ~6–9 build-days. **Output: the fully corrected booking flow live, on email-link mechanics.**
+- **`#2` per-line invoice editing — ✅ Decision #2 = INTERIM (Pieter, 2026-06-18):** extend the token-link review page to **per-line editing** now (not waiting for the dashboard). Build here: the `quote_revisions` table + server-side recompute (via `@lustique/pricing`) + the line-item editor UI + extended **Approve & Send**, all **token-gated** (the existing review-token mechanism). Wave B re-homes the *same* editing logic behind the admin session (`/api/admin/quote/:id`) — auth wrapper changes, editing core is reused, no rework.
+**Effort:** ~6–9 build-days. **Output: the fully corrected booking flow live, on email-link mechanics — including per-line invoice editing.**
 
 ### Wave B — Auth + Dashboard (roadmap Phase 1 + Phase 2)
 - **Phase 1 spine:** `0005_identity_and_allocation` (per roadmap — `profiles`, `booking_artists`, helpers), Supabase Auth magic-link, Brevo SMTP, **read-only** RLS families; retires `ADMIN_SECRET`. (~4–6 d)
-- **Phase 2 dashboard:** the 7 views; `quote_revisions` + per-line invoice editor (#2 as specified — "her dashboard, not a link"); re-home review/approve behind the session (re-test money paths); `message_templates` + Templates view (#11 fully editable); `notifications` + Supabase Realtime (#8); Rejections/Payments/Calendar/Analytics views. (~6–8 d)
-**Effort:** ~10–14 build-days. Depends on Wave A + Decisions #1/#3/#5.
+- **Phase 2 dashboard:** the 7 views; **re-home the Wave-A per-line invoice editor behind the session** (#2 as specified — "her dashboard, not a link"; reuse the `quote_revisions` logic, swap token-gate → admin-session, re-test money paths); `message_templates` + Templates view (#11 fully editable); `notifications` + Supabase Realtime (#8); Rejections/Payments/Calendar/Analytics views. (~6–8 d)
+**Effort:** ~10–14 build-days. Depends on Wave A. (All gating decisions resolved; Decisions #3/#5 are operational confirmations within this wave.)
 
 ### Wave C — CRM + IMAP (after dashboard)
 - **CRM (#7):** `contacts` + `bookings.contact_id`; `upsertContactFromBooking`; CSV import (admin-session); CRM views + repeat-bride badge. (~3–4 d)
@@ -51,7 +51,7 @@ Mostly independent of the waves. **Launch-blocking subset** (do alongside Wave 0
 ---
 
 ## Migration sequence (recommended; Sonnet finalises numbers at build)
-`0005_payment_failure` (Wave 0) → `0005_identity_and_allocation` is the **roadmap Phase-1** migration (Wave B) — **number collision to resolve:** keep Wave 0 as `0005`, make the capacity/status migration `0006_capacity_and_status` (Wave A), analytics/attribution `0007` (Wave A), then Phase-1 identity `0008`, dashboard tables (`quote_revisions`/`rejections`/`message_templates`/`notifications`) `0009`, CRM `0010`, email `0011`. Renumber coherently when building; the **dependency order is the contract**, not the digits.
+`0005_payment_failure` (Wave 0) → capacity/status `0006_capacity_and_status` (Wave A) → analytics/attribution `0007` (Wave A) → **`0008_quote_editing`** (`quote_revisions` + `rejections`, **Wave A** — needed for the interim per-line editor + bride reject loop, per Decision #2) → Phase-1 identity `0009_identity_and_allocation` (Wave B) → dashboard tables (`message_templates`/`notifications`) `0010` (Wave B) → CRM `0011` → email `0012`. Renumber coherently when building; the **dependency order is the contract**, not the digits. (`quote_revisions`/`rejections` moved earlier — into Wave A — because Decision #2 puts per-line editing on the token page now.)
 
 ## Estimated total
 Wave 0: ~2–3 d · Wave A: ~6–9 d · Wave B: ~10–14 d · Wave C: ~7–10 d · Wave S launch subset: ~2–3 d (overlaps). Trust the sequenced total (~28–40 build-days for Waves 0–C single-lane), not the additive sum — auth is shared across the dashboard/CRM.
@@ -59,10 +59,10 @@ Wave 0: ~2–3 d · Wave A: ~6–9 d · Wave B: ~10–14 d · Wave C: ~7–10 d 
 ---
 
 ## 🟦 DECISIONS FOR PIETER (with recommendations)
-These shape the build; the ▶ NEXT (Wave 0) needs **none** of them, so building can start immediately while you decide.
+Decisions #1 and #2 (the two that gated the early build) are **resolved**; #3–#7 are operational confirmations for later waves and don't block Wave 0/A.
 
 1. **Yoco fee model (#19)** — ✅ **RESOLVED (Pieter, 2026-06-18): Lustique ABSORBS the fee (Model B).** The bride pays exactly the quoted amount; no fee added; no gross-up in the live path. Built as `business_settings.fee_model='absorb'` (toggle retained for reversibility). **Still pending (not blocking):** verify the real Yoco rate from the portal — now only for margin reporting (what Lustique pays), not for what the bride is charged.
-2. **Review step: interim or dashboard-first?** Ship #2's per-line editing on the **extended token-link review page now** (corrected flow live in days), or **wait for the Wave-B dashboard** (the "her dashboard, not a link" experience, ~2 weeks later)? *Recommend the interim* — same endpoints, the dashboard upgrades the surface later without rework.
+2. **Review step: interim or dashboard-first?** — ✅ **RESOLVED (Pieter, 2026-06-18): INTERIM.** Ship #2's per-line editing on the **extended token-link review page now** (in Wave A, token-gated; corrected flow live in days). Wave B re-homes the *same* editing logic behind the logged-in dashboard ("her dashboard, not a link") — auth wrapper changes, editing core reused, no rework. `quote_revisions`/`rejections` move into the Wave-A migration accordingly.
 3. **Migration test target** — the auth migration + enum additions touch the live `bookings` table. Test on a **Supabase branch/staging** first, or apply directly to prod (`af-south-1`)? *Recommend staging branch first.*
 4. **Supabase Pro timing** — launch-gating before the first live deposit (backups; you own the billing as Responsible Party). Confirm the upgrade + region.
 5. **`notifications` pre-auth read** — allow anon-read on the `notifications` table in v1 (dashboard sits behind `ADMIN_SECRET`; rows carry only a first name + relative link), or route reads through the Worker too? *Recommend anon-read v1* (tightens to `authenticated` in Phase 1, zero client change). Or defer notifications entirely into the Wave-B auth wave.
@@ -72,7 +72,7 @@ These shape the build; the ▶ NEXT (Wave 0) needs **none** of them, so building
 ---
 
 ## ▶ NEXT (for the build lane / Sonnet)
-**Wave 0 — the CRITICAL Yoco webhook hotfix** (spec §0). It has no dependencies and no open decisions, and it unblocks real payments. Build it TDD-first, then the Wave-S launch-gating security subset, then Wave A. Decision #1 (fee model) is **resolved = absorb**; only Decision #2 (review interim vs dashboard-first) should be settled before Wave A's review changes; the rest before Wave B.
+**Wave 0 — the CRITICAL Yoco webhook hotfix** (spec §0). It has no dependencies and no open decisions, and it unblocks real payments. Build it TDD-first, then the Wave-S launch-gating security subset, then Wave A. **Both early-gating decisions are resolved** — #1 fee model = **absorb**, #2 review = **interim per-line editing on the token page** — so Wave A is fully unblocked. Decisions #3–#7 are operational confirmations for Wave B/C.
 
 ## Secrets still pending
 Wave keys only (`WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID`) — when Wave credentials arrive. New: `YOCO_FEE_PCT` is a **var**, not a secret. Supabase Auth (Wave B) needs Brevo SMTP wired for magic links.
