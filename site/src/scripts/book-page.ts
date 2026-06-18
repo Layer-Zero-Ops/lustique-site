@@ -4,7 +4,7 @@
  * If no sessionStorage entry exists, shows a fallback pointing back to /quote.
  */
 import { BOOKING_STORAGE_KEY } from "./booking-request";
-import { grossUp, splitDeposit, randToCents, YOCO_FEE_RATE } from "@lustique/pricing";
+import { splitDeposit, randToCents } from "@lustique/pricing";
 
 const el = (id: string) => document.getElementById(id);
 const val = (id: string) => {
@@ -89,8 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (depositEl) {
       const totalCents = randToCents(stored.estimateTotal);
       const { depositNetCents } = splitDeposit(totalCents, 50);
-      const depositPayable = grossUp(depositNetCents, YOCO_FEE_RATE);
-      depositEl.textContent = `50% deposit — R ${rand(depositPayable)} incl. card fee`;
+      depositEl.textContent = `50% deposit — R ${rand(depositNetCents)}`;
     }
   }
 

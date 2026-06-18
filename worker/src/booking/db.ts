@@ -122,6 +122,49 @@ export async function findPaymentByYocoId(
   return rows.length ? rows[0]! : null;
 }
 
+/** Wave 0: mark a payment failed; idempotent (PATCH by id regardless of current status). */
+export async function markPaymentFailed(
+  env: DbEnv,
+  paymentRowId: string,
+  raw: unknown,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, `payments?id=eq.${encodeURIComponent(paymentRowId)}`), {
+    method: "PATCH",
+    headers: { ...headers(env), prefer: "return=minimal" },
+    body: JSON.stringify({ status: "failed", failed_at: new Date().toISOString(), raw }),
+  });
+  if (!r.ok) throw new Error(`markPaymentFailed ${r.status}: ${await r.text()}`);
+}
+
+/** Wave 0: stamp failure_notified_at so we don't re-send the EFT fallback email. */
+export async function markPaymentFailureNotified(
+  env: DbEnv,
+  paymentRowId: string,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, `payments?id=eq.${encodeURIComponent(paymentRowId)}`), {
+    method: "PATCH",
+    headers: { ...headers(env), prefer: "return=minimal" },
+    body: JSON.stringify({ failure_notified_at: new Date().toISOString() }),
+  });
+  if (!r.ok) throw new Error(`markPaymentFailureNotified ${r.status}: ${await r.text()}`);
+}
+
+/** Wave 0: find pending payments older than olderThanIso for the stale-payment sweep. */
+export async function findStalePayments(
+  env: DbEnv,
+  olderThanIso: string,
+  f: typeof fetch = fetch,
+): Promise<Array<Record<string, unknown>>> {
+  const r = await f(
+    rest(env, `payments?status=eq.pending&created_at=lt.${encodeURIComponent(olderThanIso)}&select=*`),
+    { headers: headers(env) },
+  );
+  if (!r.ok) throw new Error(`findStalePayments ${r.status}`);
+  return (await r.json()) as Array<Record<string, unknown>>;
+}
+
 export async function insertAudit(
   env: DbEnv,
   row: Record<string, unknown>,

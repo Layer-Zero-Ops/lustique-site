@@ -3,7 +3,7 @@ import { writeAudit } from "./booking/audit";
 import { handleBookingRequest } from "./booking/request";
 import { renderConfirmPage, handleBookingConfirm, renderMarkPaidPage, handleMarkPaid } from "./booking/confirm";
 import { renderReviewPage, handleReview } from "./booking/review";
-import { handleYocoWebhook } from "./booking/yoco";
+import { handleYocoWebhook, pendingPaymentSweep } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 import { handleAdminBlockedDates } from "./booking/admin";
 import { renderInvoicePage } from "./booking/invoice";
@@ -44,6 +44,8 @@ export interface Env {
   WAVE_BUSINESS_ID?: string;
   WAVE_PRODUCT_ID?: string;
   WAVE_BANK_ACCOUNT_ID?: string;
+  // Wave 0: Yoco fee rate (var, not secret — for margin reporting only; bride pays net)
+  YOCO_FEE_PCT?: string;
   // S8: admin area (blocked dates UI)
   ADMIN_SECRET?: string;
   AUDIT: { put(key: string, value: string): Promise<unknown> };
@@ -248,6 +250,7 @@ export default {
         await keepWarm(env);
         await writeAudit(env, { bookingId: null, eventType: "cron.keepwarm", payload: {} });
         await balanceSweep(env);
+        await pendingPaymentSweep(env);
       })().catch(() => {}), // never throw out of the scheduled handler
     );
   },

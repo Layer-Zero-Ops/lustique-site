@@ -10,13 +10,18 @@ routes = [{ pattern = "lustiqueco.co.za/api/*", zone_name = "lustiqueco.co.za" }
 # Public, non-secret config:
 [vars]
 ALLOWED_ORIGIN = "https://lustiqueco.co.za"
+# Yoco card fee rate — for margin/reporting only; NOT added to what the bride is charged
+# (Lustique absorbs the fee — locked 2026-06-18). Verify the real rate in the Yoco Business
+# Portal → Settings → Pricing and update this value before going live.
+YOCO_FEE_PCT = "3.5"
 
 # Secrets — set directly on the Worker (CF dashboard → lustique-form-handler → Settings → Variables & Secrets).
 # Source of truth for values: CF Secrets Store (ff54a0a001304d07beaa3c45d205cb52).
 # When rotating a key: update the Store first, then re-enter the new value on the Worker.
 # Required secrets: BREVO_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY,
 #                   TURNSTILE_SECRET, SIGNING_SECRET, NOTIFY_EMAIL
-# Future (S4-v2): YOCO_SECRET_KEY, YOCO_WEBHOOK_SECRET
+#                   YOCO_SECRET_KEY, YOCO_WEBHOOK_SECRET (Wave 0 — register webhook in Yoco portal
+#                   with event types: payment.succeeded, payment.failed, refund.succeeded)
 # EFT bank details: business_settings table, not Worker secrets.
 
 # Booking core (S1):
