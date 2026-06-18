@@ -7,9 +7,7 @@
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
 **Secrets still to set (via `wrangler secret put`):**
-- `ADMIN_SECRET` — unlocks `/api/admin/blocked-dates` page
 - `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID` — once Wave credentials arrive
-- `TURNSTILE_SECRET`, `YOCO_SECRET_KEY`, `YOCO_WEBHOOK_SECRET` — not yet bound on deployed Worker (intake form + Yoco flow untested on production)
 
 **▶ NEXT task:** Agency Platform — Phase 0 gate is cleared. Advance to Phase 1: Supabase Auth magic-link spine + RLS updates. Read `docs/ROADMAP-agency-platform.md` §3 for the plan.
 
@@ -21,8 +19,8 @@
 - Worker (`lustique-form-handler`) deployed, **smoke-tested 3/3 on live domain** ✅ (`4331191`)
 - **Full booking→payment loop is built** — S6 through S9 complete, 152 tests passing
 - Wave integration is live-ready; all Wave calls gracefully skip if env vars absent
-- Worker secrets bound: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SIGNING_SECRET`, `BREVO_API_KEY`, `NOTIFY_EMAIL` ✅
-- Worker secrets pending: `TURNSTILE_SECRET`, `YOCO_SECRET_KEY`, `YOCO_WEBHOOK_SECRET`, `ADMIN_SECRET`, Wave keys
+- Worker secrets bound: all 9 non-Wave secrets ✅ (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SIGNING_SECRET`, `BREVO_API_KEY`, `NOTIFY_EMAIL`, `TURNSTILE_SECRET`, `YOCO_SECRET_KEY`, `YOCO_WEBHOOK_SECRET`, `ADMIN_SECRET`)
+- Worker secrets pending: Wave keys only (when Wave credentials arrive)
 
 ---
 
