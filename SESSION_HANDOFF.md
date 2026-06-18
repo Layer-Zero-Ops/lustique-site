@@ -1,280 +1,72 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 Plan (Opus) · **Phase:** Re-planning booking flow + dashboard — Pieter corrections received · **Updated:** 2026-06-18 (Opus handoff)
+**Lane:** 🔵 Plan (Opus) → ready to hand to 🟢 Build (Sonnet) · **Phase:** Re-plan COMPLETE — booking flow + dashboard + Yoco + CRM + analytics + ML + SEO/security planned · **Updated:** 2026-06-18 (Opus handoff)
 
-## ▶ NEXT
+## 🔵 PLAN SET — switch to Sonnet (`/model sonnet`) to build, then `next`
 
-**Model:** Opus · **Lane:** Plan · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
+The full re-plan is committed (4 docs below). The build lane starts at **Wave 0** — a critical, no-dependency Yoco hotfix.
 
-**Secrets still to set (via `wrangler secret put`):**
-- `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID` — once Wave credentials arrive
+## ▶ NEXT (Sonnet, Build lane)
 
-**▶ NEXT task (Opus):** Full re-plan of the booking flow and Zandeline's dashboard. Two rounds of Pieter corrections received — read ALL corrections below before planning. Produce: (1) corrected booking flow spec, (2) Zandeline dashboard plan incl. real-time notifications + analytics, (3) full Yoco integration plan (verify actual card fees from Yoco dashboard), (4) CRM plan incl. IMAP integration, (5) analytics system recommendation, (6) ML recommendation. Then hand back to Sonnet to build.
+**Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
----
+**▶ NEXT task:** Read `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` (the master sequence), then build **🔴 Wave 0 — the CRITICAL Yoco webhook hotfix**, TDD-first. It has no dependencies and no open decisions, and it unblocks real payments.
 
-## ⚠️ Pieter corrections — SUPERSEDES earlier flow assumptions
+> **Why Wave 0 is critical (verified against Yoco's live docs):** the deployed webhook listens only for `checkout.succeeded`, but Yoco emits **`payment.succeeded`** — so **no real bride's payment ever auto-confirms** (the booking never advances to `deposit_paid`). The HMAC signature scheme is also wrong (uses `x-yoco-signature`+hex; Yoco uses Standard Webhooks: `webhook-signature`, base64 HMAC over `id.timestamp.body`, 3-min tolerance), and the card fee is never grossed-up server-side. The "smoke-tested 3/3" loop passed only because it POSTs a synthetic `checkout.succeeded` to the handler — it never exercised a real Yoco event. **Full detail + the fix:** spec §0.
 
-These are business-logic corrections from Pieter (2026-06-18) that change several built assumptions. Opus must design around these; Sonnet must not build the old flow.
+After Wave 0: the **Wave-S launch-gating security subset** (headers, TLS, rate limits, `/api/health`, enquiry Turnstile, consent-gated GA4, Supabase Pro), then **Wave A** (corrected booking core on token-links). Settle Decisions #1 (Yoco fee rate/model) and #2 (review interim vs dashboard-first) before Wave A's deposit-selection + review changes.
 
-### 1. Availability: soft-block, not hard-block
-The current system sends a 409 if a date is blocked and stops the booking. **This is wrong.**
-- Every request MUST reach Zandeline regardless of date availability.
-- If the date has a conflict (blocked or at capacity), Zandeline is informed in her notification — she decides whether to proceed or decline.
-- The 409 hard-block stays only for truly impossible cases (if Pieter confirms one exists).
-- **Multiple weddings per day are allowed** — Lustique can serve multiple clients on the same day given artist availability. Zandeline sets how many slots a given day has (1, 2, 3…). This is a capacity model, not a binary blocked/available model.
-
-### 2. Zandeline's review → invoice edit → approve flow
-Current S6b review page shows booking details + editable total. **This must be rethought:**
-- Zandeline receives notification of a new request.
-- She opens her dashboard (not a one-time email link), sees the request.
-- The system has already generated a **proposed invoice** from the form data — line items pre-populated from the estimator.
-- She does a **quality check**: can edit any line item, quantities, amounts, add/remove lines.
-- Only after she's satisfied does she click **"Approve & Send"** — which sends the invoice to the bride.
-- The invoice IS the quote (the estimator doubles as the quoting tool) — accuracy is critical.
-
-### 3. Bride's acceptance + deposit selection flow
-Current flow: bride receives invoice with a fixed Yoco "Pay Now" button. **This is wrong.**
-- Bride receives the invoice/quote.
-- She clicks **"Accept"**.
-- She is presented with **3 deposit options**: 25% / 50% / 100% — each showing the exact rand amount AND the card fee for that amount.
-- She selects one → Yoco checkout fires with that exact amount.
-- **Date is only locked/confirmed after a successful Yoco payment** — not on invoice approval.
-
-### 4. Date booking is payment-gated
-- "Request received" does NOT secure the date. Nothing secures the date until payment clears.
-- The bride receives a friendly acknowledgement ("we've received your request, Zandeline will be in touch") — NOT an "okay to proceed."
-- The **"okay to proceed"** comes only after: (a) date is available, (b) payment is successful.
-
-### 5. Balance payment — 14 days out
-- If the bride paid 25% or 50% deposit, 14 days before the wedding she receives a balance reminder.
-- The reminder email includes a Yoco payment link for the **exact outstanding balance**.
-- This is already partially built (balance cron exists) but the Yoco link for balance is not.
-
-### 6. Yoco failure → EFT fallback (not silent)
-- If a Yoco payment fails, it must NOT be silent.
-- The system detects the failure and falls back to EFT instructions.
-- The bride gets a clear "payment didn't go through — here's how to pay by EFT" email.
-- Zandeline gets notified of the failed payment attempt.
-- Plan the exact failure detection mechanism (Yoco webhook for failed? polling? timeout?).
-
-### 7. CRM
-- Zandeline needs a CRM inside the platform.
-- She has an **existing CRM** (likely Google Sheets or similar) she wants to import.
-- The CRM must support: client history, contact details, past bookings, notes.
-- Plan: what data model, what import mechanism (CSV? Google Sheets sync?), what views.
-- Future brides who book become CRM contacts automatically.
-
-### 8. Real-time notification system in the dashboard
-- While Zandeline is working in the dashboard, she must receive **real-time notifications**.
-- Each notification links directly to the relevant item (new booking request, payment received, payment failed, etc.).
-- Plan the delivery mechanism: Supabase Realtime? Server-Sent Events from the Worker? Polling? What fits the CF Workers + no-auth-yet constraints?
-- Notifications must persist (she shouldn't miss something if she wasn't online).
-
-### 9. Accept/Reject flow on the invoice email — exact UX
-- The invoice/quote email has **two dedicated buttons**: "Accept" and "Reject" — placed correctly in the email layout.
-- **Accept** → opens the deposit selection page (25%/50%/100% with card fees) → Yoco checkout.
-- **Reject** → opens a form asking the bride for her reasons. Possible options: price, date, other. Her feedback is sent to Lustique and surfaces in the dashboard so Zandeline can consider adjustments and potentially re-quote.
-- Plan the reject flow fully: what data is captured, where it surfaces, can Zandeline send a revised quote?
-
-### 10. Brand voice — "Lustique" not "Zandeline"
-- All system-generated communications must come from **Lustique** (the brand), not Zandeline personally.
-- Even though Zandeline does the work, the public image is a larger team-facing business.
-- Fix: remove any "Zandeline will be in touch" language. Use "The Lustique team will be in touch" or equivalent.
-- This applies to ALL emails, SMS, notifications — audit every template.
-
-### 11. Full-pay brides — 14-day check-in, not balance reminder
-- Brides who paid **100% upfront** do NOT receive a balance reminder (they have no balance).
-- They DO receive a **warm check-in email** 14 days before their wedding.
-- Content: heartfelt confirmation, last-minute logistics, excitement — NOT transactional.
-- **Zandeline can customise what this email says** — it should be editable from the dashboard (not hardcoded in the Worker).
-- Plan where this template lives and how Zandeline edits it.
-
-### 12. Analytics system
-- The platform currently has **no analytics layer** beyond the raw `audit_log` table.
-- Pieter is asking: what should the analytics system look like?
-- Consider: booking conversion rates, revenue by month/quarter, popular dates, average booking value, deposit choice breakdown (25/50/100%), no-show / declined rates, source attribution (how brides found Lustique).
-- Plan what to track, how to store it (derived from existing data? separate analytics events?), and what Zandeline sees in the dashboard.
-
-### 13. IMAP email integration
-- Zandeline connects her **IMAP email account** (likely `info@lustiqueco.co.za` on Google Workspace) to the platform.
-- This feeds into the platform's email system — the platform can read her inbox, surface relevant threads, potentially reply via the platform.
-- Consider: this enables linking email conversations to bookings/contacts in the CRM, surfacing replies from brides in the dashboard, and potentially letting Zandeline compose replies from within the platform.
-- Plan the integration: what protocol (IMAP/SMTP), where it runs (Worker can't maintain long connections — consider a separate service or Supabase Edge Function), what data is stored, POPIA implications of storing email content.
-
-### 14. Machine learning — do we need it?
-- Pieter is asking whether ML is appropriate/needed for this platform.
-- Consider: lead scoring (which enquiries are likely to convert), pricing optimisation, demand forecasting (busy dates/seasons), churn prediction (brides who don't respond), upsell recommendations.
-- Plan recommendation: what ML would add genuine value vs. what is over-engineering for a single-business platform at this stage. Be honest about complexity vs. ROI. If yes, what's the minimal viable ML feature and how does it integrate?
-
-### 16. SEO, security and backend infrastructure
-- The site is live but no explicit SEO layer has been planned or built beyond the Astro static output.
-- Plan the full backend infrastructure a professional wedding services site needs:
-  - **SEO:** structured data (Schema.org `LocalBusiness`, `Service`, `FAQPage`), XML sitemap, `robots.txt`, Open Graph + Twitter card meta, canonical URLs, hreflang (English only but still needs canonical), page-speed / Core Web Vitals baseline, local SEO (Google Business Profile data seeding).
-  - **Security headers:** CSP, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS — where do these live in the CF Worker / Pages config?
-  - **Rate limiting:** the booking form, Yoco webhook, and admin endpoints need rate limiting. CF Workers has built-in rate limiting — plan thresholds per endpoint.
-  - **Bot protection:** Turnstile is already on the booking form. What else needs protection? Admin endpoints? The invoice/review pages?
-  - **HTTPS / certificate:** managed by Cloudflare — confirm it's automatic and note any edge cases.
-  - **Cookie & consent banner:** the site will use analytics cookies (GA4 or equivalent). POPIA requires consent — plan the banner and what fires before/after consent.
-  - **Backups:** Supabase handles DB backups on the paid plan — note what tier Lustique needs and who (Zandeline/LZ) is responsible.
-  - **Monitoring & uptime:** what alerting is in place if the Worker or site goes down? Plan a simple health-check endpoint + Cloudflare Notifications.
-
-### 17. Data collection strategy — purposeful, revenue-boosting
-- Plan what data Lustique should collect **with intent** — not just what's captured incidentally.
-- Every data point must serve a clear purpose: improve conversion, increase average booking value, fill the calendar, reduce no-shows, enable re-engagement.
-- Consider:
-  - **Enquiry-to-booking funnel:** where do brides drop off? At what step? Tracking this identifies the biggest conversion lever.
-  - **Estimator usage data:** which services are most often selected? Which are removed? This informs pricing, package design, and upsells.
-  - **Date demand heatmap:** which dates/months/seasons are most requested? Which are declined? Informs pricing strategy (peak surcharge?) and capacity planning.
-  - **Deposit tier selection:** do brides skew toward 25% or 100%? This affects cash flow planning.
-  - **Rejection reasons:** when brides reject an invoice, why? Price? Timing? This is direct product feedback.
-  - **Source attribution:** how did the bride find Lustique? (form field — Instagram, referral, Google, etc.) Which source converts best?
-  - **Repeat clients / referrals:** has this bride (or her network) booked before? Is there a referral pattern?
-  - **Time-to-decision:** how long does it take from enquiry to payment? Are there patterns by season, lead source, price bracket?
-  - **Artist allocation patterns:** which artists are most in demand? Are some over/under-utilised?
-- For each data point: what's collected, where it's stored, how it surfaces in the dashboard, and what action it enables.
-
-### 18. Churn — clarification and correct framing
-- **Post-payment churn does not apply** in the traditional sense. Once a bride has paid any deposit (25%, 50%, or 100%), she has committed to her date and has a financial stake. She is not going to "churn" — she has a wedding to attend.
-- The correct risk model:
-  - **Pre-payment drop-off** (enquiry → no booking): THIS is the real churn risk. A bride enquires, receives an invoice, and goes silent or rejects. This is a conversion problem, not a retention problem. Track it as funnel drop-off, address it with follow-up sequences and rejection reason analysis.
-  - **Cancellation** (post-payment, rare): a bride may cancel — illness, divorce, venue collapse. Plan a cancellation policy field on bookings and a `cancelled` status. What happens to the deposit? This is a business policy decision for Zandeline, not a technical one — but the system must support recording it.
-  - **No-show / ghost** (no payment, no response after invoice sent): a bride receives the invoice and simply never responds. Plan a follow-up nudge sequence (automated, 3 days after invoice sent, then 7 days) with a final "closing the file" email. Track as `invoice_expired` status.
-- Opus must plan the correct vocabulary and status states for these three scenarios, and what the system does automatically vs. what surfaces in the dashboard for Zandeline to act on.
-
-### 19. Yoco card fees — verify exact rate
-- Pieter believes the card fee is **more than 2.95%**.
-- The 2.95% figure was a placeholder — do NOT use it in the plan.
-- Opus must: (a) note the need to verify the exact rate from Zandeline's Yoco Business Portal (Settings → Pricing), (b) design the fee display as a configurable `YOCO_FEE_PCT` Worker variable, (c) provide a formula for the fee-inclusive amount shown to the bride (gross-up: `amount / (1 - fee_pct)` or `amount * (1 + fee_pct)` depending on who absorbs the fee — clarify which model Pieter/Zandeline prefer: bride pays the fee on top, or Lustique absorbs it).
+## 🟦 Decisions waiting on Pieter (none block Wave 0)
+See build-sequence doc §Decisions for all 7 with recommendations. The two that gate Wave A:
+1. **Yoco fee model** — bride pays on top (Model A, *recommended*) vs Lustique absorbs (Model B). Built as a `business_settings.fee_model` toggle (default A). **Plus: verify the real Yoco rate** from the portal — the `0.029`/`2.95%` are both placeholders (only Pieter/Zandeline can read it).
+2. **Review step** — ship #2's per-line editing on the **interim token-link review page now** (*recommended* — corrected flow live in days), or wait for the Wave-B dashboard (~2 weeks)?
 
 ---
 
-### Current state
+## The re-plan (read in this order)
+- **Spec:** `docs/superpowers/specs/2026-06-18-lustique-replan-spec.md` — corrected flow + state machine, capacity soft-block (#1), payment-gating (#4), **Yoco v2 incl. the 🔴 critical bug + fees (#19) + deposit selection (#3) + failure→EFT (#6) + balance link (#5)**, churn vocab (#18), brand voice (#10). Supersedes the 2026-06-05 booking-core spec.
+- **Dashboard/data plan:** `docs/superpowers/plans/2026-06-18-lustique-dashboard-data-plan.md` — dashboard review/edit/approve + reject loop + editable templates (#2/#9/#11), real-time notifications (#8), CRM + IMAP (#7/#13), analytics + data strategy (#12/#17), ML verdict (#14 → defer).
+- **SEO/security/infra plan:** `docs/superpowers/plans/2026-06-18-lustique-seo-security-infra-plan.md` — #16 + cookie consent + monitoring + backups.
+- **Build sequence (master):** `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` — waves, migrations, effort, the 7 decisions, ▶ NEXT.
 
-- `lustiqueco.co.za` is **live** serving the Astro site via CF Workers Assets ✅
-- Worker (`lustique-form-handler`) deployed, **smoke-tested 3/3 on live domain** ✅ (`4331191`)
-- **Full booking→payment loop is built** — S6 through S9 complete, 152 tests passing
-- Wave integration is live-ready; all Wave calls gracefully skip if env vars absent
-- Worker secrets bound: all 9 non-Wave secrets ✅ (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SIGNING_SECRET`, `BREVO_API_KEY`, `NOTIFY_EMAIL`, `TURNSTILE_SECRET`, `YOCO_SECRET_KEY`, `YOCO_WEBHOOK_SECRET`, `ADMIN_SECRET`)
-- Worker secrets pending: Wave keys only (when Wave credentials arrive)
-
----
-
-### Agreed full booking→payment flow (build target)
-
-```
-Bride builds estimate on /quote
-  → submits "Request to Book" form
-  → System checks blocked_dates table (S6 ✅)
-  → If unavailable: 409 with friendly message displayed on /quote
-  → If available: "request received" email to bride
-                + notification to Zandeline with link to REVIEW PAGE
-
-Zandeline opens review page (S6b)
-  → sees submitted form + proposed invoice side-by-side
-  → can edit line items / amounts
-  → clicks "Approve & Send"
-  → Wave: create customer + invoice (S8)
-  → Brevo: invoice email to bride with Yoco "Pay Now" link (S7)
-
-Bride clicks Pay Now → Yoco checkout
-  → Yoco webhook → Supabase: status = deposit_paid
-  → Wave: record payment (S8)
-  → Brevo: booking confirmation email + calendar hold to Zandeline
-
-14 days before: balance reminder (already built)
-Balance paid → same Yoco → webhook → Wave settled → final confirmation
-```
+### Key planner calls (reconciling the design fan-out)
+- **Status vocabulary:** add `quote_sent`/`accepted`/`rejected`/`invoice_expired`; wire dormant `cancelled`; retire `confirmed`/`expired`. **Payment failure stays on the `payments` row** (not a booking status) — keeps the lifecycle linear, retries don't bounce it.
+- **Sequencing:** the corrected booking core is **dashboard-agnostic** → ships first on token-links (no auth). The dashboard (#2/#8) + CRM/analytics pull roadmap **Phase 2 forward** and make **Phase 1 auth a prerequisite** — the single biggest sequencing shift vs the original "no-auth v1" spec.
+- **Notifications:** Supabase Realtime over a persistent `notifications` table (+ 60s polling heartbeat); SSE rejected (Workers can't hold sockets).
+- **CRM import:** one-time re-runnable CSV, not a Sheets sync. **IMAP:** Gmail API in a scheduled Supabase Edge Function (not raw IMAP), metadata+snippet+deep-link only (POPIA), optional/last.
+- **ML:** none now — SQL + transparent heuristics; revisit behind the data layer in years.
 
 ---
 
-### Build sequence (Sonnet executes in order)
-
-| Phase | What | Status |
-|---|---|---|
-| **S6** | Blocked dates availability check | ✅ done — migration + Worker 409 + 90 tests |
-| **S6b** | Zandeline review page | ✅ done — `/api/booking/review` + 11 tests, email CTA updated |
-| **S7** | Yoco payment links + webhook handler | ✅ done — 108 tests, commit `9b5a7f9` |
-| **S7b** | `/book` page redesign | ✅ done — `e833b65`, sessionStorage handoff, mobile-verified |
-| **S8** | Wave API integration + blocked-dates admin | ✅ done — 136 tests, commit `67de542` |
-| **S9** | In-house invoice system | ✅ done — 152 tests, commit `86db29c` |
-
----
-
-### S8 — Wave API integration (start here)
-
-**What:** After Zandeline approves a quote on the review page, create a Wave customer + invoice and record the deposit payment when Yoco webhook fires.
-
-**Context:**
-- Wave = accounting SaaS; Lustique uses it for invoicing + bookkeeping
-- S6b review page calls approve → S7 creates Yoco checkout. S8 plugs in between/after to mirror state to Wave
-- Need Wave API credentials in Worker secrets: `WAVE_API_KEY` (+ `WAVE_BUSINESS_ID`)
-
-**Steps:**
-1. Add Wave API client to `worker/src/lib/wave.ts` — `createCustomer`, `createInvoice`, `recordPayment`
-2. On review approve (`POST /api/booking/review`): call Wave `createCustomer` + `createInvoice`, store `wave_invoice_id` on the booking
-3. On Yoco deposit webhook: call Wave `recordPayment` against the invoice
-4. On balance paid webhook: call Wave `recordPayment` (balance) → invoice settled
-5. Add tests for Wave client + integration points
-
----
+## Current state (as-built, pre-re-plan)
+- `lustiqueco.co.za` **live** via CF Workers Assets ✅ · Worker `lustique-form-handler` deployed ✅
+- Full booking→payment loop built S1–S9, **152 tests** ✅ — **BUT the Yoco webhook is broken against real events (Wave 0 fixes it)**
+- 9 non-Wave Worker secrets bound ✅ · Wave keys pending
+- Supabase migrations 0001–0004 applied ✅ · Brevo sender verified ✅ · Turnstile live ✅
 
 ## CI / Deploy state
-
-- **GitHub repo:** `Layer-Zero-Ops/lustique-site` · HEAD: `091e274`
-- **Site:** `lustiqueco.co.za` live ✅ — CF Workers Assets, `wrangler.toml` at root
-- **Worker:** `lustique-form-handler` deployed ✅ — 6 secrets, R2, cron
-- **Smoke test:** 3/3 on workers.dev ✅ — live domain smoke test still pending
-- **Supabase:** migrations applied ✅ · bank details seeded ✅
-- **Brevo:** sender verified ✅
-- **Turnstile:** live key set ✅
+- **GitHub:** `Layer-Zero-Ops/lustique-site` · Site live ✅ · Worker deployed (6+ secrets, R2, cron `0 6 * * *`) ✅
+- **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
-
-- **Live domain smoke 3/3 ✅ 2026-06-18** — `4331191`. Worker secrets bound. `npm run smoke` script fixed (vitest 2.x). All 3 transitions verified on `lustiqueco.co.za`: requested→confirmed→deposit_paid→settled. Emails sent via Brevo. Phase 0 gate cleared.
-- **S9 Invoice system ✅ 2026-06-17** — `86db29c`. `GET /api/booking/invoice?token=<signed>` — Lustique-branded printable invoice, line items, deposit/balance split, live payment status badge, EFT bank details, print-to-PDF button. 2-year signed token, stateless, no new DB column. Invoice link added to bride deposit email + Zandeline admin email. Works with or without Wave. 152 tests (was 136).
-- **S8 Wave integration ✅ 2026-06-17** — `67de542`. Wave GraphQL client (`worker/src/lib/wave.ts`): `createCustomer`, `createInvoice`, `recordPayment`. Wired into review (on approve), yoco webhook (deposit paid), balance (settled). All calls fire-and-forget; audit-logged on failure; skipped gracefully if env vars absent. Blocked-dates admin UI (`/api/admin/blocked-dates`) with WebCrypto timing-safe auth, list/add/remove. Migration `0004_wave_fields.sql` (needs manual apply). 136 tests (was 108). Secrets needed: `WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID`, `ADMIN_SECRET`.
-- **S7b /book page ✅ 2026-06-17** — `e833b65`. Standalone `/book` page with sessionStorage handoff from `/quote`. Estimate summary + deposit calc shown, all fields pre-filled, Turnstile + consent on the booking page. Falls back to "Build estimate first" if accessed directly. 108 worker tests still passing.
-- **S7 Yoco payment links ✅ 2026-06-17** — `9b5a7f9`. `createYocoCheckout` on review approve → `insertPayment (pending)` → bride email with Yoco Pay Now + EFT fallback. Webhook `POST /api/booking/yoco-webhook`: HMAC-SHA256 sig verify → `markPaymentPaid` → `transitionBooking confirmed→deposit_paid` → bride 'date secured' email. Idempotent + race-safe. 108 tests (was 101).
-- **S6b review page ✅ 2026-06-17** — `7c99b26`. `GET/POST /api/booking/review`: full quote breakdown, editable total, approve/decline. Override total → PATCH includes recalculated deposit+balance. Email CTA updated from `/confirm` to `/review`. Old `/confirm` kept for backwards compat. 11 new tests; 101 total.
-- **S6 availability gate ✅ 2026-06-17** — `089fe4f`. `blocked_dates` migration (applied) + `isDateBlocked` in db.ts + 409 gate in request handler. 90 tests.
-- **Site live ✅ 2026-06-17** — `lustiqueco.co.za` serving Astro via Workers Assets. DNS on CF, Worker route `/*` set.
-- **UI: deposit % hidden, Zandeline → Lustique ✅ 2026-06-17** — `091e274`
-- **Root wrangler.toml ✅ 2026-06-16** — `8c28525`. Workers Assets deployment wired.
-- **Smoke test 3/3 ✅ 2026-06-16** — `82fa6b0`. Full booking flow confirmed on workers.dev.
-- **Worker deployed ✅ 2026-06-16** — wrangler v4, Node 22, R2, 6 secrets, cron.
-- **Turnstile key live ✅ 2026-06-16** — `ddda26b`.
-- **Supabase ✅ 2026-06-16** — both migrations applied, bank details seeded.
-- **GitHub CI ✅ 2026-06-15** — Actions wired.
-- **S1–S5 + launch-readiness ✅** — 89 tests, smoke suite, RUNBOOK.
-
-## Booking build sequence
-S1–S5 ✅ → CI ✅ → Worker ✅ → Smoke 3/3 ✅ → Site live ✅ → **S6 (availability + review page) → S7 (Yoco) → S8 (Wave) → full loop live**
+- **Booking re-plan PLANNED ✅ 2026-06-18 (Opus)** — 4 docs (spec + dashboard/data + SEO/security + build-sequence) from a 14-agent code map + design fan-out. **Verified the live Yoco webhook is broken** (wrong event name + signature scheme) against Yoco docs → Wave 0 hotfix is the new ▶ NEXT. All 19 Jun-18 corrections folded into the spec/plans. Old 2026-06-05 booking-core spec superseded.
+- **Live domain smoke 3/3 ✅ 2026-06-18** — `4331191`. (Note: smoke used a synthetic `checkout.succeeded`; did NOT exercise a real Yoco event — see Wave 0.)
+- **S9 Invoice system ✅ 2026-06-17** — `86db29c`. Branded printable invoice, 2-year signed token. 152 tests.
+- **S8 Wave integration ✅ 2026-06-17** — `67de542`. Wave GraphQL client; blocked-dates admin; migration `0004`.
+- **S7b /book page ✅ 2026-06-17** — `e833b65`. sessionStorage handoff.
+- **S7 Yoco payment links ✅ 2026-06-17** — `9b5a7f9`. (Webhook event/signature defects found in re-plan — Wave 0.)
+- **S6b review page ✅** `7c99b26` · **S6 availability gate ✅** `089fe4f` · **Site live ✅** 2026-06-17 · **S1–S5 ✅** 89 tests + RUNBOOK.
 
 ## Pointers
-- Go-live RUNBOOK: `docs/RUNBOOK-go-live.md`
-- Workflow: `.github/workflows/deploy-worker.yml`
-- Migrations: `supabase/migrations/`
-- Key docs: `PLAN.md` · `BRAND.md` · `ARCHITECTURE.md`
+- Go-live RUNBOOK: `docs/RUNBOOK-go-live.md` · Workflow: `.github/workflows/deploy-worker.yml` · Migrations: `supabase/migrations/`
+- Key docs: `PLAN.md` (stale on payments/travel/CRM — see spec §8) · `PRICING.md` (money authority) · `BRAND.md` · `ARCHITECTURE.md`
+- Agency-platform roadmap: `docs/ROADMAP-agency-platform.md` (the re-plan pulls Phase 2 forward; Phase 1 auth becomes a prerequisite)
 
 ## ⇄ Umbrella
 
-**⬆ To umbrella — 🟢 SHIPPED (was 🟣 FABLE-REQUEST): Agency Platform roadmap delivered**
+**⬆ To umbrella — 🟢 SHIPPED: Booking re-plan delivered (Opus, 2026-06-18)**
+Full re-plan of booking flow + dashboard + Yoco + CRM + analytics + ML + SEO/security, from a 14-agent fan-out. **Surfaced a live payment bug** (Yoco webhook never fires on real events) — Wave 0 hotfix queued as build ▶ NEXT. The re-plan confirms the agency-platform roadmap's Phase-1-auth-then-Phase-2-dashboard sequence is now a hard dependency of the corrected booking core (corrections #2/#8 pull Phase 2 forward). 7 decisions await Pieter (build-sequence doc §Decisions); none block the Wave 0 hotfix.
 
-Roadmap planned + written → [`docs/ROADMAP-agency-platform.md`](docs/ROADMAP-agency-platform.md) (Opus, 2026-06-17, via a 9-agent analysis fan-out). Covers all requested scope (admin/artist/client portals · internal comms · central calendar · white-label question) as a phased plan with effort + architecture decisions.
+**⬆ To umbrella — ⚪ DECISION: Studio-wide secrets architecture** — two-tier pattern (client secrets in client Supabase vault, LZ as directory). Logged. Defer to post-launch.
 
-**4 locked calls:** (1) **Auth** = Supabase Auth passwordless **magic-link** for all three audiences — one spine: admin-by-role, artist-by-join, bride-by-verified-email; Worker stays sole writer (service-role bypasses RLS), new policies read-only. (2) **White-label** = Hybrid, **deferred** — ship single-tenant-per-deploy now, extract `@lz/booking-core` only at a real client #2; multi-tenant **cut** (POPIA collapse). (3) **Comms** = Hybrid `messages` thread + Brevo fan-out, concierge-not-chat. (4) **Calendar** = native-on-Supabase first, Google sync deferred.
-
-**Pieter input (this session):** bride portal access = magic link authenticated by booking email, required to reach her mini-dashboard — locked as decision AP-1 (overrides the analysis's capability-URL-only lean).
-
-**Sequence:** Phase 0 (go-live sign-off = the current ▶ NEXT smoke test) → 1 auth/RLS spine → 2 admin console → 3 bride portal (parallelizable) → 4 artist portal+allocation → 5 comms → 6 white-label (triggered). ~24–36 build-days Phases 1–5 + ~3–4 d artist onboarding.
-
-**Open decisions for Pieter** (see roadmap §9): go-live gate · staging vs prod DB for the auth migration · one lane vs two · legacy-route fate · white-label trigger · AXIS stays out of the sequence.
-
-> Build lane unaffected — Phase 0 of this roadmap **is** the current ▶ NEXT (live-domain smoke test). No change to the build baton.
-
-**⬆ To umbrella — ⚪ DECISION: Studio-wide secrets architecture**
-Two-tier pattern (client secrets in client Supabase vault, LZ as directory). Already logged. Defer to post-launch.
-
-**⬇ From umbrella:** ⚪ DECISION (secrets architecture) received + folded into umbrella planning agenda 2026-06-16.
-**⬇ From umbrella (2026-06-18):** 🟢 SHIPPED folded — roadmap + Phase 0 cleared logged in umbrella done-ledger. Umbrella project state updated to Phase 1 as ▶ NEXT. No new requests from umbrella.
+**⬇ From umbrella (2026-06-18):** 🟢 SHIPPED (roadmap + Phase 0) folded into umbrella done-ledger; umbrella project state = Phase 1 as ▶ NEXT. No new requests from umbrella.

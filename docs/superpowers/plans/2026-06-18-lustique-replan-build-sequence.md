@@ -1,0 +1,78 @@
+# Lustique Re-Plan — Master Build Sequence & Decisions
+
+**Status:** PLAN (master) · Opus planning · 2026-06-18 · **read this to execute.**
+**Inputs:** `specs/2026-06-18-lustique-replan-spec.md` (core flow/state machine/Yoco/fees/churn/voice), `plans/2026-06-18-lustique-dashboard-data-plan.md` (dashboard/CRM/analytics/ML), `plans/2026-06-18-lustique-seo-security-infra-plan.md` (#16).
+**Grounding:** built on a 14-agent code map of the live worker/DB/emails/frontend/pricing/infra + the Jun-18 corrections. The Yoco webhook defect (spec §0) was verified against Yoco's live docs.
+
+## The one organising insight
+The corrected **booking core** (state machine, capacity, payment-gating, Yoco fixes, nudges) is **dashboard-agnostic** — every transition is a Worker endpoint that works on the existing signed-token email-link mechanism *today* and behind a magic-link session *later*, without re-touching the transitions. But corrections #2/#8 (dashboard review + real-time) and the CRM/analytics views require Zandeline to be **logged in** → they pull roadmap **Phase 2 (Admin Dashboard)** forward and make **Phase 1 (Supabase Auth + RLS spine)** a hard prerequisite the original spec deferred. So the work splits into waves: the core corrects first (no auth), the platform layer follows (auth-gated).
+
+---
+
+## Waves (dependency-ordered; TDD throughout; Worker stays sole writer)
+
+### 🔴 Wave 0 — CRITICAL Yoco hotfix (do FIRST; no dependencies; this is ▶ NEXT)
+The deployed payment webhook would never confirm a real payment (spec §0, verified). Fix before anything else; it ships on the *current* flow.
+1. `0005_payment_failure.sql` — `payments.failed_at`, `payments.failure_notified_at`.
+2. Fee config: `YOCO_FEE_PCT` Worker `var` + `business_settings.fee_pct`/`fee_model`; pass `feeRate` through `grossUp` server-side; fix `payable_cents` (C-C).
+3. Webhook rewrite: Standard-Webhooks signature (C-B), `payment.succeeded`/`payment.failed`/`refund.succeeded` routing (C-A), `findPaymentByYocoId` dedupe, `kind`-branched transitions.
+4. `sendEftFallback` helper + bride/Zandeline failure emails (#6); `pendingPaymentSweep` cron (24h stale-pending poll).
+5. Tests: parameterize `payments.test.ts:26`; add checkout-grosses-up, Standard-Webhooks verify (valid/bad/stale/wrong-header), `payment.failed`→fallback idempotent.
+**Gate:** capture one real Yoco test `payment.succeeded` + one `payment.failed` against the deployed webhook; verify `YOCO_FEE_PCT` from the portal → record in `PRICING.md`.
+**Effort:** ~2–3 build-days. **Blocks live deposits until done.**
+
+### Wave A — Corrected booking core on token-links (no auth)
+Delivers most corrections without waiting for auth. Ships the corrected flow live.
+- **Capacity / soft-block (#1):** `0006` — `date_capacity` (slots), `default_slots_per_day`; `getDateAvailability`; remove the 409; `availability_conflict`; admin capacity editor.
+- **State machine (spec §1):** enum adds `quote_sent`/`accepted`/`rejected`/`invoice_expired`; wire `cancelled`; new status/reason/stamp columns; `deposit_pct` nullable.
+- **Bride Accept/Reject + deposit-selection (#3, #9):** new `accept`/`reject` tokens; `GET/POST /api/booking/accept` (deposit-selection page, grossed per `fee_model`); `POST /api/booking/reject` + reason form + `rejections` table; move checkout creation to accept.
+- **Payment-gating + voice (#4, #10):** reword `/booking-received`; retire legacy `/confirm`; consolidate duplicate "date secured" email; brand-voice the new emails.
+- **Balance Yoco link (#5):** add to `balanceSweep`.
+- **Nudges + check-in + expiry (#5/#11/#18):** `invoiceExpirySweep`, `fullPayCheckInSweep`; fix `workingDaysBefore` SA holidays. (Check-in template is hardcoded-then-editable: ship a seeded default now; becomes dashboard-editable in Wave B.)
+- **Attribution + analytics columns (#17/#12):** carry `source`/`utm_*` through the booking path; `decline_reason`; Layer-1 derived views (A–D).
+- **`#2` interim:** extend the token-link review page to **per-line editing** (see Decision #2) so Zandeline gets editing now.
+**Effort:** ~6–9 build-days. **Output: the fully corrected booking flow live, on email-link mechanics.**
+
+### Wave B — Auth + Dashboard (roadmap Phase 1 + Phase 2)
+- **Phase 1 spine:** `0005_identity_and_allocation` (per roadmap — `profiles`, `booking_artists`, helpers), Supabase Auth magic-link, Brevo SMTP, **read-only** RLS families; retires `ADMIN_SECRET`. (~4–6 d)
+- **Phase 2 dashboard:** the 7 views; `quote_revisions` + per-line invoice editor (#2 as specified — "her dashboard, not a link"); re-home review/approve behind the session (re-test money paths); `message_templates` + Templates view (#11 fully editable); `notifications` + Supabase Realtime (#8); Rejections/Payments/Calendar/Analytics views. (~6–8 d)
+**Effort:** ~10–14 build-days. Depends on Wave A + Decisions #1/#3/#5.
+
+### Wave C — CRM + IMAP (after dashboard)
+- **CRM (#7):** `contacts` + `bookings.contact_id`; `upsertContactFromBooking`; CSV import (admin-session); CRM views + repeat-bride badge. (~3–4 d)
+- **IMAP (#13, optional, re-justify):** Gmail API + OAuth incremental sync in a scheduled Supabase Edge Function; metadata+snippet+deep-link only (POPIA). (~4–6 d, **gated on Decision #6**)
+
+### Wave D — Data Layer-3 + heuristics (incremental, alongside B/C)
+Cloudflare Web Analytics + consent-gated `POST /api/track`→`funnel_events` + nightly rollup; lead-temperature view + nudge already shipped in Wave A. **No ML** (deliverable 6 verdict: defer behind the data layer).
+
+### Wave S — SEO/Security/Infra (#16, parallelizable; several items launch-gating)
+Mostly independent of the waves. **Launch-blocking subset** (do alongside Wave 0/A before live deposits): security headers, HSTS+Full-strict TLS, Supabase Pro, `/api/enquiry` Turnstile, admin+booking rate limits, `/api/health`+monitoring, consent-gated GA4. Fast-follow: Twitter meta, sitemap hygiene, CSP nonces, GBP seeding. (See SEO/security plan §8.)
+
+---
+
+## Migration sequence (recommended; Sonnet finalises numbers at build)
+`0005_payment_failure` (Wave 0) → `0005_identity_and_allocation` is the **roadmap Phase-1** migration (Wave B) — **number collision to resolve:** keep Wave 0 as `0005`, make the capacity/status migration `0006_capacity_and_status` (Wave A), analytics/attribution `0007` (Wave A), then Phase-1 identity `0008`, dashboard tables (`quote_revisions`/`rejections`/`message_templates`/`notifications`) `0009`, CRM `0010`, email `0011`. Renumber coherently when building; the **dependency order is the contract**, not the digits.
+
+## Estimated total
+Wave 0: ~2–3 d · Wave A: ~6–9 d · Wave B: ~10–14 d · Wave C: ~7–10 d · Wave S launch subset: ~2–3 d (overlaps). Trust the sequenced total (~28–40 build-days for Waves 0–C single-lane), not the additive sum — auth is shared across the dashboard/CRM.
+
+---
+
+## 🟦 DECISIONS FOR PIETER (with recommendations)
+These shape the build; the ▶ NEXT (Wave 0) needs **none** of them, so building can start immediately while you decide.
+
+1. **Yoco fee model (#19)** — bride pays the fee **on top** (Model A) or Lustique **absorbs** it (Model B)? *Recommend **A**, shown softly, EFT offered as the zero-fee alternative* (thin bridal margins; matches existing code/copy; "whisper, don't shout" ≠ hide costs). Built as a `business_settings.fee_model` toggle (default A), flippable without redeploy. **Also: verify the real rate** from the Yoco portal (the `0.029`/`2.95%` are both placeholders) — only you/Zandeline can read it.
+2. **Review step: interim or dashboard-first?** Ship #2's per-line editing on the **extended token-link review page now** (corrected flow live in days), or **wait for the Wave-B dashboard** (the "her dashboard, not a link" experience, ~2 weeks later)? *Recommend the interim* — same endpoints, the dashboard upgrades the surface later without rework.
+3. **Migration test target** — the auth migration + enum additions touch the live `bookings` table. Test on a **Supabase branch/staging** first, or apply directly to prod (`af-south-1`)? *Recommend staging branch first.*
+4. **Supabase Pro timing** — launch-gating before the first live deposit (backups; you own the billing as Responsible Party). Confirm the upgrade + region.
+5. **`notifications` pre-auth read** — allow anon-read on the `notifications` table in v1 (dashboard sits behind `ADMIN_SECRET`; rows carry only a first name + relative link), or route reads through the Worker too? *Recommend anon-read v1* (tightens to `authenticated` in Phase 1, zero client change). Or defer notifications entirely into the Wave-B auth wave.
+6. **IMAP (#13)** — build it, or defer/drop? *Recommend defer to optional Wave C and re-justify against real need* (high POPIA exposure; Gmail-API-in-an-edge-function is the only stack-fitting shape if you do build it).
+7. **Enquiry-form consent** — to let `/api/enquiry` create CRM lead-contacts, the `/quote` enquiry form needs a consent checkbox (POPIA). Add it? *Recommend yes* (also unblocks enquiry-funnel analytics); until then contacts come only from bookings.
+
+---
+
+## ▶ NEXT (for the build lane / Sonnet)
+**Wave 0 — the CRITICAL Yoco webhook hotfix** (spec §0). It has no dependencies and no open decisions, and it unblocks real payments. Build it TDD-first, then the Wave-S launch-gating security subset, then Wave A. Decisions #1 (fee rate/model) and #2 (review interim) should be settled before Wave A's deposit-selection page and review changes; the rest before Wave B.
+
+## Secrets still pending
+Wave keys only (`WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID`) — when Wave credentials arrive. New: `YOCO_FEE_PCT` is a **var**, not a secret. Supabase Auth (Wave B) needs Brevo SMTP wired for magic links.
