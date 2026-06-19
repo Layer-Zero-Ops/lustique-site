@@ -10,6 +10,7 @@ import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "
 import { handleAdminBlockedDates } from "./booking/admin";
 import { handleAdminAccounting } from "./booking/accounting";
 import { handleAdminInvoices } from "./booking/invoices";
+import { handleAdminQuotePdf } from "./booking/quote-pdf";
 import { renderInvoicePage } from "./booking/invoice";
 
 /* ============================================================
@@ -253,6 +254,11 @@ export default {
     // GET /api/admin/invoices — invoice listing with pre-signed per-booking invoice links
     if (url.pathname === "/api/admin/invoices" && env.ADMIN_SECRET) {
       return withSec(await handleAdminInvoices({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req), { html: true, noindex: true });
+    }
+
+    // GET /api/admin/quote-pdf — printable quote for any booking (Zandeline-facing, admin-token-gated)
+    if (url.pathname === "/api/admin/quote-pdf" && env.ADMIN_SECRET) {
+      return withSec(await handleAdminQuotePdf({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req), { html: true, noindex: true });
     }
 
     // GET /api/booking/mark-paid?token= — render-only deposit-received page (S4, prefetch-safe)
