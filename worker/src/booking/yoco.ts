@@ -313,7 +313,7 @@ export async function handleYocoWebhook(
     const booking = await getBookingById(env, bookingId, fetchImpl);
 
     // S8: record in Wave (fire-and-forget)
-    if (booking?.wave_invoice_id && env.WAVE_API_KEY && env.WAVE_BUSINESS_ID && env.WAVE_BANK_ACCOUNT_ID) {
+    if (booking?.wave_invoice_id && (env.WAVE_CLIENT_ID || env.WAVE_API_KEY) && env.WAVE_BUSINESS_ID && env.WAVE_BANK_ACCOUNT_ID) {
       const label = kind === "balance" ? "Yoco balance" : "Yoco deposit";
       const cents = kind === "balance" ? booking.balance_net_cents : booking.deposit_net_cents;
       recordPayment(env, booking.wave_invoice_id, cents, new Date().toISOString().slice(0, 10), `${label} · ${booking.reference}`, fetchImpl)

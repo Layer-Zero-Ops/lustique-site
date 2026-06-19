@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createCustomer, createInvoice, recordPayment } from "../lib/wave";
 import type { WaveEnv } from "../lib/wave";
 
-const ENV: Required<WaveEnv> = {
+const ENV: WaveEnv = {
   WAVE_API_KEY: "test-key",
   WAVE_BUSINESS_ID: "biz-123",
   WAVE_PRODUCT_ID: "prod-456",

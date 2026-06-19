@@ -222,7 +222,7 @@ export async function handleReview(
   if (!updated) return htmlResponse(handledHtml(), 200);
 
   // Wave invoice (fire-and-forget — locked total, for accounting).
-  if (env.WAVE_API_KEY && env.WAVE_BUSINESS_ID) {
+  if ((env.WAVE_CLIENT_ID || env.WAVE_API_KEY) && env.WAVE_BUSINESS_ID) {
     try {
       const waveCustomerId = await createCustomer(env, b.bride_name, b.bride_email, fetchImpl);
       const waveInvoiceId = await createInvoice(env, waveCustomerId, b.reference, finalTotalCents, b.wedding_date, fetchImpl);

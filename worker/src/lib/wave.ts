@@ -2,38 +2,68 @@
  * Wave accounting API client (S8).
  *
  * Wave uses GraphQL at https://gql.waveapps.com/graphql/public.
- * Auth: Authorization: Bearer WAVE_API_KEY (full-access token).
+ * Auth: OAuth 2.0 — WAVE_REFRESH_TOKEN + WAVE_CLIENT_ID + WAVE_CLIENT_SECRET
+ *       are exchanged for a short-lived access token before each request.
  *
- * All functions are fire-and-forget from the caller's perspective — they throw
- * on failure so the caller can catch, log to audit, and continue.
+ * Callers guard on `env.WAVE_CLIENT_ID && env.WAVE_BUSINESS_ID` before calling;
+ * all functions throw on failure so callers can catch, audit-log, and continue.
  *
  * fetch is injectable for unit tests.
  */
 
 export interface WaveEnv {
-  WAVE_API_KEY?: string;        // full-access token; if absent, all calls are skipped by caller
-  WAVE_BUSINESS_ID?: string;    // Wave business UUID (shown in Wave > Settings)
+  WAVE_CLIENT_ID?: string;      // OAuth app client ID
+  WAVE_CLIENT_SECRET?: string;  // OAuth app client secret
+  WAVE_REFRESH_TOKEN?: string;  // Long-lived refresh token (from wave-auth.mjs one-off)
+  WAVE_BUSINESS_ID?: string;    // Wave business UUID
   WAVE_PRODUCT_ID?: string;     // Wave product/service ID for invoice line items
-  WAVE_BANK_ACCOUNT_ID?: string; // Wave account where payments are received (for recordPayment)
+  WAVE_BANK_ACCOUNT_ID?: string; // Wave account where payments are received
+  // Legacy: direct Bearer token (falls back if refresh flow not configured)
+  WAVE_API_KEY?: string;
 }
 
 const WAVE_URL = "https://gql.waveapps.com/graphql/public";
+const WAVE_TOKEN_URL = "https://api.waveapps.com/oauth2/token/";
 
 interface GqlResponse<T> {
   data?: T;
   errors?: Array<{ message: string }>;
 }
 
+/** Exchange refresh token for a short-lived access token. */
+async function getAccessToken(env: WaveEnv, f: typeof fetch): Promise<string> {
+  if (env.WAVE_REFRESH_TOKEN && env.WAVE_CLIENT_ID && env.WAVE_CLIENT_SECRET) {
+    const r = await f(WAVE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: env.WAVE_CLIENT_ID,
+        client_secret: env.WAVE_CLIENT_SECRET,
+        refresh_token: env.WAVE_REFRESH_TOKEN,
+        grant_type: "refresh_token",
+      }).toString(),
+    });
+    if (!r.ok) throw new Error(`Wave token refresh HTTP ${r.status}: ${await r.text()}`);
+    const body = (await r.json()) as { access_token?: string; error?: string };
+    if (!body.access_token) throw new Error(`Wave token refresh failed: ${body.error ?? "no access_token"}`);
+    return body.access_token;
+  }
+  // Legacy fallback: static API key
+  if (env.WAVE_API_KEY) return env.WAVE_API_KEY;
+  throw new Error("Wave: no credentials configured (need WAVE_REFRESH_TOKEN+CLIENT or WAVE_API_KEY)");
+}
+
 async function gql<T>(
-  apiKey: string,
+  env: WaveEnv,
   query: string,
   variables: Record<string, unknown>,
   f: typeof fetch,
 ): Promise<T> {
+  const token = await getAccessToken(env, f);
   const r = await f(WAVE_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ query, variables }),
@@ -73,7 +103,7 @@ export async function createCustomer(
   f: typeof fetch = fetch,
 ): Promise<string> {
   const data = await gql<CustomerCreateData>(
-    env.WAVE_API_KEY!,
+    env,
     CUSTOMER_CREATE,
     { businessId: env.WAVE_BUSINESS_ID!, input: { name, email, currency: "ZAR" } },
     f,
@@ -123,7 +153,7 @@ export async function createInvoice(
   if (!env.WAVE_PRODUCT_ID) throw new Error("Wave: WAVE_PRODUCT_ID not configured");
   const totalRand = totalCents / 100;
   const data = await gql<InvoiceCreateData>(
-    env.WAVE_API_KEY!,
+    env,
     INVOICE_CREATE,
     {
       businessId: env.WAVE_BUSINESS_ID!,
@@ -186,7 +216,7 @@ export async function recordPayment(
 ): Promise<void> {
   if (!env.WAVE_BANK_ACCOUNT_ID) throw new Error("Wave: WAVE_BANK_ACCOUNT_ID not configured");
   const data = await gql<PaymentCreateData>(
-    env.WAVE_API_KEY!,
+    env,
     PAYMENT_CREATE,
     {
       businessId: env.WAVE_BUSINESS_ID!,
