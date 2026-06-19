@@ -1,21 +1,25 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave A.2 DONE · **Updated:** 2026-06-19 (Sonnet)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave B.1 DONE · **Updated:** 2026-06-19 (Sonnet)
 
 ## ▶ NEXT (Sonnet, Build lane)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-### Wave B — internal quoting/invoicing/accounting dashboard
+### Wave B.2 — invoice listing admin page (`/api/admin/invoices`)
 
-Wave integration has been dropped entirely (Wave API access is permanently broken; full decision in done-ledger). Build internal system instead:
+Wave B.1 (accounting dashboard) is done ✅ — `c30e5a8`.
 
-1. **Quote PDF generator** — Zandeline-facing, from existing quote_lines data
-2. **Invoice access in admin area** — `/admin/invoices` listing + per-booking printable invoice link
-3. **Basic accounting dashboard** (`/admin/accounting`) — revenue by month, outstanding amounts (deposit_paid but not settled), CSV export
-4. All behind the existing `ADMIN_SECRET` gate (same as blocked-dates admin)
+Next: build `/api/admin/invoices?token=` — a table of all bookings with:
+- Reference, bride name, wedding date, status badge
+- Quoted total | deposit paid | balance due
+- A "View invoice" link → `/api/booking/invoice?token=<SIGNING_SECRET_signed_token>` for each booking
 
-Start with the accounting dashboard (highest value, all data already in DB). No new migrations needed for Wave B.1 — query `bookings` table directly.
+**Note:** the invoice token uses `SIGNING_SECRET` (same JWT signing used for confirm/review tokens).
+Look at `renderInvoicePage` in `invoice.ts` + `signToken`/`verifyToken` in `token.ts` to understand the
+token format. The admin page generates a pre-signed invoice link per booking row.
+
+After B.2: Wave B.3 = Quote PDF generator (Zandeline-facing, from quote_lines data).
 
 **Pieter dashboard tasks still pending (Wave-S; no code):**
 1. CF Zone Transform Rule — set security headers (CSP/HSTS/X-Frame/Referrer/Permissions-Policy) on `http.host eq "lustiqueco.co.za"` (full values in SEO/security plan §1a)
@@ -58,6 +62,8 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Wave B.1 DONE ✅ 2026-06-19 (Sonnet)** — `c30e5a8`. `/api/admin/accounting` — KPI cards (total revenue, outstanding, pipeline), revenue by month table, outstanding deposit_paid bookings, pipeline snapshot. `?export=csv` streams all bookings as CSV. `listAccountingRows` in db.ts. 13 new tests → 201 green.
+- **Wave A.2 impl commit ✅ 2026-06-19 (Sonnet)** — `532cf53`. Caught uncommitted impl files (admin.ts, db.ts, review.ts, util.ts, index.ts) from prior session — committed separately from the test-only commits.
 - **Wave A.2 DONE ✅ 2026-06-19 (Sonnet)** — `cc33e2b` + `7c3f301`. accept.test.ts (12 tests) + reject.test.ts (9 tests) written. invoiceExpirySweep: finds quote_sent bookings >7 days old → transitions to invoice_expired + audits (race-safe). SA public holidays in workingDaysBefore (Easter algorithm, 10 fixed dates). Admin set_slots capacity editor (slots=0 = hard block, N = soft cap). All wired into daily cron. 188 tests green. **Wave integration dropped entirely** — Wave API access permanently broken; Wave B (internal invoicing/accounting) is the replacement.
 - **Wave OAuth DONE ✅ 2026-06-19 (Sonnet)** — `9377507`. `wave.ts` now uses OAuth refresh-token flow: `WAVE_REFRESH_TOKEN + WAVE_CLIENT_ID + WAVE_CLIENT_SECRET` → short-lived `access_token` per request. `WAVE_API_KEY` legacy fallback retained. Guards in `review.ts` + `yoco.ts` updated. `wave.test.ts` type fixed. 158 tests green. **NOTE: Wave integration is being dropped (see Wave A.2 entry). wave.ts/wave-auth.mjs will be removed in Wave B cleanup.**
 - **Wave A.1 DONE ✅ 2026-06-19 (Sonnet)** — `f70d0f6`. Accept/reject quote flow, capacity soft-block, corrected state machine. State: `requested → quote_sent → accepted → deposit_paid → settled`. New files: `accept.ts` (bride picks deposit %, T3 transition, Yoco checkout), `reject.ts` (T4 bride-decline). Modified: `review.ts` (approve sends Accept/Reject quote email, no Yoco at review time), `request.ts` (depositPct removed, soft-block), `db.ts` (DateAvailability, insertRejection), `yoco.ts`/`confirm.ts` (legacy fallback for "confirmed" bookings). Migrations 0006–0008. 158 tests green (was 160 pre-Wave-A tests, netted down to 158 after removing one deleted validation test, updated 11 failing tests). **Still to write:** `accept.test.ts` + `reject.test.ts`.
