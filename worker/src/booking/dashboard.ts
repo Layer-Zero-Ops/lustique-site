@@ -101,10 +101,25 @@ function adminShell(title: string, user: AdminUser, inner: string): string {
   .empty{color:#8a7d72;font-style:italic;padding:2rem 0;}
   a.row-link{color:#8a3a52;text-decoration:none;font-weight:600;}
   a.row-link:hover{text-decoration:underline;}
+  .notif-bell{width:100%;padding:.4rem .9rem;font:inherit;font-size:.82rem;font-weight:600;color:#5c3d47;background:none;border:none;cursor:pointer;text-align:left;border-radius:8px;display:flex;align-items:center;gap:.5rem;}
+  .notif-bell:hover{background:#f7f3ef;}
+  .notif-count{display:none;background:#8a3a52;color:#fff;border-radius:20px;font-size:.7rem;font-weight:700;padding:.1em .5em;min-width:1.3em;text-align:center;}
 </style></head><body>
 <nav class="sidebar">
   <div class="logo">Lustique ✦</div>
   ${nav}
+  <div style="position:relative;margin-top:.4rem;" id="notif-wrap">
+    <button class="notif-bell" id="notif-bell" aria-label="Notifications" aria-haspopup="true">
+      <span>🔔</span><span>Notifications</span><span class="notif-count" id="notif-badge"></span>
+    </button>
+    <div id="notif-dropdown" role="menu" style="display:none;position:absolute;bottom:calc(100% + .4rem);left:0;width:290px;background:#fff;border:1.5px solid #ede7e0;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.12);z-index:50;overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.55rem .9rem;border-bottom:1px solid #ede7e0;">
+        <span style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;">Notifications</span>
+        <button onclick="markAllRead()" style="font:inherit;font-size:.75rem;font-weight:700;color:#8a3a52;background:none;border:none;cursor:pointer;padding:0;">Mark all read</button>
+      </div>
+      <div id="notif-list" style="max-height:300px;overflow-y:auto;"></div>
+    </div>
+  </div>
   <div class="meta">${esc(user.name)}</div>
   <form method="POST" action="/api/admin/auth/logout">
     <button type="submit" class="logout">Sign out</button>
@@ -114,6 +129,59 @@ function adminShell(title: string, user: AdminUser, inner: string): string {
   <h1>${esc(title)}</h1>
   ${inner}
 </main>
+<script>
+(function(){
+  var bell=document.getElementById('notif-bell');
+  var badge=document.getElementById('notif-badge');
+  var dropdown=document.getElementById('notif-dropdown');
+  var list=document.getElementById('notif-list');
+  function poll(){
+    fetch('/api/admin/notifications')
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(d){
+        if(!d)return;
+        if(d.count>0){badge.textContent=d.count;badge.style.display='inline-block';}
+        else{badge.style.display='none';}
+        renderItems(d.items);
+      }).catch(function(){});
+  }
+  function renderItems(items){
+    list.textContent='';
+    if(!items||!items.length){
+      var e=document.createElement('div');
+      e.style.cssText='padding:.8rem .9rem;font-size:.82rem;color:#8a7d72;';
+      e.textContent='No new notifications ❆';
+      list.appendChild(e);return;
+    }
+    items.forEach(function(n){
+      var a=document.createElement('a');
+      a.href=n.link||'#';
+      a.style.cssText='display:block;padding:.65rem .9rem;border-bottom:1px solid #f3ede8;text-decoration:none;color:#2b2b2b;';
+      a.addEventListener('click',function(){markRead(n.id);});
+      var t=document.createElement('div');
+      t.style.cssText='font-weight:600;font-size:.85rem;';
+      t.textContent=n.title;a.appendChild(t);
+      if(n.body){var b=document.createElement('div');b.style.cssText='font-size:.78rem;color:#8a7d72;margin-top:.15rem;';b.textContent=n.body;a.appendChild(b);}
+      list.appendChild(a);
+    });
+  }
+  window.markRead=function(id){
+    fetch('/api/admin/notifications/read',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:id})})
+      .then(function(){setTimeout(poll,300);}).catch(function(){});
+  };
+  window.markAllRead=function(){
+    fetch('/api/admin/notifications/read',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({})})
+      .then(function(){dropdown.style.display='none';setTimeout(poll,300);}).catch(function(){});
+  };
+  bell.addEventListener('click',function(e){
+    e.stopPropagation();
+    dropdown.style.display=dropdown.style.display==='none'?'block':'none';
+  });
+  document.addEventListener('click',function(){dropdown.style.display='none';});
+  poll();
+  setInterval(poll,60000);
+}());
+</script>
 </body></html>`;
 }
 
@@ -345,6 +413,18 @@ export async function handleAdminDashboard(
 </table>`;
 
   return htmlResponse(adminShell("Inbox", user, table));
+}
+
+// ── Wave C.3 — Notifications types ───────────────────────────────────────────
+
+interface NotificationRow {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string;
+  booking_id: string | null;
+  created_at: string;
 }
 
 // ── Wave C.2 shared helpers ───────────────────────────────────────────────────
@@ -1105,4 +1185,100 @@ export async function handleAdminTemplates(
   </table>`;
 
   return htmlResponse(adminShell("Email Templates", user, table));
+}
+
+// ── handleAdminNotifications (Wave C.3) ──────────────────────────────────────
+
+/**
+ * GET /api/admin/notifications
+ * Returns JSON: { count: N, items: [...] }
+ * JWT-gated — browser fetches this from the notifications bell every 60s.
+ */
+export async function handleAdminNotifications(
+  req: Request,
+  env: DashboardEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAuthEnvUser(req, env, fetchFn);
+  if (!user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  const res = await fetchFn(
+    supabaseUrl(
+      env,
+      `notifications?recipient=eq.admin&read_at=is.null&order=created_at.desc`,
+    ),
+    { headers: supabaseHeaders(env) },
+  );
+
+  const items: NotificationRow[] = res.ok
+    ? ((await res.json()) as NotificationRow[])
+    : [];
+
+  return new Response(JSON.stringify({ count: items.length, items }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+// ── handleAdminNotificationsRead (Wave C.3) ───────────────────────────────────
+
+/**
+ * POST /api/admin/notifications/read
+ * Body: { id: "uuid" } — mark one as read.
+ * Body: {}             — mark all admin notifications as read.
+ * JWT-gated.
+ */
+export async function handleAdminNotificationsRead(
+  req: Request,
+  env: DashboardEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  const user = await getAuthEnvUser(req, env, fetchFn);
+  if (!user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  let id: string | null = null;
+  try {
+    const body = (await req.json()) as { id?: string };
+    const candidate = body.id ?? null;
+    // Accept only UUID-shaped IDs to prevent injection via filter param
+    if (candidate && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidate)) {
+      id = candidate;
+    }
+  } catch { /* no body or invalid JSON — mark all */ }
+
+  const filter = id
+    ? `notifications?id=eq.${encodeURIComponent(id)}`
+    : `notifications?recipient=eq.admin&read_at=is.null`;
+
+  await fetchFn(supabaseUrl(env, filter), {
+    method: "PATCH",
+    headers: {
+      ...supabaseHeaders(env),
+      "content-type": "application/json",
+      prefer: "return=minimal",
+    },
+    body: JSON.stringify({ read_at: new Date().toISOString() }),
+  });
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
 }

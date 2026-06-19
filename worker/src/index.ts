@@ -23,6 +23,8 @@ import {
   handleAdminRejections,
   handleAdminCalendar,
   handleAdminTemplates,
+  handleAdminNotifications,
+  handleAdminNotificationsRead,
 } from "./booking/dashboard";
 
 /* ============================================================
@@ -311,6 +313,14 @@ export default {
       if ((req.method === "GET" || req.method === "POST") && url.pathname.startsWith("/api/admin/templates/")) {
         const key = url.pathname.slice("/api/admin/templates/".length);
         if (key) return await handleAdminTemplates(req, dashEnv, key);
+      }
+      // GET /api/admin/notifications — unread count + list (polled by bell every 60s)
+      if (req.method === "GET" && url.pathname === "/api/admin/notifications") {
+        return await handleAdminNotifications(req, dashEnv);
+      }
+      // POST /api/admin/notifications/read — mark one or all as read
+      if (req.method === "POST" && url.pathname === "/api/admin/notifications/read") {
+        return await handleAdminNotificationsRead(req, dashEnv);
       }
     }
 
