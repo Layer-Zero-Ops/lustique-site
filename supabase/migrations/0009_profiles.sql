@@ -40,11 +40,16 @@ CREATE POLICY booking_artists_admin_read ON booking_artists
 
 -- 3. Existing tables: add read-only policies for authenticated admin
 -- (quote_revisions and rejections were created in 0008 without RLS policies)
-CREATE POLICY IF NOT EXISTS quote_revisions_admin_read ON quote_revisions
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
-  );
-CREATE POLICY IF NOT EXISTS rejections_admin_read ON rejections
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
-  );
+DO $$ BEGIN
+  CREATE POLICY quote_revisions_admin_read ON quote_revisions
+    FOR SELECT USING (
+      EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY rejections_admin_read ON rejections
+    FOR SELECT USING (
+      EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
