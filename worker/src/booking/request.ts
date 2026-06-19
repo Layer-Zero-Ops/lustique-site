@@ -4,10 +4,10 @@
  * Dependency injection makes every external call testable (fetch, computeFn, newId).
  */
 import {
-  computeEstimate, randToCents, splitDeposit,
+  computeEstimate, randToCents,
   type EstimateInput, type EstimateResult,
 } from "@lustique/pricing";
-import { insertBooking, countBookingsOnDate, isDateBlocked } from "./db";
+import { insertBooking, countBookingsOnDate, getDateAvailability } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { signToken, hashToken } from "./token";
 import { makeReference } from "./util";
@@ -30,7 +30,6 @@ interface RequestBody {
   town?: string;
   province?: string;
   venue?: string;
-  depositPct?: unknown;
   idempotencyKey?: string;
   consentAt?: string;
   hp_company?: string;
@@ -97,7 +96,6 @@ function validate(b: RequestBody): string | "spam" | null {
   if (!b.weddingDate) return "Please add your wedding date.";
   if (b.weddingDate <= new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 10)) return "Your wedding date must be in the future.";
   if (!b.consentAt) return "Please tick the consent box to proceed.";
-  if (![25, 50, 100].includes(Number(b.depositPct))) return "Please choose a deposit percentage (25%, 50%, or 100%).";
   if (!b.idempotencyKey) return "Missing submission key — please reload and try again.";
   return null;
 }
@@ -154,9 +152,9 @@ export async function handleBookingRequest(
   // 3. Field validation
   if (problem) return json({ ok: false, error: problem }, 422);
 
-  // 4. Availability gate — check blocked_dates before any further work (S6)
-  const blocked = await isDateBlocked(env, body.weddingDate!, fetchImpl);
-  if (blocked) {
+  // 4. Availability gate — hard-block if admin explicitly closed the date (Wave A soft-block)
+  const avail = await getDateAvailability(env, body.weddingDate!, fetchImpl);
+  if (avail.hardBlocked) {
     return json({
       ok: false,
       error: "We're sorry — that date is no longer available. Please choose another date or contact us at info@lustiqueco.co.za.",
@@ -167,8 +165,6 @@ export async function handleBookingRequest(
   const estimateInput = toEstimateInput(body);
   const result = computeFn(estimateInput);
   const totalCents = randToCents(result.total);
-  const depositPct = Number(body.depositPct) as 25 | 50 | 100;
-  const { depositNetCents, balanceNetCents } = splitDeposit(totalCents, depositPct);
   const notes = result.total > SANITY_CAP_RAND
     ? `⚠️ Total R${result.total.toLocaleString()} exceeds R${SANITY_CAP_RAND.toLocaleString()} — manual review.`
     : null;
@@ -203,9 +199,10 @@ export async function handleBookingRequest(
       estimate_input: estimateInput,
       total_cents: totalCents,
       quote_lines: result.lines,
-      deposit_pct: depositPct,
-      deposit_net_cents: depositNetCents,
-      balance_net_cents: balanceNetCents,
+      deposit_pct: null,
+      deposit_net_cents: 0,
+      balance_net_cents: 0,
+      availability_conflict: avail.conflict,
       consent_at: body.consentAt,
       confirm_token_hash: tokenHash,
       confirm_token_expires_at: tokenExpiry.toISOString(),
@@ -222,7 +219,7 @@ export async function handleBookingRequest(
   // 9. Audit
   await writeAudit(
     env,
-    { bookingId, eventType: "request.created", payload: { reference, totalCents, depositPct } },
+    { bookingId, eventType: "request.created", payload: { reference, totalCents, availabilityConflict: avail.conflict } },
     fetchImpl,
   );
 
@@ -248,9 +245,9 @@ export async function handleBookingRequest(
          <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Venue</td><td>${esc([body.venue, body.town, body.province].filter(Boolean).join(", ") || "—")}</td></tr>
          <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Party size</td><td>${result.heads} looks</td></tr>
          <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Server total</td><td><strong>R ${result.total.toLocaleString()}</strong></td></tr>
-         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Deposit</td><td>${depositPct}% (R ${(depositNetCents / 100).toLocaleString()} net)</td></tr>
          <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Reference</td><td>${esc(reference)}</td></tr>
        </table>
+       ${avail.conflict ? `<p style="color:#b91c1c;font-weight:600;">⚠️ Date near capacity (${avail.bookingCount}/${avail.slots} slots filled) — review carefully before approving.</p>` : ""}
        ${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
        <p style="margin:1.2rem 0;">
          <a href="${esc(confirmUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Review &amp; approve booking</a>

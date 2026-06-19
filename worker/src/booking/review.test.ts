@@ -20,20 +20,6 @@ const env = {
   AUDIT: { put: vi.fn().mockResolvedValue(undefined) },
 };
 
-const yocoRes = () =>
-  new Response(JSON.stringify({ id: "ch_test_123", redirectUrl: "https://pay.yoco.com/ch_test_123" }), {
-    status: 200, headers: { "content-type": "application/json" },
-  });
-const insertPaymentRes = () =>
-  new Response(JSON.stringify([{ id: "pay-uuid-1" }]), { status: 201, headers: { "content-type": "application/json" } });
-
-const eftRows = [
-  { key: "eft_bank_name", value: "FNB" },
-  { key: "eft_account_holder", value: "Lustique Co" },
-  { key: "eft_account_number", value: "62000000000" },
-  { key: "eft_branch_code", value: "250655" },
-];
-const eftRes = () => new Response(JSON.stringify(eftRows), { status: 200, headers: { "content-type": "application/json" } });
 
 const reviewBooking = (over: Record<string, unknown> = {}) => ({
   id: BOOKING_ID, reference: "LUS-2026-111122", status: "requested",
@@ -109,71 +95,41 @@ describe("renderReviewPage — GET", () => {
 // ── POST approve ──────────────────────────────────────────────────────────────
 
 describe("handleReview — approve (no override)", () => {
-  it("transitions to confirmed, creates Yoco checkout, emails bride deposit link + Zandeline mark-paid link, redirects", async () => {
+  it("transitions to quote_sent, emails bride accept/reject buttons, emails Zandeline quote-sent, returns 200 HTML", async () => {
     const token = await validToken();
     const f = vi.fn()
-      .mockResolvedValueOnce(res([reviewBooking()]))                          // [0] getBookingByTokenHashForReview
-      .mockResolvedValueOnce(res([reviewBooking({ status: "confirmed" })]))   // [1] transitionRequestedBooking
-      .mockResolvedValueOnce(yocoRes())                                       // [2] createYocoCheckout
-      .mockResolvedValueOnce(insertPaymentRes())                              // [3] insertPayment
-      .mockResolvedValueOnce(eftRes())                                        // [4] getEftSettings
-      .mockResolvedValueOnce(res({ messageId: "m1" }, 201))                  // [5] Brevo → bride
-      .mockResolvedValueOnce(res({ messageId: "m2" }, 201))                  // [6] Brevo → Zandeline
-      .mockResolvedValueOnce(res({}, 201));                                   // [7] writeAudit confirmed
+      .mockResolvedValueOnce(res([reviewBooking()]))                            // [0] getBookingByTokenHashForReview
+      .mockResolvedValueOnce(res([reviewBooking({ status: "quote_sent" })]))   // [1] transitionRequestedBooking
+      .mockResolvedValueOnce(res({ messageId: "m1" }, 201))                    // [2] Brevo → bride
+      .mockResolvedValueOnce(res({ messageId: "m2" }, 201))                    // [3] Brevo → Zandeline
+      .mockResolvedValueOnce(res({}, 201));                                     // [4] writeAudit → insertAudit
 
     const resp = await handleReview(env, postReq(token, "confirm"), f as unknown as typeof fetch);
-    expect(resp.status).toBe(303);
-    expect(resp.headers.get("location")).toContain("/booking-confirmed.html?ref=LUS-2026-111122");
+    expect(resp.status).toBe(200);
+    const html = await resp.text();
+    expect(html).toContain("Quote sent");
 
-    // PATCH used the requested→confirmed guard
+    // PATCH uses requested→quote_sent guard
     const patchUrl = f.mock.calls[1]![0] as string;
     expect(patchUrl).toContain("status=eq.requested");
     const patch = JSON.parse((f.mock.calls[1]![1] as RequestInit).body as string);
-    expect(patch.status).toBe("confirmed");
-    expect(patch.confirmed_at).toBeTruthy();
-    // No amount override in patch
+    expect(patch.status).toBe("quote_sent");
+    expect(patch.quote_sent_at).toBeTruthy();
+    // Deposit amounts are NOT set at review time — bride picks pct at accept
+    expect(patch.deposit_net_cents).toBeUndefined();
     expect(patch.total_cents).toBeUndefined();
 
-    // Yoco checkout was created with the deposit amount
-    const yocoCall = f.mock.calls[2]![1] as RequestInit;
-    const yocoBody = JSON.parse(yocoCall.body as string);
-    expect(yocoBody.amount).toBe(441300);
-    expect(yocoBody.metadata.bookingId).toBe(BOOKING_ID);
+    // Bride email has accept and reject action links
+    const brideEmail = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    expect(brideEmail.htmlContent).toContain("/api/booking/accept?token=");
+    expect(brideEmail.htmlContent).toContain("/api/booking/reject?token=");
+    expect(brideEmail.htmlContent).toContain("2027-11-14"); // wedding date appears in bride email body
 
-    // Bride email has Yoco pay URL and EFT fallback
-    const brideEmail = JSON.parse((f.mock.calls[5]![1] as RequestInit).body as string);
-    expect(brideEmail.htmlContent).toContain("pay.yoco.com");
-    expect(brideEmail.htmlContent).toContain("62000000000");
-    expect(brideEmail.htmlContent).toContain("LUS-2026-111122");
-
-    // Zandeline email has mark-paid link
-    const zandelineEmail = JSON.parse((f.mock.calls[6]![1] as RequestInit).body as string);
+    // Zandeline email has invoice link; mark-paid link is sent at accept time, not here
+    const zandelineEmail = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(zandelineEmail.to[0].email).toBe(env.NOTIFY_EMAIL);
-    expect(zandelineEmail.htmlContent).toContain("/api/booking/mark-paid?token=");
-  });
-
-  it("still sends EFT email when Yoco checkout creation fails (graceful fallback)", async () => {
-    const token = await validToken();
-    const f = vi.fn()
-      .mockResolvedValueOnce(res([reviewBooking()]))
-      .mockResolvedValueOnce(res([reviewBooking({ status: "confirmed" })]))
-      .mockRejectedValueOnce(new Error("Yoco 503"))    // createYocoCheckout fails
-      .mockResolvedValueOnce(res({}, 201))             // writeAudit payment.checkout-failed
-      .mockResolvedValueOnce(eftRes())                 // getEftSettings
-      .mockResolvedValueOnce(res({ messageId: "m1" }, 201))  // Brevo → bride (EFT-only)
-      .mockResolvedValueOnce(res({ messageId: "m2" }, 201))  // Brevo → Zandeline
-      .mockResolvedValueOnce(res({}, 201));            // writeAudit confirmed
-
-    const resp = await handleReview(env, postReq(token, "confirm"), f as unknown as typeof fetch);
-    expect(resp.status).toBe(303);
-
-    // Audit logged the checkout failure
-    const auditBody = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
-    expect(auditBody.event_type).toBe("payment.checkout-failed");
-
-    // Bride email was still sent (EFT-only, empty yocoUrl)
-    const brideEmail = JSON.parse((f.mock.calls[5]![1] as RequestInit).body as string);
-    expect(brideEmail.htmlContent).toContain("62000000000");
+    expect(zandelineEmail.htmlContent).toContain("/api/booking/invoice?token=");
+    expect(zandelineEmail.htmlContent).not.toContain("/api/booking/mark-paid");
   });
 
   it("does not re-email when the guarded transition matches 0 rows", async () => {
@@ -186,35 +142,29 @@ describe("handleReview — approve (no override)", () => {
     expect(f).toHaveBeenCalledTimes(2);
   });
 
-  it("still redirects to confirmed and logs email-failed when Brevo throws post-transition", async () => {
+  it("still returns 200 HTML and logs email-failed when Brevo throws post-transition", async () => {
     const token = await validToken();
     const f = vi.fn()
       .mockResolvedValueOnce(res([reviewBooking()]))
-      .mockResolvedValueOnce(res([reviewBooking({ status: "confirmed" })]))
-      .mockResolvedValueOnce(yocoRes())                // createYocoCheckout
-      .mockResolvedValueOnce(insertPaymentRes())       // insertPayment
-      .mockResolvedValueOnce(eftRes())                 // getEftSettings
+      .mockResolvedValueOnce(res([reviewBooking({ status: "quote_sent" })]))
       .mockRejectedValueOnce(new Error("Brevo 503"))  // bride email fails
-      .mockResolvedValueOnce(res({}, 201));            // email-failed audit_log
+      .mockResolvedValueOnce(res({}, 201));            // writeAudit → insertAudit (review.email-failed)
     const resp = await handleReview(env, postReq(token, "confirm"), f as unknown as typeof fetch);
-    expect(resp.status).toBe(303);
-    expect(resp.headers.get("location")).toContain("/booking-confirmed.html");
-    const auditBody = JSON.parse((f.mock.calls[6]![1] as RequestInit).body as string);
-    expect(auditBody.event_type).toBe("confirm.email-failed");
+    expect(resp.status).toBe(200);
+    const html = await resp.text();
+    expect(html).toContain("Quote sent");
+    expect(f).toHaveBeenCalledTimes(4);
   });
 });
 
 describe("handleReview — approve (with override total)", () => {
-  it("recalculates deposit+balance and includes them in the PATCH when total is overridden", async () => {
+  it("includes total_cents but NOT deposit amounts in the PATCH when total is overridden", async () => {
     const token = await validToken();
     // Override total to R10,000 (1_000_000 cents). Original was R8,826 (882_600 cents).
-    // deposit_pct=50 → deposit=R5,000, balance=R5,000
+    // Deposit amounts are set by the bride at accept time, not here.
     const f = vi.fn()
       .mockResolvedValueOnce(res([reviewBooking()]))
-      .mockResolvedValueOnce(res([reviewBooking({ status: "confirmed", total_cents: 1_000_000 })]))
-      .mockResolvedValueOnce(yocoRes())
-      .mockResolvedValueOnce(insertPaymentRes())
-      .mockResolvedValueOnce(eftRes())
+      .mockResolvedValueOnce(res([reviewBooking({ status: "quote_sent", total_cents: 1_000_000 })]))
       .mockResolvedValueOnce(res({ messageId: "m1" }, 201))
       .mockResolvedValueOnce(res({ messageId: "m2" }, 201))
       .mockResolvedValueOnce(res({}, 201));
@@ -224,17 +174,18 @@ describe("handleReview — approve (with override total)", () => {
       postReq(token, "confirm", { overrideTotal: "10000" }),
       f as unknown as typeof fetch,
     );
-    expect(resp.status).toBe(303);
+    expect(resp.status).toBe(200);
 
     const patch = JSON.parse((f.mock.calls[1]![1] as RequestInit).body as string);
     expect(patch.total_cents).toBe(1_000_000);
-    expect(patch.deposit_net_cents).toBe(500_000);
-    expect(patch.balance_net_cents).toBe(500_000);
+    // Deposit splits are NOT calculated here — bride picks pct at accept
+    expect(patch.deposit_net_cents).toBeUndefined();
+    expect(patch.balance_net_cents).toBeUndefined();
 
-    // Bride email has deposit info and EFT fallback
-    const brideEmail = JSON.parse((f.mock.calls[5]![1] as RequestInit).body as string);
-    expect(brideEmail.htmlContent).toContain("Deposit due");
-    expect(brideEmail.htmlContent).toContain("62000000000"); // EFT account from settings
+    // Bride email reflects the overridden total in the quote
+    const brideEmail = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    expect(brideEmail.htmlContent).toContain("10 000"); // R10,000 formatted
+    expect(brideEmail.htmlContent).toContain("/api/booking/accept?token=");
   });
 
   it("uses original amounts when override equals the existing total", async () => {
@@ -242,10 +193,7 @@ describe("handleReview — approve (with override total)", () => {
     // Send the same total (8826) — should NOT include amount fields in PATCH
     const f = vi.fn()
       .mockResolvedValueOnce(res([reviewBooking()]))
-      .mockResolvedValueOnce(res([reviewBooking({ status: "confirmed" })]))
-      .mockResolvedValueOnce(yocoRes())
-      .mockResolvedValueOnce(insertPaymentRes())
-      .mockResolvedValueOnce(eftRes())
+      .mockResolvedValueOnce(res([reviewBooking({ status: "quote_sent" })]))
       .mockResolvedValueOnce(res({ messageId: "m1" }, 201))
       .mockResolvedValueOnce(res({ messageId: "m2" }, 201))
       .mockResolvedValueOnce(res({}, 201));

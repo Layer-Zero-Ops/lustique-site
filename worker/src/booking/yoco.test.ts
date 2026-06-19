@@ -171,24 +171,25 @@ describe("handleYocoWebhook — Standard Webhooks signature", () => {
 });
 
 describe("handleYocoWebhook — payment.succeeded (deposit)", () => {
-  it("marks payment paid, transitions booking confirmed→deposit_paid, emails bride", async () => {
+  it("marks payment paid, transitions booking accepted→deposit_paid (Wave A primary path), emails bride", async () => {
     const body = JSON.stringify(paymentSucceededEvent);
     const { sig, webhookId, webhookTimestamp } = await sign(body);
     const f = vi.fn()
-      .mockResolvedValueOnce(res([]))                                           // findPaymentByYocoId (not found → proceed)
-      .mockResolvedValueOnce(res([paymentRow()]))                               // findPaymentByCheckoutId
-      .mockResolvedValueOnce(res({}, 200))                                      // markPaymentPaid
-      .mockResolvedValueOnce(res([bookingRow({ status: "deposit_paid" })]))     // transitionBooking
-      .mockResolvedValueOnce(res([bookingRow({ status: "deposit_paid" })]))     // getBookingById
-      .mockResolvedValueOnce(res({ messageId: "m1" }, 201));                   // Brevo → bride
+      .mockResolvedValueOnce(res([]))                                           // [0] findPaymentByYocoId (not found → proceed)
+      .mockResolvedValueOnce(res([paymentRow()]))                               // [1] findPaymentByCheckoutId
+      .mockResolvedValueOnce(res({}, 200))                                      // [2] markPaymentPaid
+      .mockResolvedValueOnce(res([bookingRow({ status: "deposit_paid" })]))     // [3] transitionBooking(accepted) → succeeds
+      .mockResolvedValueOnce(res([bookingRow({ status: "deposit_paid" })]))     // [4] getBookingById
+      .mockResolvedValueOnce(res({ messageId: "m1" }, 201))                    // [5] Brevo → bride
+      .mockResolvedValueOnce(res({}, 201));                                     // [6] writeAudit → insertAudit
 
     const resp = await handleYocoWebhook(env, webhookReq(paymentSucceededEvent, sig, webhookId, webhookTimestamp), f as unknown as typeof fetch);
     expect(resp.status).toBe(200);
 
-    // PATCH uses status=eq.confirmed guard (Wave 0 uses current "confirmed" status)
+    // Wave A: tries accepted first; legacy fallback (confirmed) is skipped since accepted succeeded
     const patchUrl = f.mock.calls[3]![0] as string;
     expect(patchUrl).toContain("bookings");
-    expect(patchUrl).toContain("status=eq.confirmed");
+    expect(patchUrl).toContain("status=eq.accepted");
     const patch = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(patch.status).toBe("deposit_paid");
     expect(patch.deposit_paid_at).toBeTruthy();
@@ -233,18 +234,19 @@ describe("handleYocoWebhook — payment.succeeded (deposit)", () => {
     expect(f).toHaveBeenCalledTimes(2);
   });
 
-  it("returns 200 and audits the race when booking already moved past confirmed", async () => {
+  it("returns 200 and audits the race when booking already moved past accepted/confirmed (both fallbacks miss)", async () => {
     const body = JSON.stringify(paymentSucceededEvent);
     const { sig, webhookId, webhookTimestamp } = await sign(body);
     const f = vi.fn()
-      .mockResolvedValueOnce(res([]))                                          // findPaymentByYocoId → not found
-      .mockResolvedValueOnce(res([paymentRow()]))                              // findPaymentByCheckoutId
-      .mockResolvedValueOnce(res({}, 200))                                     // markPaymentPaid
-      .mockResolvedValueOnce(res([]))                                          // transitionBooking → 0 rows (race)
-      .mockResolvedValueOnce(res({}, 201));                                    // writeAudit deposit-paid-race
+      .mockResolvedValueOnce(res([]))                                          // [0] findPaymentByYocoId → not found
+      .mockResolvedValueOnce(res([paymentRow()]))                              // [1] findPaymentByCheckoutId
+      .mockResolvedValueOnce(res({}, 200))                                     // [2] markPaymentPaid
+      .mockResolvedValueOnce(res([]))                                          // [3] transitionBooking(accepted) → 0 rows (race)
+      .mockResolvedValueOnce(res([]))                                          // [4] transitionBooking(confirmed) → 0 rows (legacy fallback also misses)
+      .mockResolvedValueOnce(res({}, 201));                                    // [5] writeAudit → insertAudit deposit-paid-race
     const resp = await handleYocoWebhook(env, webhookReq(paymentSucceededEvent, sig, webhookId, webhookTimestamp), f as unknown as typeof fetch);
     expect(resp.status).toBe(200);
-    const auditBody = JSON.parse((f.mock.calls[4]![1] as RequestInit).body as string);
+    const auditBody = JSON.parse((f.mock.calls[5]![1] as RequestInit).body as string);
     expect(auditBody.event_type).toBe("payment.deposit-paid-race");
   });
 });

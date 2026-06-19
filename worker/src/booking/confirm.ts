@@ -244,7 +244,8 @@ async function loadConfirmedBooking(env: BookingConfirmEnv, token: string, f: ty
   if (v.expiresAt.getTime() <= Date.now()) return { ok: false, reason: "expired" };
   const booking = await getBookingById(env, v.bookingId, f);
   if (!booking) return { ok: false, reason: "invalid" };
-  if (booking.status !== "confirmed") return { ok: false, reason: "handled" };
+  // Wave A: bookings reach mark-paid from "accepted" (new flow) or "confirmed" (legacy flow)
+  if (booking.status !== "accepted" && booking.status !== "confirmed") return { ok: false, reason: "handled" };
   return { ok: true, booking };
 }
 
@@ -300,7 +301,11 @@ export async function handleMarkPaid(env: BookingConfirmEnv, req: Request, fetch
   }
 
   const b = loaded.booking;
-  const updated = await transitionBooking(env, b.id, "confirmed", { status: "deposit_paid", deposit_paid_at: new Date().toISOString() }, fetchImpl);
+  // Try Wave A status first ("accepted"), fall back to legacy ("confirmed") for old bookings.
+  const now2 = new Date().toISOString();
+  const updated =
+    await transitionBooking(env, b.id, "accepted", { status: "deposit_paid", deposit_paid_at: now2 }, fetchImpl) ??
+    await transitionBooking(env, b.id, "confirmed", { status: "deposit_paid", deposit_paid_at: now2 }, fetchImpl);
   if (!updated) return htmlResponse(handledHtml(), 200);
 
   try {

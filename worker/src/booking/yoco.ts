@@ -293,15 +293,17 @@ export async function handleYocoWebhook(
     const bookingId = String(payment["booking_id"]);
     const kind = String(payment["kind"]);
 
-    // Kind-branch: deposit confirms the date; balance settles the booking
-    const [fromStatus, toStatus, paidAtField] = kind === "balance"
-      ? ["deposit_paid", "settled", "settled_at"]
-      : ["confirmed", "deposit_paid", "deposit_paid_at"];
+    // Kind-branch: deposit accepts the date; balance settles the booking.
+    // Wave A: deposit transitions from "accepted"; legacy: from "confirmed".
+    const isBalance = kind === "balance";
+    const toStatus = isBalance ? "settled" : "deposit_paid";
+    const paidAtField = isBalance ? "settled_at" : "deposit_paid_at";
+    const paidPatch = { status: toStatus, [paidAtField]: new Date().toISOString() };
 
-    const updated = await transitionBooking(env, bookingId, fromStatus, {
-      status: toStatus,
-      [paidAtField]: new Date().toISOString(),
-    }, fetchImpl);
+    const updated = isBalance
+      ? await transitionBooking(env, bookingId, "deposit_paid", paidPatch, fetchImpl)
+      : (await transitionBooking(env, bookingId, "accepted", paidPatch, fetchImpl)
+          ?? await transitionBooking(env, bookingId, "confirmed", paidPatch, fetchImpl));
 
     if (!updated) {
       await writeAudit(env, { bookingId, eventType: "payment.deposit-paid-race", payload: { checkoutId } }, fetchImpl).catch(() => {});

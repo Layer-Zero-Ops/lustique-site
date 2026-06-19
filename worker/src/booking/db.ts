@@ -191,19 +191,22 @@ export interface ConfirmBookingRow {
   province: string | null;
   party_size: number;
   total_cents: number;
-  deposit_pct: number;
+  deposit_pct: number | null;
   deposit_net_cents: number;
   balance_net_cents: number;
   confirm_token_expires_at: string;
   confirm_token_used_at: string | null;
   wave_customer_id: string | null;
   wave_invoice_id: string | null;
+  quote_sent_at: string | null;
+  accepted_at: string | null;
 }
 
 const CONFIRM_COLS =
   "id,reference,status,bride_name,bride_email,wedding_date,venue,town,province," +
   "party_size,total_cents,deposit_pct,deposit_net_cents,balance_net_cents," +
-  "confirm_token_expires_at,confirm_token_used_at,wave_customer_id,wave_invoice_id";
+  "confirm_token_expires_at,confirm_token_used_at,wave_customer_id,wave_invoice_id," +
+  "quote_sent_at,accepted_at";
 
 /** Look a booking up by its stored confirm_token_hash. Returns null if none. */
 export async function getBookingByTokenHash(
@@ -268,8 +271,8 @@ export async function keepWarm(env: DbEnv, f: typeof fetch = fetch): Promise<voi
 }
 
 /**
- * Count active bookings (not expired/declined/cancelled) on a given wedding date.
- * Used for the same-date warning in Zandeline's confirm email (spec §10).
+ * Count active bookings (not in any terminal status) on a given wedding date.
+ * Used for the same-date warning and capacity soft-block.
  * PostgREST aggregate: select=count() returns [{ count: "N" }].
  */
 export async function countBookingsOnDate(
@@ -277,16 +280,64 @@ export async function countBookingsOnDate(
   weddingDate: string, // "YYYY-MM-DD"
   f: typeof fetch = fetch,
 ): Promise<number> {
+  const dead = "expired,declined,cancelled,rejected,invoice_expired";
   const r = await f(
-    rest(
-      env,
-      `bookings?select=count()&wedding_date=eq.${encodeURIComponent(weddingDate)}&status=not.in.(expired,declined,cancelled)`,
-    ),
+    rest(env, `bookings?select=count()&wedding_date=eq.${encodeURIComponent(weddingDate)}&status=not.in.(${dead})`),
     { headers: headers(env) },
   );
   if (!r.ok) throw new Error(`countBookingsOnDate ${r.status}`);
   const rows = (await r.json()) as Array<{ count: string }>;
   return parseInt(rows[0]?.count ?? "0", 10);
+}
+
+export interface DateAvailability {
+  hardBlocked: boolean;
+  slots: number;          // Infinity if no blocked_dates row; 0 if hard-blocked; N if soft cap
+  bookingCount: number;
+  conflict: boolean;      // bookingCount >= slots (only meaningful when !hardBlocked && slots < Infinity)
+}
+
+/**
+ * Wave A: replaces the boolean isDateBlocked.
+ * Returns conflict metadata so request.ts can soft-block instead of hard-409.
+ *
+ * Decision tree:
+ *   no row              → { hardBlocked:false, slots:Infinity, bookingCount:0, conflict:false }
+ *   row with slots=0    → { hardBlocked:true, ... }  → caller returns 409
+ *   row with slots>0    → check active bookingCount → conflict=true if at or over cap
+ */
+export async function getDateAvailability(
+  env: DbEnv,
+  date: string,
+  f: typeof fetch = fetch,
+): Promise<DateAvailability> {
+  const br = await f(rest(env, `blocked_dates?date=eq.${encodeURIComponent(date)}&select=slots&limit=1`), {
+    headers: headers(env),
+  });
+  if (!br.ok) throw new Error(`getDateAvailability ${br.status}`);
+  const rows = (await br.json()) as Array<{ slots: number }>;
+
+  if (rows.length === 0) return { hardBlocked: false, slots: Infinity, bookingCount: 0, conflict: false };
+
+  const slots = Number(rows[0]!.slots);
+  if (slots === 0) return { hardBlocked: true, slots: 0, bookingCount: 0, conflict: false };
+
+  const bookingCount = await countBookingsOnDate(env, date, f);
+  return { hardBlocked: false, slots, bookingCount, conflict: bookingCount >= slots };
+}
+
+/** Insert a structured rejection record (bride declines quote or admin declines booking). */
+export async function insertRejection(
+  env: DbEnv,
+  row: { booking_id: string; rejected_by: "admin" | "bride"; reason_code?: string; reason_text?: string },
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, "rejections"), {
+    method: "POST",
+    headers: headers(env),
+    body: JSON.stringify(row),
+  });
+  if (!r.ok) throw new Error(`insertRejection ${r.status}: ${await r.text()}`);
 }
 
 /** S6b review page: ConfirmBookingRow + quote_lines for the editable breakdown. */

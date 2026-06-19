@@ -124,7 +124,7 @@ describe("countBookingsOnDate", () => {
     expect(n).toBe(3);
     const url = f.mock.calls[0]![0] as string;
     expect(url).toContain("wedding_date=eq.2026-11-14");
-    expect(url).toContain("status=not.in.(expired,declined,cancelled)");
+    expect(url).toContain("status=not.in.(expired,declined,cancelled,rejected,invoice_expired)");
   });
   it("returns 0 when no active bookings exist on that date", async () => {
     const f = vi.fn().mockResolvedValue(res([{ count: "0" }]));

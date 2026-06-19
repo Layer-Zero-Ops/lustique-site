@@ -3,6 +3,8 @@ import { writeAudit } from "./booking/audit";
 import { handleBookingRequest } from "./booking/request";
 import { renderConfirmPage, handleBookingConfirm, renderMarkPaidPage, handleMarkPaid } from "./booking/confirm";
 import { renderReviewPage, handleReview } from "./booking/review";
+import { renderAcceptPage, handleAccept } from "./booking/accept";
+import { renderRejectPage, handleReject } from "./booking/reject";
 import { handleYocoWebhook, pendingPaymentSweep } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 import { handleAdminBlockedDates } from "./booking/admin";
@@ -206,6 +208,24 @@ export default {
     // POST /api/booking/review — approve (optional amount override) or decline (S6b)
     if (req.method === "POST" && url.pathname === "/api/booking/review") {
       return withSec(await handleReview(env, req), { html: true, noindex: true });
+    }
+
+    // GET /api/booking/accept?token= — bride's deposit-selection page (Wave A, prefetch-safe)
+    if (req.method === "GET" && url.pathname === "/api/booking/accept") {
+      return withSec(await renderAcceptPage(env, req), { html: true, noindex: true });
+    }
+    // POST /api/booking/accept — T3: quote_sent → accepted → Yoco checkout
+    if (req.method === "POST" && url.pathname === "/api/booking/accept") {
+      return withSec(await handleAccept(env, req), { html: true, noindex: true });
+    }
+
+    // GET /api/booking/reject?token= — bride's decline confirmation (Wave A, prefetch-safe)
+    if (req.method === "GET" && url.pathname === "/api/booking/reject") {
+      return withSec(await renderRejectPage(env, req), { html: true, noindex: true });
+    }
+    // POST /api/booking/reject — T4: quote_sent → rejected
+    if (req.method === "POST" && url.pathname === "/api/booking/reject") {
+      return withSec(await handleReject(env, req), { html: true, noindex: true });
     }
 
     // POST /api/booking/yoco-webhook — Yoco payment event (S7; signature verified inside)

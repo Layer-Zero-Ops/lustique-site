@@ -12,10 +12,9 @@
  * GET  = render-only (prefetch-safe — no mutations, spec §12)
  * POST = verify → optional amount override → guarded transition → emails → redirect
  */
-import { getBookingByTokenHashForReview, transitionRequestedBooking, insertPayment, updateBookingWaveIds, type ReviewBookingRow } from "./db";
+import { getBookingByTokenHashForReview, transitionRequestedBooking, updateBookingWaveIds, type ReviewBookingRow } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken } from "./token";
-import { splitDeposit } from "@lustique/pricing";
 import { createCustomer, createInvoice, type WaveEnv } from "../lib/wave";
 
 export interface BookingReviewEnv extends AuditEnv, WaveEnv {
@@ -23,33 +22,7 @@ export interface BookingReviewEnv extends AuditEnv, WaveEnv {
   NOTIFY_EMAIL: string;
   ALLOWED_ORIGIN: string;
   SIGNING_SECRET: string;
-  YOCO_SECRET_KEY: string;
 }
-
-interface EftSettings {
-  bankName: string;
-  accountHolder: string;
-  accountNumber: string;
-  branchCode: string;
-}
-
-async function getEftSettings(env: BookingReviewEnv, f: typeof fetch): Promise<EftSettings> {
-  const url = `${env.SUPABASE_URL}/rest/v1/business_settings?key=in.(eft_bank_name,eft_account_holder,eft_account_number,eft_branch_code)&select=key,value`;
-  const r = await f(url, {
-    headers: { apikey: env.SUPABASE_SERVICE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
-  });
-  if (!r.ok) throw new Error(`getEftSettings ${r.status}`);
-  const rows = (await r.json()) as Array<{ key: string; value: string }>;
-  const m = Object.fromEntries(rows.map(({ key, value }) => [key, value]));
-  return {
-    bankName: m["eft_bank_name"] ?? "",
-    accountHolder: m["eft_account_holder"] ?? "",
-    accountNumber: m["eft_account_number"] ?? "",
-    branchCode: m["eft_branch_code"] ?? "",
-  };
-}
-
-const MARK_PAID_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 const esc = (s = "") =>
   s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] as string));
@@ -107,14 +80,12 @@ const handledHtml = () =>
 function reviewPageBody(b: ReviewBookingRow, token: string): string {
   const where = [b.venue, b.town, b.province].filter(Boolean).join(", ") || "—";
   const totalRand = Math.round(b.total_cents / 100);
-  const depositRand = Math.round(b.deposit_net_cents / 100);
-  const balanceRand = Math.round(b.balance_net_cents / 100);
   const lineRows = (b.quote_lines ?? [])
     .map((l) => `<tr><td class="k">${esc(l.label)}</td><td>R ${Number(l.amount).toLocaleString("en-ZA")}</td></tr>`)
     .join("");
 
   return `<h1>Review booking request</h1>
-<p class="muted">Check the details below and adjust the total if needed, then approve to send ${esc(b.bride_name)} her deposit invoice.</p>
+<p class="muted">Check the details below and adjust the total if needed, then approve to send ${esc(b.bride_name)} her quote. She picks her deposit % when she accepts.</p>
 <h2>Booking details</h2>
 <table>
 <tr><td class="k">Bride</td><td><strong>${esc(b.bride_name)}</strong><br><span class="muted">${esc(b.bride_email)}</span></td></tr>
@@ -129,9 +100,9 @@ ${lineRows ? `<h2>Quote breakdown</h2><table>${lineRows}</table>` : ""}
 <input type="hidden" name="action" value="confirm">
 <div class="invoice">
   <label>Final total (R)<input id="totalInput" type="number" name="overrideTotal" value="${totalRand}" min="1" step="1" required></label>
-  <p class="preview">Deposit (${b.deposit_pct}%): <strong id="depositPreview">R ${depositRand.toLocaleString("en-ZA")}</strong> &nbsp;&middot;&nbsp; Balance: <strong id="balancePreview">R ${balanceRand.toLocaleString("en-ZA")}</strong></p>
+  <p class="preview">Total: <strong id="totalPreview">R ${totalRand.toLocaleString("en-ZA")}</strong> · Bride picks deposit % on acceptance</p>
 </div>
-<button class="btn-approve" type="submit">Approve &amp; send deposit invoice</button>
+<button class="btn-approve" type="submit">Approve &amp; send quote to bride</button>
 </form>
 <div class="decline-wrap">
 <form method="POST" action="/api/booking/review">
@@ -142,8 +113,8 @@ ${lineRows ? `<h2>Quote breakdown</h2><table>${lineRows}</table>` : ""}
 </div>
 <p class="muted" style="margin-top:1.6rem;">This link is single-use and expires 14 days after the request.</p>
 <script>(function(){
-var t=document.getElementById('totalInput'),d=document.getElementById('depositPreview'),b=document.getElementById('balancePreview'),pct=${b.deposit_pct};
-function u(){var tot=Math.max(0,parseInt(t.value,10)||0),dep=Math.round(tot*pct/100),bal=tot-dep;d.textContent='R\\u00a0'+dep.toLocaleString('en-ZA');b.textContent='R\\u00a0'+bal.toLocaleString('en-ZA');}
+var t=document.getElementById('totalInput'),p=document.getElementById('totalPreview');
+function u(){var tot=Math.max(0,parseInt(t.value,10)||0);p.textContent='R\\u00a0'+tot.toLocaleString('en-ZA');}
 t&&t.addEventListener('input',u);
 }());</script>`;
 }
@@ -161,64 +132,6 @@ async function brevoEmail(
     body: JSON.stringify({ sender: { email: env.NOTIFY_EMAIL, name: "Lustique Co." }, to: [to], subject, htmlContent: html }),
   });
   if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
-}
-
-/** S7: create a Yoco checkout and return { id, redirectUrl }. */
-async function createYocoCheckout(
-  secretKey: string,
-  depositCents: number,
-  bookingId: string,
-  reference: string,
-  origin: string,
-  f: typeof fetch,
-): Promise<{ id: string; redirectUrl: string }> {
-  const r = await f("https://payments.yoco.com/api/checkouts", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": `${bookingId}-deposit`,
-    },
-    body: JSON.stringify({
-      amount: depositCents,
-      currency: "ZAR",
-      successUrl: `${origin}/booking-deposit-paid.html?ref=${encodeURIComponent(reference)}`,
-      cancelUrl: `${origin}/quote?payment=cancelled`,
-      metadata: { bookingId, reference },
-    }),
-  });
-  if (!r.ok) throw new Error(`Yoco checkout ${r.status}: ${await r.text()}`);
-  return r.json() as Promise<{ id: string; redirectUrl: string }>;
-}
-
-/** Deposit invoice email: Yoco "Pay Now" as primary, EFT as fallback, invoice link included. */
-function depositEmailHtml(
-  eft: EftSettings,
-  b: ReviewBookingRow,
-  depositCents: number,
-  balanceCents: number,
-  yocoUrl: string,
-  invoiceUrl: string,
-): string {
-  return `<p>Hi ${esc(b.bride_name)},</p>
-<p>Wonderful news — <strong>${esc(b.wedding_date)}</strong> is available! Pay your deposit to officially secure your date.</p>
-<p style="margin:1.6rem 0;text-align:center;">
-  <a href="${esc(yocoUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.8em 2em;border-radius:9px;text-decoration:none;font-weight:700;font-size:1.05rem;">Pay deposit now — ${zar(depositCents)}</a>
-</p>
-<p style="text-align:center;font-size:.88rem;color:#8a7d72;margin-top:-.6rem;">Secure card payment via Yoco · takes about 30 seconds</p>
-<hr style="border:0;border-top:1px solid #ede7e0;margin:1.6rem 0;">
-<p style="font-weight:600;color:#6b5d52;margin:0 0 .5rem;">Prefer to pay by EFT?</p>
-<table style="border-collapse:collapse;font:14px/1.7 system-ui,sans-serif;margin:0 0 .8rem;">
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Deposit due</td><td><strong>${zar(depositCents)}</strong> (${b.deposit_pct}%)</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Bank</td><td>${esc(eft.bankName)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Account name</td><td>${esc(eft.accountHolder)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Account no.</td><td>${esc(eft.accountNumber)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Branch code</td><td>${esc(eft.branchCode)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;white-space:nowrap;">Payment reference</td><td><strong>${esc(b.reference)}</strong></td></tr>
-</table>
-<p style="font-size:.88rem;color:#8a7d72;">If paying by EFT, please email proof of payment to <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a> — your date won't be secured until we confirm receipt. The balance of ${zar(balanceCents)} is payable closer to your day.</p>
-<p style="margin-top:1.2rem;"><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View &amp; print your invoice →</a></p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
 }
 
 function declineEmailHtml(b: ReviewBookingRow): string {
@@ -288,7 +201,7 @@ export async function handleReview(
     return new Response(null, { status: 303, headers: { location: `${origin}/booking-declined.html?ref=${encodeURIComponent(b.reference)}` } });
   }
 
-  // Approve: resolve final amounts — honour override if Zandeline changed the total.
+  // Approve: honour Zandeline's total override; deposit % is chosen by the bride at accept.
   const overrideTotalRaw = String(form?.get("overrideTotal") ?? "");
   const overrideTotalRand = parseInt(overrideTotalRaw, 10);
   const useOverride =
@@ -297,21 +210,18 @@ export async function handleReview(
     overrideTotalRand * 100 !== b.total_cents;
 
   const finalTotalCents = useOverride ? overrideTotalRand * 100 : b.total_cents;
-  const { depositNetCents: finalDepositCents, balanceNetCents: finalBalanceCents } = useOverride
-    ? splitDeposit(finalTotalCents, b.deposit_pct as 25 | 50 | 100)
-    : { depositNetCents: b.deposit_net_cents, balanceNetCents: b.balance_net_cents };
 
   const patch: Record<string, unknown> = {
-    status: "confirmed",
-    confirmed_at: now,
+    status: "quote_sent",
+    quote_sent_at: now,
     confirm_token_used_at: now,
-    ...(useOverride ? { total_cents: finalTotalCents, deposit_net_cents: finalDepositCents, balance_net_cents: finalBalanceCents } : {}),
+    ...(useOverride ? { total_cents: finalTotalCents } : {}),
   };
 
   const updated = await transitionRequestedBooking(env, b.id, patch, fetchImpl);
   if (!updated) return htmlResponse(handledHtml(), 200);
 
-  // S8: create Wave customer + invoice (fire-and-forget — never blocks the email send).
+  // Wave invoice (fire-and-forget — locked total, for accounting).
   if (env.WAVE_API_KEY && env.WAVE_BUSINESS_ID) {
     try {
       const waveCustomerId = await createCustomer(env, b.bride_name, b.bride_email, fetchImpl);
@@ -323,60 +233,58 @@ export async function handleReview(
     }
   }
 
-  const markPaidToken = await signActionToken(b.id, new Date(Date.now() + MARK_PAID_TTL_MS), env.SIGNING_SECRET, "deposit");
-  const markPaidUrl = `${origin}/api/booking/mark-paid?token=${encodeURIComponent(markPaidToken)}`;
+  // Accept/reject tokens — HMAC-signed, no DB column needed; status guards idempotency.
+  const QUOTE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  const acceptToken = await signActionToken(b.id, new Date(Date.now() + QUOTE_TTL_MS), env.SIGNING_SECRET, "accept");
+  const rejectToken = await signActionToken(b.id, new Date(Date.now() + QUOTE_TTL_MS), env.SIGNING_SECRET, "reject");
+  const acceptUrl = `${origin}/api/booking/accept?token=${encodeURIComponent(acceptToken)}`;
+  const rejectUrl = `${origin}/api/booking/reject?token=${encodeURIComponent(rejectToken)}`;
 
-  // S9: invoice link — 2-year TTL, stateless (no DB column needed)
+  // Invoice link (2-year TTL, stateless)
   const INVOICE_TTL_MS = 2 * 365 * 24 * 60 * 60 * 1000;
   const invoiceToken = await signActionToken(b.id, new Date(Date.now() + INVOICE_TTL_MS), env.SIGNING_SECRET, "invoice");
   const invoiceUrl = `${origin}/api/booking/invoice?token=${encodeURIComponent(invoiceToken)}`;
 
-  // Create Yoco checkout + insert pending payment row before emailing the bride.
-  // If Yoco is down we fall through to EFT-only email (fallback already in the template).
-  let yocoUrl = "";
   try {
-    const checkout = await createYocoCheckout(env.YOCO_SECRET_KEY, finalDepositCents, b.id, b.reference, origin, fetchImpl);
-    await insertPayment(env, {
-      booking_id: b.id,
-      kind: "deposit",
-      net_cents: finalDepositCents,
-      payable_cents: finalDepositCents,
-      yoco_checkout_id: checkout.id,
-      pay_url: checkout.redirectUrl,
-      status: "pending",
-    }, fetchImpl);
-    yocoUrl = checkout.redirectUrl;
-  } catch {
-    await writeAudit(env, { bookingId: b.id, eventType: "payment.checkout-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
-  }
-
-  try {
-    const eft = await getEftSettings(env, fetchImpl);
+    // T2 — bride: "Here's your quote, please accept or decline"
     await brevoEmail(
       env,
       { email: b.bride_email, name: b.bride_name },
-      "Your date is available — secure it with your deposit · Lustique Co.",
-      depositEmailHtml(eft, b, finalDepositCents, finalBalanceCents, yocoUrl, invoiceUrl),
+      `Your Lustique quote is ready — ${esc(b.wedding_date)} ✨`,
+      `<p>Hi ${esc(b.bride_name)},</p>
+<p>Wonderful news — we've reviewed your booking and everything looks perfect for <strong>${esc(b.wedding_date)}</strong>!</p>
+<p style="font-size:1.1rem;font-weight:600;margin:1.2rem 0 .4rem;">Your quote: ${zar(finalTotalCents)}</p>
+<p style="margin:0 0 1.6rem;font-size:.92rem;color:#8a7d72;">You choose your deposit percentage on the next step.</p>
+<p style="text-align:center;margin:1.8rem 0;">
+  <a href="${esc(acceptUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.85em 2.2em;border-radius:9px;text-decoration:none;font-weight:700;font-size:1.05rem;">Accept &amp; choose my deposit →</a>
+</p>
+<p style="text-align:center;font-size:.88rem;color:#8a7d72;margin-top:-.8rem;">Secure card or EFT — you choose after accepting</p>
+<hr style="border:0;border-top:1px solid #ede7e0;margin:1.6rem 0;">
+<p style="text-align:center;">
+  <a href="${esc(rejectUrl)}" style="color:#8a7d72;font-size:.88rem;">I'd like to decline this booking</a>
+</p>
+<p style="text-align:center;font-size:.82rem;color:#8a7d72;margin-top:2rem;"><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View &amp; print your quote →</a></p>
+<p>Blessings,<br/>The Lustique Cosmetology Team</p>`,
       fetchImpl,
     );
+    // T2 admin — Zandeline: "Quote sent"
     await brevoEmail(
       env,
       { email: env.NOTIFY_EMAIL, name: "Lustique" },
-      `Approved — awaiting EFT · ${b.bride_name} · ${b.wedding_date}`,
-      `<p><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — approved. Deposit invoice sent (${zar(finalDepositCents)}, ref <strong>${esc(b.reference)}</strong>).</p>
-<p style="margin:1.2rem 0 .6rem;"><a href="${esc(markPaidUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">When the EFT lands — mark deposit received</a></p>
-<p style="margin:.6rem 0;"><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View bride's invoice →</a></p>
-<p style="font-size:.88rem;color:#8a7d72;">Only click once the deposit reflects in the account. Link valid 90 days.</p>`,
+      `Quote sent — ${b.bride_name} · ${b.wedding_date}`,
+      `<p><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — quote sent (${zar(finalTotalCents)}, ref <strong>${esc(b.reference)}</strong>).</p>
+<p style="font-size:.88rem;color:#8a7d72;">She has 7 days to accept or decline. You'll be notified when she responds.</p>
+<p><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View quote →</a></p>`,
       fetchImpl,
     );
     await writeAudit(
       env,
-      { bookingId: b.id, eventType: "confirm.confirmed", payload: { reference: b.reference, totalCents: finalTotalCents, override: useOverride } },
+      { bookingId: b.id, eventType: "review.quote-sent", payload: { reference: b.reference, totalCents: finalTotalCents, override: useOverride } },
       fetchImpl,
     );
   } catch {
-    await writeAudit(env, { bookingId: b.id, eventType: "confirm.email-failed", payload: { reference: b.reference, action: "confirm" } }, fetchImpl).catch(() => {});
+    await writeAudit(env, { bookingId: b.id, eventType: "review.email-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
   }
 
-  return new Response(null, { status: 303, headers: { location: `${origin}/booking-confirmed.html?ref=${encodeURIComponent(b.reference)}` } });
+  return htmlResponse(pageShell("Quote sent", `<h1>Quote sent ✓</h1><p><strong>${esc(b.bride_name)}</strong> has been emailed her quote for ${esc(b.wedding_date)}. She has 7 days to accept or decline. You can close this tab.</p>`));
 }

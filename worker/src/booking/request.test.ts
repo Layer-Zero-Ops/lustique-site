@@ -173,14 +173,7 @@ describe("handleBookingRequest — honeypot + validation", () => {
     expect((await resp.json() as { error: string }).error).toMatch(/consent/i);
   });
 
-  it("rejects an invalid depositPct", async () => {
-    const f = vi.fn().mockResolvedValueOnce(res({ success: true }));
-    const resp = await handleBookingRequest(
-      env, makeReq({ ...validBody, depositPct: 33 }), f, mockCompute, () => BOOKING_ID,
-    );
-    expect(resp.status).toBe(422);
-    expect((await resp.json() as { error: string }).error).toMatch(/deposit/i);
-  });
+  // depositPct validation removed in Wave A — bride picks deposit % at accept time
 });
 
 describe("handleBookingRequest — dedupe", () => {
@@ -200,7 +193,7 @@ describe("handleBookingRequest — dedupe", () => {
   it("returns 409 when the requested date is blocked", async () => {
     const f = vi.fn()
       .mockResolvedValueOnce(res({ success: true }))   // Turnstile
-      .mockResolvedValueOnce(res([{ date: validBody.weddingDate }])); // isDateBlocked → blocked
+      .mockResolvedValueOnce(res([{ slots: 0 }]));                   // getDateAvailability → hard block (slots=0)
     const resp = await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
     expect(resp.status).toBe(409);
     expect((await resp.json() as { error: string }).error).toMatch(/no longer available/i);
