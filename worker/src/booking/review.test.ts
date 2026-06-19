@@ -1,6 +1,6 @@
 // worker/src/booking/review.test.ts
 import { describe, it, expect, vi } from "vitest";
-import { renderReviewPage, handleReview } from "./review";
+import { renderReviewPage, handleReview, invoiceExpirySweep } from "./review";
 import { signToken } from "./token";
 
 const res = (body: unknown, status = 200) =>
@@ -236,5 +236,78 @@ describe("handleReview — decline", () => {
     const resp = await handleReview(env, postReq("garbage.token", "decline"), f as unknown as typeof fetch);
     expect(resp.status).toBe(400);
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+// ── invoiceExpirySweep ────────────────────────────────────────────────────────
+
+const expiredBooking = (id = BOOKING_ID) => ({
+  id,
+  reference: "LUS-2026-AABBCC",
+  status: "quote_sent",
+  bride_name: "Anke van der Berg",
+  bride_email: "anke@example.com",
+  wedding_date: "2027-11-14",
+  venue: "Red Ivory",
+  town: "Hartbeespoort",
+  province: "Gauteng",
+  party_size: 7,
+  total_cents: 882600,
+  deposit_pct: 50,
+  deposit_net_cents: 441300,
+  balance_net_cents: 441300,
+  confirm_token_expires_at: "2027-01-01T00:00:00Z",
+  confirm_token_used_at: null,
+  quote_lines: [],
+  quote_sent_at: "2026-06-01T00:00:00Z", // older than 7 days
+});
+
+describe("invoiceExpirySweep", () => {
+  const now = () => new Date("2026-06-19T00:00:00Z");
+
+  it("transitions expired bookings to invoice_expired and audits each", async () => {
+    const b1 = expiredBooking("aaaa-1111-1111-1111-111111111111");
+    const b2 = expiredBooking("bbbb-2222-2222-2222-222222222222");
+    const f = vi.fn()
+      .mockResolvedValueOnce(res([b1, b2]))           // [0] listExpiredQuotes GET
+      .mockResolvedValueOnce(res([{ ...b1, status: "invoice_expired" }])) // [1] PATCH b1
+      .mockResolvedValueOnce(res({}, 201))             // [2] insertAudit b1
+      .mockResolvedValueOnce(res([{ ...b2, status: "invoice_expired" }])) // [3] PATCH b2
+      .mockResolvedValueOnce(res({}, 201));             // [4] insertAudit b2
+
+    await invoiceExpirySweep(env, f as unknown as typeof fetch, now);
+
+    // listExpiredQuotes uses cutoff = now - 7d
+    const listUrl = f.mock.calls[0]![0] as string;
+    expect(listUrl).toContain("status=eq.quote_sent");
+    expect(listUrl).toContain("quote_sent_at=lt.");
+
+    // PATCH uses status=eq.quote_sent guard
+    const patch1Url = f.mock.calls[1]![0] as string;
+    expect(patch1Url).toContain("status=eq.quote_sent");
+    const patch1Body = JSON.parse((f.mock.calls[1]![1] as RequestInit).body as string);
+    expect(patch1Body.status).toBe("invoice_expired");
+    expect(patch1Body.invoice_expired_at).toBeTruthy();
+
+    expect(f).toHaveBeenCalledTimes(5);
+    expect(env.AUDIT.put).toHaveBeenCalled();
+  });
+
+  it("does nothing when there are no expired quotes", async () => {
+    const f = vi.fn().mockResolvedValueOnce(res([])); // [0] empty list
+    await invoiceExpirySweep(env, f as unknown as typeof fetch, now);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips audit on race (PATCH returns 0 rows)", async () => {
+    const b = expiredBooking();
+    const f = vi.fn()
+      .mockResolvedValueOnce(res([b]))   // [0] listExpiredQuotes
+      .mockResolvedValueOnce(res([]));    // [1] PATCH → race, 0 rows updated
+
+    await invoiceExpirySweep(env, f as unknown as typeof fetch, now);
+
+    // only 2 fetch calls: list + failed PATCH; no audit POST
+    expect(f).toHaveBeenCalledTimes(2);
   });
 });

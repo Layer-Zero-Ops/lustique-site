@@ -141,3 +141,46 @@ describe("POST remove a blocked date", () => {
     expect(r.status).toBe(400);
   });
 });
+
+// ── POST set_slots ────────────────────────────────────────────────────────────
+
+describe("POST set_slots", () => {
+  it("upserts slots for a date and re-renders the list", async () => {
+    const f = makeDbFetch();
+    const req = await post({ action: "set_slots", date: "2026-09-15", slots: "3" });
+    const r = await handleAdminBlockedDates(makeEnv(), req, f);
+    expect(r.status).toBe(200);
+
+    const calls = (f as ReturnType<typeof vi.fn>).mock.calls as Array<[string, RequestInit]>;
+    const postCall = calls.find(([, o]) => (o?.method ?? "GET").toUpperCase() === "POST");
+    expect(postCall).toBeDefined();
+    expect(JSON.parse(postCall![1].body as string)).toMatchObject({ date: "2026-09-15", slots: 3 });
+
+    // re-renders list with slot info in HTML
+    const html = await r.text();
+    expect(html).toContain("2026-09-15");
+  });
+
+  it("accepts slots=0 (hard block) as valid", async () => {
+    const f = makeDbFetch();
+    const req = await post({ action: "set_slots", date: "2027-02-14", slots: "0" });
+    const r = await handleAdminBlockedDates(makeEnv(), req, f);
+    expect(r.status).toBe(200);
+
+    const calls = (f as ReturnType<typeof vi.fn>).mock.calls as Array<[string, RequestInit]>;
+    const postCall = calls.find(([, o]) => (o?.method ?? "GET").toUpperCase() === "POST");
+    expect(JSON.parse(postCall![1].body as string)).toMatchObject({ date: "2027-02-14", slots: 0 });
+  });
+
+  it("returns 400 when slots > 99", async () => {
+    const req = await post({ action: "set_slots", date: "2027-03-01", slots: "100" });
+    const r = await handleAdminBlockedDates(makeEnv(), req, makeDbFetch());
+    expect(r.status).toBe(400);
+  });
+
+  it("returns 400 when slots is negative", async () => {
+    const req = await post({ action: "set_slots", date: "2027-03-01", slots: "-1" });
+    const r = await handleAdminBlockedDates(makeEnv(), req, makeDbFetch());
+    expect(r.status).toBe(400);
+  });
+});
