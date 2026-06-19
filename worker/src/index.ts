@@ -8,6 +8,7 @@ import { renderRejectPage, handleReject } from "./booking/reject";
 import { handleYocoWebhook, pendingPaymentSweep } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 import { handleAdminBlockedDates } from "./booking/admin";
+import { handleAdminAccounting } from "./booking/accounting";
 import { renderInvoicePage } from "./booking/invoice";
 
 /* ============================================================
@@ -241,6 +242,11 @@ export default {
     // GET/POST /api/admin/blocked-dates — Zandeline's blocked-dates admin (S8; token-protected)
     if (url.pathname === "/api/admin/blocked-dates" && env.ADMIN_SECRET) {
       return withSec(await handleAdminBlockedDates({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req), { html: true, noindex: true });
+    }
+
+    // GET /api/admin/accounting — accounting dashboard: revenue by month, outstanding, pipeline, CSV export
+    if (url.pathname === "/api/admin/accounting" && env.ADMIN_SECRET) {
+      return withSec(await handleAdminAccounting({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req), { html: true, noindex: true });
     }
 
     // GET /api/booking/mark-paid?token= — render-only deposit-received page (S4, prefetch-safe)

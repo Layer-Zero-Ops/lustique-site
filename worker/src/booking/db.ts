@@ -490,6 +490,21 @@ export async function listExpiredQuotes(
   return (await r.json()) as ConfirmBookingRow[];
 }
 
+/** All bookings for the accounting dashboard — every status, key financial columns. */
+export async function listAccountingRows(
+  env: DbEnv,
+  f: typeof fetch = fetch,
+): Promise<import("./accounting").AccountingRow[]> {
+  const cols = [
+    "id", "reference", "bride_name", "bride_email", "occasion", "wedding_date",
+    "status", "total_cents", "deposit_net_cents", "balance_net_cents",
+    "deposit_paid_at", "settled_at", "created_at",
+  ].join(",");
+  const r = await f(rest(env, `bookings?select=${cols}&order=wedding_date.asc`), { headers: headers(env) });
+  if (!r.ok) throw new Error(`listAccountingRows ${r.status}`);
+  return (await r.json()) as import("./accounting").AccountingRow[];
+}
+
 /** Bookings due a balance reminder: deposit_paid, not yet reminded, real balance, wedding within window. */
 export async function listBookingsDueForBalanceReminder(
   env: DbEnv,
