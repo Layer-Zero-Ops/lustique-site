@@ -1,17 +1,30 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave B.3 DONE · **Updated:** 2026-06-19 (Sonnet)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C.1 DONE · **Updated:** 2026-06-19 (Sonnet)
 
 ## ▶ NEXT (Sonnet, Build lane)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-### Wave C — Bride-facing booking dashboard (requires Phase 1 auth)
+### Wave C.2 — Remaining 6 dashboard views (behind the Phase-1 auth spine)
 
-Wave B.3 (quote PDF generator) is done ✅ — `9a2d6ca`.
+Wave C.1 (Phase-1 auth spine) is done ✅ — `6ba417f`. 277 tests green.
 
-Next: Wave C = Bride-facing booking dashboard.
-**Prerequisite: Phase 1 auth** — see build-sequence doc §Wave C and re-plan spec.
+Next: build the remaining 6 dashboard views (all JWT-gated; add to `dashboard.ts` + new handler files):
+1. **`/api/admin/booking/:id`** — Request detail + invoice editor (PATCH `/api/admin/quote/:id`, quote_revisions rev bump)
+2. **`/api/admin/quotes`** — Sent-quotes view (quote_sent bookings; resend + nudge actions)
+3. **`/api/admin/payments`** — Payments view (deposits + balances, Yoco vs EFT, payment-failed visibility)
+4. **`/api/admin/rejections`** — Rejections view (bride rejections grouped by reason; Re-quote action)
+5. **`/api/admin/calendar`** — Calendar view (month grid coloured by load vs capacity; slots editor re-homed)
+6. **`/api/admin/templates`** — Templates view (edit message_templates rows; subject + body + live preview)
+
+**Pieter action needed before dashboard can be used:**
+- Apply migrations 0009–0011 (Supabase SQL editor)
+- `wrangler secret put SUPABASE_JWT_SECRET` (value from Supabase Settings → API → JWT Secret)
+- Follow RUNBOOK §10 (create Zandeline's auth user, configure Brevo SMTP, patch email template)
+
+**Pieter dashboard tasks still pending (Wave-S; no code):**
+(unchanged from Wave B.3 baton)
 
 **Pieter dashboard tasks still pending (Wave-S; no code):**
 1. CF Zone Transform Rule — set security headers (CSP/HSTS/X-Frame/Referrer/Permissions-Policy) on `http.host eq "lustiqueco.co.za"` (full values in SEO/security plan §1a)
@@ -54,6 +67,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Wave C.1 DONE ✅ 2026-06-19 (Sonnet)** — `6ba417f`. Phase-1 auth spine: migrations 0009–0011 (profiles + booking_artists + read-only RLS; notifications + message_templates seeded; contacts + bookings.contact_id). `auth.ts`: `verifySupabaseJwt` (HS256 WebCrypto), `getCookieValue`, `getAdminSession` (JWT verify → profiles.role='admin' check), `__Host-sb_session` cookie helpers. `dashboard.ts`: `handleAdminLogin` (GET form + POST OTP to Supabase `/auth/v1/otp`), `handleAdminAuthCallback` (token_hash exchange via `/auth/v1/verify` → session cookie), `handleAdminAuthLogout` (clear cookie), `handleAdminDashboard` (Inbox view: pipeline board of active bookings, 7-view nav, quiet-luxury admin shell). All JWT-gated; 33 new tests → 277 green. RUNBOOK §10: Supabase Auth setup steps (Brevo SMTP, profile seed, email template patch). Pieter must apply migrations + bind SUPABASE_JWT_SECRET secret + follow RUNBOOK §10 before dashboard is usable.
 - **Wave B.3 DONE ✅ 2026-06-19 (Sonnet)** — `9a2d6ca`. `GET /api/admin/quote-pdf?token=ADMIN_SECRET&id=<id>` — Zandeline's printable quote page. Timing-safe ADMIN_SECRET auth (no signed token needed). Reads `getBookingByIdForInvoice` (quote_lines, deposit_pct, quote_sent_at). Quiet-luxury styling matching invoice.ts; shows expiry date (quote_sent_at + 7 days), service breakdown, totals, status badge for all 6 statuses. Admin-only note + noindex meta. No EFT bank details (quote ≠ payment request). 23 new tests → 244 green.
 - **Wave B.2 DONE ✅ 2026-06-19 (Sonnet)** — `2a374d2`. `/api/admin/invoices` — all bookings sorted by wedding date, status badges for all 9 statuses, ZAR financial columns, pre-signed "View ↗" invoice link per row (`signActionToken("invoice", 2-year TTL)` via `Promise.all`). 20 new tests → 221 green.
 - **Wave B.1 DONE ✅ 2026-06-19 (Sonnet)** — `c30e5a8`. `/api/admin/accounting` — KPI cards (total revenue, outstanding, pipeline), revenue by month table, outstanding deposit_paid bookings, pipeline snapshot. `?export=csv` streams all bookings as CSV. `listAccountingRows` in db.ts. 13 new tests → 201 green.
