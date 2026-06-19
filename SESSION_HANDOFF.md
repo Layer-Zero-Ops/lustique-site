@@ -1,19 +1,20 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C.2 DONE · **Updated:** 2026-06-19 (Sonnet)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C.3 DONE · **Updated:** 2026-06-19 (Sonnet)
 
 ## ▶ NEXT (Sonnet, Build lane)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-### Wave C.3 — Wire Notifications + push to production
+### Wave C complete — push to production + Pieter gate
 
-Wave C.2 (6 dashboard views) is done ✅ — `8267985`. 305 tests green.
+Wave C.3 (notifications bell) is done ✅ — `51a1a89`. 315 tests green.
 
-Remaining C-wave work:
-1. **Notifications bell** — poll `/rest/v1/notifications?recipient=eq.admin&read_at=is.null&order=created_at.desc` in the admin shell sidebar; mark-read on click (PATCH `read_at=now()`). Simple JS polling (60s interval) — no WebSockets needed.
-2. **Push to origin** — `git push origin main` (16 commits ahead). Wrangler CD will auto-deploy the Worker.
-3. **Pieter: apply migrations 0009–0011 + bind SUPABASE_JWT_SECRET** (still pending from C.1; dashboard unusable until done).
+**⚠️ Push pending — Pieter must authorise:**
+```
+git push origin main
+```
+(17 commits ahead of origin. Wrangler CD auto-deploys the Worker on push.)
 
 **Pieter action needed before dashboard can be used:**
 - Apply migrations 0009–0011 (Supabase SQL editor)
@@ -64,6 +65,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Wave C.3 DONE ✅ 2026-06-19 (Sonnet)** — `51a1a89`. Notifications bell: `GET /api/admin/notifications` (JWT-gated, returns `{count, items[]}` of unread rows); `POST /api/admin/notifications/read` (mark one UUID or all as read; UUID guard blocks filter injection). `adminShell` updated: bell button + count badge in sidebar, dropdown with DOM-built items (`.textContent` not `innerHTML` — XSS-safe), 60s poll, close-on-outside-click. 10 new tests → 315 green. **Push pending: `git push origin main` (Pieter to authorise).**
 - **Wave C.2 DONE ✅ 2026-06-19 (Sonnet)** — `8267985`. 6 JWT-gated admin dashboard views: booking detail (`/api/admin/booking/:id`) with inline quote editor + PATCH `/api/admin/quote/:id` (records quote_revision, recalculates deposit/balance); sent-quotes (`/api/admin/quotes`, 7-day expiry countdown, urgent flag ≤2d); payments (`/api/admin/payments`, Yoco vs EFT indicator, status badges); rejections (`/api/admin/rejections`, reason code/text, booking links); calendar (`/api/admin/calendar`, month grid coloured by load vs capacity, POST sets slots, slots=0=hard-blocked); templates (`/api/admin/templates`, list + edit form with subject/body_html/enabled, iframe live preview). 28 new tests → 305 green.
 - **Wave C.1 DONE ✅ 2026-06-19 (Sonnet)** — `6ba417f`. Phase-1 auth spine: migrations 0009–0011 (profiles + booking_artists + read-only RLS; notifications + message_templates seeded; contacts + bookings.contact_id). `auth.ts`: `verifySupabaseJwt` (HS256 WebCrypto), `getCookieValue`, `getAdminSession` (JWT verify → profiles.role='admin' check), `__Host-sb_session` cookie helpers. `dashboard.ts`: `handleAdminLogin` (GET form + POST OTP to Supabase `/auth/v1/otp`), `handleAdminAuthCallback` (token_hash exchange via `/auth/v1/verify` → session cookie), `handleAdminAuthLogout` (clear cookie), `handleAdminDashboard` (Inbox view: pipeline board of active bookings, 7-view nav, quiet-luxury admin shell). All JWT-gated; 33 new tests → 277 green. RUNBOOK §10: Supabase Auth setup steps (Brevo SMTP, profile seed, email template patch). Pieter must apply migrations + bind SUPABASE_JWT_SECRET secret + follow RUNBOOK §10 before dashboard is usable.
 - **Wave B.3 DONE ✅ 2026-06-19 (Sonnet)** — `9a2d6ca`. `GET /api/admin/quote-pdf?token=ADMIN_SECRET&id=<id>` — Zandeline's printable quote page. Timing-safe ADMIN_SECRET auth (no signed token needed). Reads `getBookingByIdForInvoice` (quote_lines, deposit_pct, quote_sent_at). Quiet-luxury styling matching invoice.ts; shows expiry date (quote_sent_at + 7 days), service breakdown, totals, status badge for all 6 statuses. Admin-only note + noindex meta. No EFT bank details (quote ≠ payment request). 23 new tests → 244 green.
