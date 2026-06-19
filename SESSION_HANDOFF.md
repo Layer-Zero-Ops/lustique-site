@@ -10,7 +10,18 @@ The full re-plan is committed (4 docs below). The build lane starts at **Wave 0*
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-**▶ NEXT task:** **Wave A** — corrected booking core (capacity soft-block, state machine, accept/reject, per-line invoice editing on token review page). Both gating decisions are resolved — Wave A is fully unblocked. See `docs/superpowers/specs/2026-06-18-lustique-replan-spec.md` for the full spec and `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` for the wave breakdown.
+**▶ NEXT task:** **Wave A.2** — balance Yoco link + nudge sweeps + SA holidays fix + admin capacity editor. Wave A.1 is fully shipped and green (158 tests). See `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` for the wave breakdown.
+
+**Wave A.2 work items:**
+1. Balance Yoco link — `accept.ts` already creates deposit checkout; need a parallel `balance.ts` accept flow or extend review to also mint a balance token
+2. `invoiceExpirySweep` — cron: find `quote_sent` bookings where `quote_sent_at` > 7 days ago → transition to `invoice_expired`
+3. `fullPayCheckInSweep` — cron: nudge brides whose balance is due (already in `balanceSweep`; verify it covers the new states)
+4. SA holidays fix in `workingDaysBefore` (currently ignores public holidays)
+5. Admin capacity editor — `set_slots` action in `admin.ts` to write `blocked_dates.slots`
+
+**Write new test files:**
+- `worker/src/booking/accept.test.ts` — renderAcceptPage (GET) + handleAccept (POST): T3 transition, Yoco checkout, mark-paid notification, EFT fallback
+- `worker/src/booking/reject.test.ts` — renderRejectPage (GET) + handleReject (POST): T4 transition, bride thank-you, Zandeline notify
 
 **Pieter dashboard tasks still pending (Wave-S; no code):**
 1. CF Zone Transform Rule — set security headers (CSP/HSTS/X-Frame/Referrer/Permissions-Policy) on `http.host eq "lustiqueco.co.za"` (full values in SEO/security plan §1a)
@@ -53,7 +64,8 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
-- **Wave-S DONE ✅ 2026-06-18 (Sonnet)** — `c67e19c`. Security headers (`withSec`/`secHeaderMap`) on every Worker response — JSON gets baseline, all token-bearing HTML (review/confirm/invoice/mark-paid/balance/admin) gets strict CSP + noindex. `/api/health` endpoint (liveness + 2s DB ping). Turnstile verify on `/api/enquiry` (mirrors booking). Consent-gated GA4 in `site.js` (dynamically injected only on Accept; no-op until real `G-` ID set). "Manage cookies" footer link. Turnstile widget on `/quote` enquiry form. Twitter meta tags in BaseLayout. `noindex` on `your-quote.html`/`invoice.html`. `Disallow: /api/` in robots.txt. Sitemap cleaned (no 404/transactional, added lastmod). JSON-LD enriched (geo, hours). **Dashboard items remaining for Pieter** — see ▶ NEXT above.
+- **Wave A.1 DONE ✅ 2026-06-19 (Sonnet)** — `f70d0f6`. Accept/reject quote flow, capacity soft-block, corrected state machine. State: `requested → quote_sent → accepted → deposit_paid → settled`. New files: `accept.ts` (bride picks deposit %, T3 transition, Yoco checkout), `reject.ts` (T4 bride-decline). Modified: `review.ts` (approve sends Accept/Reject quote email, no Yoco at review time), `request.ts` (depositPct removed, soft-block), `db.ts` (DateAvailability, insertRejection), `yoco.ts`/`confirm.ts` (legacy fallback for "confirmed" bookings). Migrations 0006–0008. 158 tests green (was 160 pre-Wave-A tests, netted down to 158 after removing one deleted validation test, updated 11 failing tests). **Still to write:** `accept.test.ts` + `reject.test.ts`.
+- **Wave-S DONE ✅ 2026-06-19 (Sonnet)** — `c67e19c` + `984235d`. Security headers (`withSec`/`secHeaderMap`) on every Worker `/api/*` response + `site/public/_headers` for all CF Pages static responses (free-plan alternative to Transform Rules). `/api/health` liveness endpoint. Turnstile on `/api/enquiry`. Consent-gated GA4. "Manage cookies" link. Twitter meta, noindex on sample pages, sitemap cleaned, JSON-LD enriched. TLS Full (strict) + Always Use HTTPS set in CF dashboard. UptimeRobot monitoring both `lustiqueco.co.za` and `/api/health` (5 min). WAF rate-limit rules + CF Health Checks deferred (Pro only). Supabase Pro + GA4 ID still pending Pieter action.
 - **Wave 0 DONE ✅ 2026-06-18 (Sonnet)** — `a3990a5`. Fixed 3 live defects: C-A wrong event name (`checkout.succeeded` → `payment.succeeded`/`payment.failed`), C-B wrong sig scheme (custom hex → Standard Webhooks: `webhook-signature`, base64, `id.ts.body`, 3-min window), C-C misleading "incl. card fee" copy removed (absorb model locked). Added `payment.failed` → EFT fallback emails + `pendingPaymentSweep` cron (24h stale-pending). Migration `0005_payment_failure.sql`. `YOCO_FEE_PCT` var (margin reporting only). Kind-branched transitions. 160 tests (was 152). **Gate still pending:** register webhook in Yoco portal (events: `payment.succeeded`, `payment.failed`, `refund.succeeded`), apply migration 0005, capture one real test event each, verify fee rate in portal → record in PRICING.md.
 - **Booking re-plan PLANNED ✅ 2026-06-18 (Opus)** — 4 docs (spec + dashboard/data + SEO/security + build-sequence) from a 14-agent code map + design fan-out. **Verified the live Yoco webhook is broken** (wrong event name + signature scheme) against Yoco docs → Wave 0 hotfix is the new ▶ NEXT. All 19 Jun-18 corrections folded into the spec/plans. Old 2026-06-05 booking-core spec superseded.
 - **Live domain smoke 3/3 ✅ 2026-06-18** — `4331191`. (Note: smoke used a synthetic `checkout.succeeded`; did NOT exercise a real Yoco event — see Wave 0.)
@@ -75,4 +87,4 @@ Full re-plan of booking flow + dashboard + Yoco + CRM + analytics + ML + SEO/sec
 
 **⬆ To umbrella — ⚪ DECISION: Studio-wide secrets architecture** — two-tier pattern (client secrets in client Supabase vault, LZ as directory). Logged. Defer to post-launch.
 
-**⬇ From umbrella (2026-06-18):** 🟢 SHIPPED (roadmap + Phase 0) folded into umbrella done-ledger; umbrella project state = Phase 1 as ▶ NEXT. No new requests from umbrella.
+**⬇ From umbrella (2026-06-18 — bridge drain):** 🟢 SHIPPED (booking re-plan + Wave 0) folded into umbrella done-ledger. Umbrella project state updated: Opus re-plan COMPLETE, Wave A is ▶ NEXT. No blockers from umbrella lane.
