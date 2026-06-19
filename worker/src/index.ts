@@ -2,7 +2,7 @@ import { keepWarm } from "./booking/db";
 import { writeAudit } from "./booking/audit";
 import { handleBookingRequest } from "./booking/request";
 import { renderConfirmPage, handleBookingConfirm, renderMarkPaidPage, handleMarkPaid } from "./booking/confirm";
-import { renderReviewPage, handleReview } from "./booking/review";
+import { renderReviewPage, handleReview, invoiceExpirySweep } from "./booking/review";
 import { renderAcceptPage, handleAccept } from "./booking/accept";
 import { renderRejectPage, handleReject } from "./booking/reject";
 import { handleYocoWebhook, pendingPaymentSweep } from "./booking/yoco";
@@ -334,6 +334,7 @@ export default {
       (async () => {
         await keepWarm(env);
         await writeAudit(env, { bookingId: null, eventType: "cron.keepwarm", payload: {} });
+        await invoiceExpirySweep(env);
         await balanceSweep(env);
         await pendingPaymentSweep(env);
       })().catch(() => {}), // never throw out of the scheduled handler

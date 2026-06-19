@@ -12,7 +12,7 @@
  * GET  = render-only (prefetch-safe — no mutations, spec §12)
  * POST = verify → optional amount override → guarded transition → emails → redirect
  */
-import { getBookingByTokenHashForReview, transitionRequestedBooking, updateBookingWaveIds, type ReviewBookingRow } from "./db";
+import { getBookingByTokenHashForReview, transitionRequestedBooking, updateBookingWaveIds, listExpiredQuotes, transitionBooking, type ReviewBookingRow } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken } from "./token";
 import { createCustomer, createInvoice, type WaveEnv } from "../lib/wave";
@@ -287,4 +287,27 @@ export async function handleReview(
   }
 
   return htmlResponse(pageShell("Quote sent", `<h1>Quote sent ✓</h1><p><strong>${esc(b.bride_name)}</strong> has been emailed her quote for ${esc(b.wedding_date)}. She has 7 days to accept or decline. You can close this tab.</p>`));
+}
+
+/** Daily cron sweep: transition quote_sent bookings older than 7 days to invoice_expired. */
+export async function invoiceExpirySweep(
+  env: BookingReviewEnv,
+  fetchImpl: typeof fetch = fetch,
+  now: () => Date = () => new Date(),
+): Promise<void> {
+  const cutoff = new Date(now().getTime() - 7 * 24 * 60 * 60 * 1000);
+  const expired = await listExpiredQuotes(env, cutoff.toISOString(), fetchImpl);
+  for (const b of expired) {
+    try {
+      const updated = await transitionBooking(env, b.id, "quote_sent", {
+        status: "invoice_expired",
+        invoice_expired_at: now().toISOString(),
+      }, fetchImpl);
+      if (updated) {
+        await writeAudit(env, { bookingId: b.id, eventType: "quote.expired", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
+      }
+    } catch {
+      await writeAudit(env, { bookingId: b.id, eventType: "quote.expire-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
+    }
+  }
 }

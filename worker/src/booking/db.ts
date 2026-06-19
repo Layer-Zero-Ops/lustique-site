@@ -463,6 +463,33 @@ export async function removeBlockedDate(
   if (!r.ok) throw new Error(`removeBlockedDate ${r.status}: ${await r.text()}`);
 }
 
+/** Upsert the slots capacity for a blocked_dates row (0 = hard-blocked, N = soft cap). */
+export async function setBlockedDateSlots(
+  env: DbEnv,
+  date: string,
+  slots: number,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, "blocked_dates?on_conflict=date"), {
+    method: "POST",
+    headers: { ...headers(env), prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({ date, slots }),
+  });
+  if (!r.ok) throw new Error(`setBlockedDateSlots ${r.status}: ${await r.text()}`);
+}
+
+/** Quote_sent bookings whose quote_sent_at is older than cutoffISO (7-day expiry sweep). */
+export async function listExpiredQuotes(
+  env: DbEnv,
+  cutoffISO: string,
+  f: typeof fetch = fetch,
+): Promise<ConfirmBookingRow[]> {
+  const q = `bookings?status=eq.quote_sent&quote_sent_at=lt.${encodeURIComponent(cutoffISO)}&select=${CONFIRM_COLS}`;
+  const r = await f(rest(env, q), { headers: headers(env) });
+  if (!r.ok) throw new Error(`listExpiredQuotes ${r.status}`);
+  return (await r.json()) as ConfirmBookingRow[];
+}
+
 /** Bookings due a balance reminder: deposit_paid, not yet reminded, real balance, wedding within window. */
 export async function listBookingsDueForBalanceReminder(
   env: DbEnv,

@@ -8,7 +8,7 @@
  * POST — add a date (action=add) or remove a date (action=remove)
  */
 
-import { listBlockedDates, addBlockedDate, removeBlockedDate } from "./db";
+import { listBlockedDates, addBlockedDate, removeBlockedDate, setBlockedDateSlots } from "./db";
 import type { DbEnv } from "./db";
 
 export interface AdminEnv extends DbEnv {
@@ -65,25 +65,39 @@ td.reason{color:#6b5d52;font-size:.92rem;}
 }
 
 function adminPage(
-  dates: Array<{ date: string; reason: string | null }>,
+  dates: Array<{ date: string; reason: string | null; slots?: number | null }>,
   token: string,
 ): string {
   const rows = dates.length
     ? dates
         .map(
-          (d) => `<tr>
+          (d) => {
+            const slots = d.slots ?? 0;
+            const slotsLabel = slots === 0 ? "Hard block" : `${slots} slot${slots === 1 ? "" : "s"}`;
+            return `<tr>
 <td class="date">${esc(d.date)}</td>
 <td class="reason">${esc(d.reason ?? "—")}</td>
-<td><form method="POST" style="margin:0"><input type="hidden" name="token" value="${esc(token)}"><input type="hidden" name="action" value="remove"><input type="hidden" name="date" value="${esc(d.date)}"><button class="btn-remove" type="submit">Remove</button></form></td>
-</tr>`,
+<td style="font-size:.88rem;color:#6b5d52;">${esc(slotsLabel)}</td>
+<td style="white-space:nowrap;">
+  <form method="POST" style="margin:0;display:inline-flex;gap:.3rem;align-items:center;">
+    <input type="hidden" name="token" value="${esc(token)}">
+    <input type="hidden" name="action" value="set_slots">
+    <input type="hidden" name="date" value="${esc(d.date)}">
+    <input type="number" name="slots" value="${slots}" min="0" max="99" style="width:3.5rem;font:inherit;border:1.5px solid #c9bfb8;border-radius:6px;padding:.2em .4em;text-align:center;">
+    <button class="btn-remove" type="submit">Set</button>
+  </form>
+  <form method="POST" style="margin:0;display:inline;"><input type="hidden" name="token" value="${esc(token)}"><input type="hidden" name="action" value="remove"><input type="hidden" name="date" value="${esc(d.date)}"><button class="btn-remove" type="submit">Remove</button></form>
+</td>
+</tr>`;
+          },
         )
         .join("")
-    : `<tr><td colspan="3" class="empty">No blocked dates.</td></tr>`;
+    : `<tr><td colspan="4" class="empty">No blocked dates.</td></tr>`;
 
   return `<h1>Blocked dates</h1>
-<p style="color:#6b5d52;font-size:.92rem;margin:-.5rem 0 1.2rem;">Dates blocked here will show as unavailable in the booking form. Requests for these dates return a 409.</p>
+<p style="color:#6b5d52;font-size:.92rem;margin:-.5rem 0 1.2rem;">Slots=0 hard-blocks the date (409). Slots&gt;0 soft-caps concurrent bookings.</p>
 <table>
-<thead><tr><th>Date</th><th>Reason</th><th></th></tr></thead>
+<thead><tr><th>Date</th><th>Reason</th><th>Slots</th><th></th></tr></thead>
 <tbody>${rows}</tbody>
 </table>
 <h2>Block a date</h2>
@@ -134,6 +148,12 @@ export async function handleAdminBlockedDates(
       await addBlockedDate(env, date, reason, fetchImpl);
     } else if (action === "remove") {
       await removeBlockedDate(env, date, fetchImpl);
+    } else if (action === "set_slots") {
+      const slots = Number(form?.get("slots") ?? "0");
+      if (!Number.isInteger(slots) || slots < 0 || slots > 99) {
+        return htmlResponse(pageShell("Bad request", "<h1>Bad request</h1><p>Slots must be 0–99.</p>"), 400);
+      }
+      await setBlockedDateSlots(env, date, slots, fetchImpl);
     } else {
       return htmlResponse(pageShell("Bad request", "<h1>Bad request</h1><p>Unknown action.</p>"), 400);
     }
