@@ -1,30 +1,17 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave B.2 DONE · **Updated:** 2026-06-19 (Sonnet)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave B.3 DONE · **Updated:** 2026-06-19 (Sonnet)
 
 ## ▶ NEXT (Sonnet, Build lane)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-### Wave B.3 — Quote PDF generator (Zandeline-facing)
+### Wave C — Bride-facing booking dashboard (requires Phase 1 auth)
 
-Wave B.2 (invoice listing admin page) is done ✅ — `2a374d2`.
+Wave B.3 (quote PDF generator) is done ✅ — `9a2d6ca`.
 
-Next: build a printable **Quote PDF** page — Zandeline-facing (admin-token-gated), not bride-facing.
-From the `quote_lines` data on any `quote_sent` or later booking.
-
-Likely shape:
-- GET `/api/admin/quote-pdf?token=ADMIN_SECRET&id=<booking_id>` — renders a printable quote page (HTML → browser Print → PDF)
-- Shows: bride details, service breakdown (quote_lines), deposit %, total, expiry date
-- Same quiet-luxury styling as the bride's invoice page (`invoice.ts`)
-- No new DB column needed — reads `getBookingByIdForInvoice` (already fetches quote_lines)
-
-**Design question to confirm before building:** should this be a separate `/api/admin/quote-pdf` endpoint,
-or should it be a variant of the existing `/api/booking/invoice` page (e.g. `?mode=quote` flag)?
-The difference: the invoice is bride-facing (permanent link, sent via email); the quote PDF is
-Zandeline-facing (admin tool, one-off, no long-lived token needed). A separate endpoint is cleaner.
-
-After B.3: Wave C = Bride-facing booking dashboard (requires Phase 1 auth).
+Next: Wave C = Bride-facing booking dashboard.
+**Prerequisite: Phase 1 auth** — see build-sequence doc §Wave C and re-plan spec.
 
 **Pieter dashboard tasks still pending (Wave-S; no code):**
 1. CF Zone Transform Rule — set security headers (CSP/HSTS/X-Frame/Referrer/Permissions-Policy) on `http.host eq "lustiqueco.co.za"` (full values in SEO/security plan §1a)
@@ -67,6 +54,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Wave B.3 DONE ✅ 2026-06-19 (Sonnet)** — `9a2d6ca`. `GET /api/admin/quote-pdf?token=ADMIN_SECRET&id=<id>` — Zandeline's printable quote page. Timing-safe ADMIN_SECRET auth (no signed token needed). Reads `getBookingByIdForInvoice` (quote_lines, deposit_pct, quote_sent_at). Quiet-luxury styling matching invoice.ts; shows expiry date (quote_sent_at + 7 days), service breakdown, totals, status badge for all 6 statuses. Admin-only note + noindex meta. No EFT bank details (quote ≠ payment request). 23 new tests → 244 green.
 - **Wave B.2 DONE ✅ 2026-06-19 (Sonnet)** — `2a374d2`. `/api/admin/invoices` — all bookings sorted by wedding date, status badges for all 9 statuses, ZAR financial columns, pre-signed "View ↗" invoice link per row (`signActionToken("invoice", 2-year TTL)` via `Promise.all`). 20 new tests → 221 green.
 - **Wave B.1 DONE ✅ 2026-06-19 (Sonnet)** — `c30e5a8`. `/api/admin/accounting` — KPI cards (total revenue, outstanding, pipeline), revenue by month table, outstanding deposit_paid bookings, pipeline snapshot. `?export=csv` streams all bookings as CSV. `listAccountingRows` in db.ts. 13 new tests → 201 green.
 - **Wave A.2 impl commit ✅ 2026-06-19 (Sonnet)** — `532cf53`. Caught uncommitted impl files (admin.ts, db.ts, review.ts, util.ts, index.ts) from prior session — committed separately from the test-only commits.
