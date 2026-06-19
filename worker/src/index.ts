@@ -12,6 +12,12 @@ import { handleAdminAccounting } from "./booking/accounting";
 import { handleAdminInvoices } from "./booking/invoices";
 import { handleAdminQuotePdf } from "./booking/quote-pdf";
 import { renderInvoicePage } from "./booking/invoice";
+import {
+  handleAdminLogin,
+  handleAdminAuthCallback,
+  handleAdminAuthLogout,
+  handleAdminDashboard,
+} from "./booking/dashboard";
 
 /* ============================================================
    LUSTIQUE CO. — form-handler Worker (the stable API boundary)
@@ -51,8 +57,12 @@ export interface Env {
   WAVE_BANK_ACCOUNT_ID?: string;
   // Wave 0: Yoco fee rate (var, not secret — for margin reporting only; bride pays net)
   YOCO_FEE_PCT?: string;
-  // S8: admin area (blocked dates UI)
+  // S8: admin area (blocked dates UI) — retained for legacy ADMIN_SECRET endpoints
   ADMIN_SECRET?: string;
+  // Wave C Phase 1: Supabase JWT secret — verifies Zandeline's session tokens
+  // Set via: wrangler secret put SUPABASE_JWT_SECRET
+  // Value: Supabase dashboard → Settings → API → JWT Settings → JWT Secret
+  SUPABASE_JWT_SECRET?: string;
   AUDIT: { put(key: string, value: string): Promise<unknown> };
 }
 
@@ -241,6 +251,29 @@ export default {
       return withSec(await renderInvoicePage(env, req), { html: true, noindex: true });
     }
 
+    // ── Wave C Phase 1: JWT-gated admin dashboard routes ─────────────────────
+    if (env.SUPABASE_JWT_SECRET) {
+      const dashEnv = { ...env, SUPABASE_JWT_SECRET: env.SUPABASE_JWT_SECRET };
+
+      // GET/POST /api/admin/login — magic-link login form
+      if (url.pathname === "/api/admin/login") {
+        return await handleAdminLogin(req, dashEnv);
+      }
+      // GET /api/admin/auth/callback — exchange Supabase token_hash for session cookie
+      if (req.method === "GET" && url.pathname === "/api/admin/auth/callback") {
+        return await handleAdminAuthCallback(req, dashEnv);
+      }
+      // POST /api/admin/auth/logout — clear session cookie
+      if (req.method === "POST" && url.pathname === "/api/admin/auth/logout") {
+        return await handleAdminAuthLogout(req, dashEnv);
+      }
+      // GET /api/admin/dashboard — Inbox view (requires valid session)
+      if (req.method === "GET" && url.pathname === "/api/admin/dashboard") {
+        return await handleAdminDashboard(req, dashEnv);
+      }
+    }
+
+    // ── Legacy ADMIN_SECRET routes (retained until Phase-1 auth fully proven) ─
     // GET/POST /api/admin/blocked-dates — Zandeline's blocked-dates admin (S8; token-protected)
     if (url.pathname === "/api/admin/blocked-dates" && env.ADMIN_SECRET) {
       return withSec(await handleAdminBlockedDates({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req), { html: true, noindex: true });

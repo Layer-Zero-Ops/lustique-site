@@ -22,6 +22,9 @@ YOCO_FEE_PCT = "3.5"
 #                   TURNSTILE_SECRET, SIGNING_SECRET, NOTIFY_EMAIL
 #                   YOCO_SECRET_KEY, YOCO_WEBHOOK_SECRET (Wave 0 — register webhook in Yoco portal
 #                   with event types: payment.succeeded, payment.failed, refund.succeeded)
+# Wave C Phase 1 (admin dashboard auth):
+#   SUPABASE_JWT_SECRET — Supabase dashboard → Settings → API → JWT Settings → JWT Secret
+#                         Enables JWT-gated /api/admin/login + /api/admin/dashboard routes.
 # EFT bank details: business_settings table, not Worker secrets.
 
 # Booking core (S1):

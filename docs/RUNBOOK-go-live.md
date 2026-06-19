@@ -79,3 +79,56 @@ Sonnet-runnable once unblocked. Do the account prerequisites first.
 
 ## 9. Post-launch (deferred)
 - [ ] Cloudflare WAF: rate-limit `POST /api/booking/request` → 5 req/IP/hour.
+
+---
+
+## 10. Wave C — Admin dashboard setup (one-time, after deploy)
+
+### 10a. Apply migrations 0009–0011
+Run in order in the Supabase SQL editor (or `supabase db push` if CLI is configured):
+```
+supabase/migrations/0009_profiles.sql
+supabase/migrations/0010_dashboard_tables.sql
+supabase/migrations/0011_contacts.sql
+```
+
+### 10b. Bind SUPABASE_JWT_SECRET Worker secret
+1. Supabase dashboard → **Settings → API → JWT Settings** → copy **JWT Secret**.
+2. `cd worker && npx wrangler secret put SUPABASE_JWT_SECRET` → paste the value.
+
+### 10c. Create Zandeline's admin user in Supabase Auth
+1. Supabase dashboard → **Authentication → Users → Invite user** (or Add user).
+2. Enter Zandeline's email. She will receive an invite email from Supabase (via Brevo SMTP — set that up first in 10d).
+3. After the user record exists, open **SQL editor** and insert her profile:
+   ```sql
+   INSERT INTO profiles (id, role, full_name, email)
+   SELECT id, 'admin', 'Zandeline', email
+   FROM auth.users WHERE email = 'zandeline@lustiqueco.co.za'  -- replace with her email
+   ON CONFLICT (id) DO NOTHING;
+   ```
+
+### 10d. Configure Supabase Auth email (Brevo SMTP)
+1. Supabase dashboard → **Authentication → Providers → Email → SMTP Settings**.
+2. Enable **custom SMTP** and enter Brevo credentials:
+   - Host: `smtp-relay.brevo.com` · Port: `587`
+   - Username: your Brevo login email · Password: a Brevo **SMTP key** (not the API key)
+3. Set **Site URL** = `https://lustiqueco.co.za`
+4. Add to **Redirect URLs**: `https://lustiqueco.co.za/api/admin/auth/callback`
+
+### 10e. Customise the magic-link email template (critical)
+The default Supabase email uses URL fragments (`#access_token=...`), which are invisible
+to the Worker. Change the template to embed `token_hash` as a query param:
+
+1. Supabase dashboard → **Authentication → Email Templates → Magic Link**.
+2. Replace the link in the template body with:
+   ```
+   {{ .SiteURL }}/api/admin/auth/callback?token_hash={{ .TokenHash }}&type=email
+   ```
+3. Save. Now clicking the email link lands at the Worker callback with the hash as a
+   query param, enabling pure server-side exchange.
+
+### 10f. Test the login flow
+1. Visit `https://lustiqueco.co.za/api/admin/login`
+2. Enter Zandeline's email → click **Send login link**
+3. Check inbox → click the link → should land on `/api/admin/dashboard`
+4. Verify the Inbox renders active bookings and the nav shows all 7 views.
