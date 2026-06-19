@@ -1,21 +1,28 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 Plan (Opus) → ready to hand to 🟢 Build (Sonnet) · **Phase:** Re-plan COMPLETE — booking flow + dashboard + Yoco + CRM + analytics + ML + SEO/security planned · **Updated:** 2026-06-18 (Opus handoff)
-
-## 🔵 PLAN SET — switch to Sonnet (`/model sonnet`) to build, then `next`
-
-The full re-plan is committed (4 docs below). The build lane starts at **Wave 0** — a critical, no-dependency Yoco hotfix.
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave A.1 + Wave OAuth done · **Updated:** 2026-06-19 (Sonnet)
 
 ## ▶ NEXT (Sonnet, Build lane)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-**▶ NEXT task:** **Wave A.2** — balance Yoco link + nudge sweeps + SA holidays fix + admin capacity editor. Wave A.1 is fully shipped and green (158 tests). See `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` for the wave breakdown.
+### 🔑 Pieter action required FIRST — Wave OAuth secrets
 
-**Wave A.2 work items:**
-1. Balance Yoco link — `accept.ts` already creates deposit checkout; need a parallel `balance.ts` accept flow or extend review to also mint a balance token
-2. `invoiceExpirySweep` — cron: find `quote_sent` bookings where `quote_sent_at` > 7 days ago → transition to `invoice_expired`
-3. `fullPayCheckInSweep` — cron: nudge brides whose balance is due (already in `balanceSweep`; verify it covers the new states)
+Before Wave A.2, run this one-off script to get the OAuth refresh token and discover Wave IDs:
+```bash
+WAVE_CLIENT_ID="your-id" WAVE_CLIENT_SECRET="your-secret" \
+  node "/Users/pieter/Layer-Zero-Studios/Custom Builds/Lustique/worker/scripts/wave-auth.mjs"
+```
+It opens your browser, catches the callback, and prints 6 `wrangler secret put` commands. Store all 6 then delete `WAVE_API_KEY`:
+```bash
+wrangler secret delete WAVE_API_KEY --name lustique-form-handler
+```
+**Why:** Wave "Full Access Tokens" in the developer portal are short-lived test tokens only. The production path is always: authorization_code flow → long-lived `refresh_token` → exchange for `access_token` at runtime (already built into `wave.ts`, committed `9377507`).
+
+### Wave A.2 work items
+1. `accept.test.ts` + `reject.test.ts` — test files not yet written; handlers already exist in `accept.ts` + `reject.ts`
+2. `invoiceExpirySweep` cron — find `quote_sent` bookings where `quote_sent_at` > 7 days → transition to `invoice_expired`
+3. `fullPayCheckInSweep` cron — nudge brides whose balance is due; verify it covers new states
 4. SA holidays fix in `workingDaysBefore` (currently ignores public holidays)
 5. Admin capacity editor — `set_slots` action in `admin.ts` to write `blocked_dates.slots`
 
@@ -64,6 +71,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Wave OAuth DONE ✅ 2026-06-19 (Sonnet)** — `9377507`. `wave.ts` now uses OAuth refresh-token flow: `WAVE_REFRESH_TOKEN + WAVE_CLIENT_ID + WAVE_CLIENT_SECRET` → short-lived `access_token` per request. `WAVE_API_KEY` legacy fallback retained. Guards in `review.ts` + `yoco.ts` updated. `wave.test.ts` type fixed. 158 tests green. **Pieter still needs to run `wave-auth.mjs` to get real refresh token + IDs, store 5 Wrangler secrets, delete old `WAVE_API_KEY`.**
 - **Wave A.1 DONE ✅ 2026-06-19 (Sonnet)** — `f70d0f6`. Accept/reject quote flow, capacity soft-block, corrected state machine. State: `requested → quote_sent → accepted → deposit_paid → settled`. New files: `accept.ts` (bride picks deposit %, T3 transition, Yoco checkout), `reject.ts` (T4 bride-decline). Modified: `review.ts` (approve sends Accept/Reject quote email, no Yoco at review time), `request.ts` (depositPct removed, soft-block), `db.ts` (DateAvailability, insertRejection), `yoco.ts`/`confirm.ts` (legacy fallback for "confirmed" bookings). Migrations 0006–0008. 158 tests green (was 160 pre-Wave-A tests, netted down to 158 after removing one deleted validation test, updated 11 failing tests). **Still to write:** `accept.test.ts` + `reject.test.ts`.
 - **Wave-S DONE ✅ 2026-06-19 (Sonnet)** — `c67e19c` + `984235d`. Security headers (`withSec`/`secHeaderMap`) on every Worker `/api/*` response + `site/public/_headers` for all CF Pages static responses (free-plan alternative to Transform Rules). `/api/health` liveness endpoint. Turnstile on `/api/enquiry`. Consent-gated GA4. "Manage cookies" link. Twitter meta, noindex on sample pages, sitemap cleaned, JSON-LD enriched. TLS Full (strict) + Always Use HTTPS set in CF dashboard. UptimeRobot monitoring both `lustiqueco.co.za` and `/api/health` (5 min). WAF rate-limit rules + CF Health Checks deferred (Pro only). Supabase Pro + GA4 ID still pending Pieter action.
 - **Wave 0 DONE ✅ 2026-06-18 (Sonnet)** — `a3990a5`. Fixed 3 live defects: C-A wrong event name (`checkout.succeeded` → `payment.succeeded`/`payment.failed`), C-B wrong sig scheme (custom hex → Standard Webhooks: `webhook-signature`, base64, `id.ts.body`, 3-min window), C-C misleading "incl. card fee" copy removed (absorb model locked). Added `payment.failed` → EFT fallback emails + `pendingPaymentSweep` cron (24h stale-pending). Migration `0005_payment_failure.sql`. `YOCO_FEE_PCT` var (margin reporting only). Kind-branched transitions. 160 tests (was 152). **Gate still pending:** register webhook in Yoco portal (events: `payment.succeeded`, `payment.failed`, `refund.succeeded`), apply migration 0005, capture one real test event each, verify fee rate in portal → record in PRICING.md.
