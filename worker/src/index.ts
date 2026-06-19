@@ -9,6 +9,7 @@ import { handleYocoWebhook, pendingPaymentSweep } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 import { handleAdminBlockedDates } from "./booking/admin";
 import { handleAdminAccounting } from "./booking/accounting";
+import { handleAdminInvoices } from "./booking/invoices";
 import { renderInvoicePage } from "./booking/invoice";
 
 /* ============================================================
@@ -247,6 +248,11 @@ export default {
     // GET /api/admin/accounting — accounting dashboard: revenue by month, outstanding, pipeline, CSV export
     if (url.pathname === "/api/admin/accounting" && env.ADMIN_SECRET) {
       return withSec(await handleAdminAccounting({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req), { html: true, noindex: true });
+    }
+
+    // GET /api/admin/invoices — invoice listing with pre-signed per-booking invoice links
+    if (url.pathname === "/api/admin/invoices" && env.ADMIN_SECRET) {
+      return withSec(await handleAdminInvoices({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req), { html: true, noindex: true });
     }
 
     // GET /api/booking/mark-paid?token= — render-only deposit-received page (S4, prefetch-safe)
