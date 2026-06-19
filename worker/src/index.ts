@@ -17,6 +17,12 @@ import {
   handleAdminAuthCallback,
   handleAdminAuthLogout,
   handleAdminDashboard,
+  handleAdminBookingDetail,
+  handleAdminQuotes,
+  handleAdminPayments,
+  handleAdminRejections,
+  handleAdminCalendar,
+  handleAdminTemplates,
 } from "./booking/dashboard";
 
 /* ============================================================
@@ -270,6 +276,41 @@ export default {
       // GET /api/admin/dashboard — Inbox view (requires valid session)
       if (req.method === "GET" && url.pathname === "/api/admin/dashboard") {
         return await handleAdminDashboard(req, dashEnv);
+      }
+      // GET /api/admin/booking/:id — booking detail + inline quote editor
+      if (req.method === "GET" && url.pathname.startsWith("/api/admin/booking/")) {
+        const id = url.pathname.slice("/api/admin/booking/".length);
+        if (id) return await handleAdminBookingDetail(req, dashEnv, id);
+      }
+      // POST /api/admin/quote/:id — save revised total (form from booking detail)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/quote/")) {
+        const id = url.pathname.slice("/api/admin/quote/".length);
+        if (id) return await handleAdminBookingDetail(req, dashEnv, id);
+      }
+      // GET /api/admin/quotes — sent-quotes view
+      if (req.method === "GET" && url.pathname === "/api/admin/quotes") {
+        return await handleAdminQuotes(req, dashEnv);
+      }
+      // GET /api/admin/payments — payments view
+      if (req.method === "GET" && url.pathname === "/api/admin/payments") {
+        return await handleAdminPayments(req, dashEnv);
+      }
+      // GET /api/admin/rejections — rejections view
+      if (req.method === "GET" && url.pathname === "/api/admin/rejections") {
+        return await handleAdminRejections(req, dashEnv);
+      }
+      // GET + POST /api/admin/calendar — calendar + slots editor
+      if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/admin/calendar") {
+        return await handleAdminCalendar(req, dashEnv);
+      }
+      // GET /api/admin/templates — list all templates
+      if (req.method === "GET" && url.pathname === "/api/admin/templates") {
+        return await handleAdminTemplates(req, dashEnv, null);
+      }
+      // GET + POST /api/admin/templates/:key — edit / save one template
+      if ((req.method === "GET" || req.method === "POST") && url.pathname.startsWith("/api/admin/templates/")) {
+        const key = url.pathname.slice("/api/admin/templates/".length);
+        if (key) return await handleAdminTemplates(req, dashEnv, key);
       }
     }
 
