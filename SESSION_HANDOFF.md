@@ -27,39 +27,9 @@ UPDATE business_settings SET value = 'LUS'            WHERE key = 'eft_reference
 
 All C-wave commits + email templates are on local `main` — push to trigger CF Pages/Worker deploy.
 
-### 3. Build: Google Review email (Email 8) — next code task
+### 3. ✅ Email 8 — Google Review email DONE (2026-06-20, commit d482434)
 
-**Spec:** 48 hours after `wedding_date`, send the bride a thank-you + Google review request email. One CTA button → her Google Maps review link. Fully automated via the daily cron sweep.
-
-**Pieter must supply:** the Google review URL (e.g. `https://g.page/r/...`) before this can go live. Store it in `business_settings` as `google_review_url`.
-
-**What to build (Sonnet):**
-
-1. **Migration** — `supabase/migrations/0010_review_email.sql` (or next available number):
-   - `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS review_email_sent_at timestamptz;`
-   - `INSERT INTO business_settings (key, value) VALUES ('google_review_url', 'PLACEHOLDER') ON CONFLICT (key) DO NOTHING;`
-
-2. **`worker/src/booking/review-email.ts`** (new file):
-   - `reviewEmailHtml(b, googleUrl)` → `emailShell` with:
-     - heading: `"Thank you, ${firstN(b.bride_name)}."`
-     - body: warm 2-sentence thank-you (honoured to share their day, would mean the world to read their experience)
-     - btnZone: `emailBtn(googleUrl, "Leave us a Google review")` (blush pill → opens Google review page)
-     - footerNote: quiet italic note ("Only takes a minute — we truly appreciate it.")
-   - `reviewEmailSweep(env, fetchImpl, now)`:
-     - Query: settled bookings where `wedding_date <= today - 2 days` AND `review_email_sent_at IS NULL`
-     - Fetch `google_review_url` from `business_settings` (use `getEftSettings`-style helper or inline)
-     - For each: `sendEmail()` bride → stamp `review_email_sent_at` → audit `review.email.sent`
-     - Catches per-booking; continues on failure
-
-3. **Wire into cron** (`worker/src/index.ts` scheduled handler) alongside `balanceSweep`
-
-4. **`review-email.test.ts`** — mock pattern mirrors `balance.test.ts`:
-   - happy path: email sent, stamped, audited
-   - booking >2 days out: skipped
-   - email failure: no stamp, audited as failed
-   - `google_review_url` comes from `business_settings` mock row
-
-**ENV:** no new env vars — `google_review_url` lives in `business_settings` table (runtime editable without redeploy).
+`reviewEmailSweep` wired into daily cron. Migration `0012` adds `review_email_sent_at` + seeds `google_review_url`. **Pieter still needs to apply migration 0012 to live Supabase + run live SQL for google_review_url** (or update the seeded value).
 
 ---
 
@@ -129,6 +99,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Email 8 (Google Review) DONE ✅ 2026-06-20 (Sonnet)** — `d482434`. `reviewEmailSweep`: daily cron, 48h after `wedding_date`, settled bookings only, fetches `google_review_url` from `business_settings`, sends emailShell thank-you + blush CTA, stamps `review_email_sent_at`, audits. Migration 0012. 4 tests → 319 green. **Pieter: apply migration 0012 to live DB.**
 - **Email templates DONE ✅ 2026-06-20 (Sonnet)** — `dd1f994`. Shared `worker/src/lib/email.ts`: `emailShell()`, `emailTable()`, `emailBtn()`, `emailNote()`, `sendEmail()`, `getEftSettings()` — single quiet-luxury wrapper for all 7 bride emails (ivory card, champagne dividers, Georgia italic headings, blush pill CTA). Consolidated 5 duplicate `brevoEmail()` + 3 duplicate `getEftSettings()` across booking files. `balance.ts` now reads EFT details from `business_settings` (not env vars). `0002_business_settings.sql` updated with real TymeBank details. Live SQL provided above for Pieter to run. 315 tests green.
 - **Wave C.3 DONE ✅ 2026-06-19 (Sonnet)** — `51a1a89`. Notifications bell: `GET /api/admin/notifications` (JWT-gated, returns `{count, items[]}` of unread rows); `POST /api/admin/notifications/read` (mark one UUID or all as read; UUID guard blocks filter injection). `adminShell` updated: bell button + count badge in sidebar, dropdown with DOM-built items (`.textContent` not `innerHTML` — XSS-safe), 60s poll, close-on-outside-click. 10 new tests → 315 green. **Push pending: `git push origin main` (Pieter to authorise).**
 - **Wave C.2 DONE ✅ 2026-06-19 (Sonnet)** — `8267985`. 6 JWT-gated admin dashboard views: booking detail (`/api/admin/booking/:id`) with inline quote editor + PATCH `/api/admin/quote/:id` (records quote_revision, recalculates deposit/balance); sent-quotes (`/api/admin/quotes`, 7-day expiry countdown, urgent flag ≤2d); payments (`/api/admin/payments`, Yoco vs EFT indicator, status badges); rejections (`/api/admin/rejections`, reason code/text, booking links); calendar (`/api/admin/calendar`, month grid coloured by load vs capacity, POST sets slots, slots=0=hard-blocked); templates (`/api/admin/templates`, list + edit form with subject/body_html/enabled, iframe live preview). 28 new tests → 305 green.
