@@ -7,6 +7,7 @@ import { renderAcceptPage, handleAccept } from "./booking/accept";
 import { renderRejectPage, handleReject } from "./booking/reject";
 import { handleYocoWebhook, pendingPaymentSweep } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
+import { reviewEmailSweep } from "./booking/review-email";
 import { handleAdminBlockedDates } from "./booking/admin";
 import { handleAdminAccounting } from "./booking/accounting";
 import { handleAdminInvoices } from "./booking/invoices";
@@ -439,6 +440,7 @@ export default {
         await invoiceExpirySweep(env);
         await balanceSweep(env);
         await pendingPaymentSweep(env);
+        await reviewEmailSweep(env);
       })().catch(() => {}), // never throw out of the scheduled handler
     );
   },

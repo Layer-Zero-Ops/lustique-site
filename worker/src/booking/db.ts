@@ -506,6 +506,19 @@ export async function listAccountingRows(
 }
 
 /** Bookings due a balance reminder: deposit_paid, not yet reminded, real balance, wedding within window. */
+export async function listBookingsDueForReviewEmail(
+  env: DbEnv,
+  cutoffYMD: string,
+  f: typeof fetch = fetch,
+): Promise<Array<Pick<ConfirmBookingRow, "id" | "reference" | "bride_name" | "bride_email" | "wedding_date">>> {
+  const q =
+    `bookings?status=eq.settled&review_email_sent_at=is.null&wedding_date=lt.${cutoffYMD}` +
+    `&select=id,reference,bride_name,bride_email,wedding_date`;
+  const r = await f(rest(env, q), { headers: headers(env) });
+  if (!r.ok) throw new Error(`listBookingsDueForReviewEmail ${r.status}`);
+  return (await r.json()) as Array<Pick<ConfirmBookingRow, "id" | "reference" | "bride_name" | "bride_email" | "wedding_date">>;
+}
+
 export async function listBookingsDueForBalanceReminder(
   env: DbEnv,
   todayYMD: string,
