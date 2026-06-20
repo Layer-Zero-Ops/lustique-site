@@ -1,25 +1,32 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C.3 DONE · **Updated:** 2026-06-19 (Sonnet)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete · **Updated:** 2026-06-20 (Sonnet)
 
 ## ▶ NEXT (Sonnet, Build lane)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-### Wave C complete — push to production + Pieter gate
+### Dashboard auth — 2 steps remaining (no code)
 
-Wave C.3 (notifications bell) is done ✅ — `51a1a89`. 315 tests green.
+All code shipped. Migrations applied. Pieter has rotated Brevo keys (new keys in Lustique Supabase vault: `LUSTIQUE_BREVO_SMTP_KEY` + `LUSTIQUE_BREVO_API_KEY`).
 
-**⚠️ Push pending — Pieter must authorise:**
+**Step 1 — Configure Brevo SMTP in Supabase Auth:**
+Supabase → Authentication → Providers → Email → SMTP Settings:
+- Host: `smtp-relay.brevo.com` · Port: `587`
+- Username: `autom8iq@gmail.com`
+- Password: value of `LUSTIQUE_BREVO_SMTP_KEY` from vault
+- Sender name: `Lustique Co.` · Sender email: `info@lustiqueco.co.za`
+- Site URL: `https://lustiqueco.co.za`
+- Redirect URLs: `https://lustiqueco.co.za/api/admin/auth/callback`
+
+**Step 2 — Patch magic-link email template (unlocks after SMTP saved):**
+Supabase → Authentication → Emails → Magic Link → Source tab.
+Replace the link href with:
 ```
-git push origin main
+{{ .SiteURL }}/api/admin/auth/callback?token_hash={{ .TokenHash }}&type=email
 ```
-(17 commits ahead of origin. Wrangler CD auto-deploys the Worker on push.)
 
-**Pieter action needed before dashboard can be used:**
-- Apply migrations 0009–0011 (Supabase SQL editor)
-- `wrangler secret put SUPABASE_JWT_SECRET` (value from Supabase Settings → API → JWT Secret)
-- Follow RUNBOOK §10 (create Zandeline's auth user, configure Brevo SMTP, patch email template)
+**Then test:** visit `https://lustiqueco.co.za/api/admin/login` → enter `info@lustiqueco.co.za` → check inbox → click link → should land on Inbox dashboard.
 
 **Pieter dashboard tasks still pending (Wave-S; no code):**
 (unchanged from Wave B.3 baton)
