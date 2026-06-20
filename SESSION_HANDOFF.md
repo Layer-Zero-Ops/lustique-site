@@ -1,12 +1,27 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete · **Updated:** 2026-06-20 (Sonnet)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete + email templates done · **Updated:** 2026-06-20 (Sonnet)
 
 ## ▶ NEXT (Sonnet, Build lane)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-### Dashboard auth — 2 steps remaining (no code)
+### 1. Run live SQL for TymeBank EFT details (Pieter — Supabase SQL Editor)
+
+Migration seeds new DBs only. Apply to the live Supabase database:
+```sql
+UPDATE business_settings SET value = 'TymeBank'       WHERE key = 'eft_bank_name';
+UPDATE business_settings SET value = 'Lustique Co.'   WHERE key = 'eft_account_holder';
+UPDATE business_settings SET value = '53000138448'    WHERE key = 'eft_account_number';
+UPDATE business_settings SET value = '678910'         WHERE key = 'eft_branch_code';
+UPDATE business_settings SET value = 'LUS'            WHERE key = 'eft_reference_prefix';
+```
+
+### 2. git push origin main (Pieter to authorise)
+
+All C-wave commits + email templates are on local `main` — push to trigger CF Pages/Worker deploy.
+
+### 3. Dashboard auth — 2 steps remaining (no code)
 
 All code shipped. Migrations applied. Pieter has rotated Brevo keys (new keys in Lustique Supabase vault: `LUSTIQUE_BREVO_SMTP_KEY` + `LUSTIQUE_BREVO_API_KEY`).
 
@@ -72,6 +87,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Email templates DONE ✅ 2026-06-20 (Sonnet)** — `dd1f994`. Shared `worker/src/lib/email.ts`: `emailShell()`, `emailTable()`, `emailBtn()`, `emailNote()`, `sendEmail()`, `getEftSettings()` — single quiet-luxury wrapper for all 7 bride emails (ivory card, champagne dividers, Georgia italic headings, blush pill CTA). Consolidated 5 duplicate `brevoEmail()` + 3 duplicate `getEftSettings()` across booking files. `balance.ts` now reads EFT details from `business_settings` (not env vars). `0002_business_settings.sql` updated with real TymeBank details. Live SQL provided above for Pieter to run. 315 tests green.
 - **Wave C.3 DONE ✅ 2026-06-19 (Sonnet)** — `51a1a89`. Notifications bell: `GET /api/admin/notifications` (JWT-gated, returns `{count, items[]}` of unread rows); `POST /api/admin/notifications/read` (mark one UUID or all as read; UUID guard blocks filter injection). `adminShell` updated: bell button + count badge in sidebar, dropdown with DOM-built items (`.textContent` not `innerHTML` — XSS-safe), 60s poll, close-on-outside-click. 10 new tests → 315 green. **Push pending: `git push origin main` (Pieter to authorise).**
 - **Wave C.2 DONE ✅ 2026-06-19 (Sonnet)** — `8267985`. 6 JWT-gated admin dashboard views: booking detail (`/api/admin/booking/:id`) with inline quote editor + PATCH `/api/admin/quote/:id` (records quote_revision, recalculates deposit/balance); sent-quotes (`/api/admin/quotes`, 7-day expiry countdown, urgent flag ≤2d); payments (`/api/admin/payments`, Yoco vs EFT indicator, status badges); rejections (`/api/admin/rejections`, reason code/text, booking links); calendar (`/api/admin/calendar`, month grid coloured by load vs capacity, POST sets slots, slots=0=hard-blocked); templates (`/api/admin/templates`, list + edit form with subject/body_html/enabled, iframe live preview). 28 new tests → 305 green.
 - **Wave C.1 DONE ✅ 2026-06-19 (Sonnet)** — `6ba417f`. Phase-1 auth spine: migrations 0009–0011 (profiles + booking_artists + read-only RLS; notifications + message_templates seeded; contacts + bookings.contact_id). `auth.ts`: `verifySupabaseJwt` (HS256 WebCrypto), `getCookieValue`, `getAdminSession` (JWT verify → profiles.role='admin' check), `__Host-sb_session` cookie helpers. `dashboard.ts`: `handleAdminLogin` (GET form + POST OTP to Supabase `/auth/v1/otp`), `handleAdminAuthCallback` (token_hash exchange via `/auth/v1/verify` → session cookie), `handleAdminAuthLogout` (clear cookie), `handleAdminDashboard` (Inbox view: pipeline board of active bookings, 7-view nav, quiet-luxury admin shell). All JWT-gated; 33 new tests → 277 green. RUNBOOK §10: Supabase Auth setup steps (Brevo SMTP, profile seed, email template patch). Pieter must apply migrations + bind SUPABASE_JWT_SECRET secret + follow RUNBOOK §10 before dashboard is usable.
