@@ -35,6 +35,7 @@ import {
 } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { recordPayment, type WaveEnv } from "../lib/wave";
+import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail, getEftSettings, type EftSettings } from "../lib/email";
 
 export interface YocoWebhookEnv extends AuditEnv, WaveEnv, DbEnv {
   YOCO_WEBHOOK_SECRET: string;
@@ -119,61 +120,31 @@ interface YocoPaymentEvent {
 
 // ── email helpers ─────────────────────────────────────────────────────────────
 
-const esc = (s = "") =>
-  s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] as string));
-const zar = (cents: number) => `R ${(cents / 100).toLocaleString("en-ZA")}`;
-
-interface EftSettings {
-  bank: string;
-  accountHolder: string;
-  accountNumber: string;
-  branchCode: string;
-}
-
-async function getEftSettings(env: YocoWebhookEnv, f: typeof fetch): Promise<EftSettings> {
-  const r = await f(
-    `${env.SUPABASE_URL}/rest/v1/business_settings?key=in.(eft_bank_name,eft_account_holder,eft_account_number,eft_branch_code)&select=key,value`,
-    { headers: { apikey: env.SUPABASE_SERVICE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } },
-  );
-  if (!r.ok) throw new Error(`getEftSettings ${r.status}`);
-  const rows = (await r.json()) as Array<{ key: string; value: string }>;
-  const m = Object.fromEntries(rows.map((row) => [row.key, row.value]));
-  return {
-    bank: m["eft_bank_name"] ?? "",
-    accountHolder: m["eft_account_holder"] ?? "",
-    accountNumber: m["eft_account_number"] ?? "",
-    branchCode: m["eft_branch_code"] ?? "",
-  };
-}
-
-async function brevoEmail(
-  env: YocoWebhookEnv,
-  to: { email: string; name?: string },
-  subject: string,
-  html: string,
-  f: typeof fetch,
-): Promise<void> {
-  const r = await f("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: { "api-key": env.BREVO_API_KEY, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ sender: { email: env.NOTIFY_EMAIL, name: "Lustique Co." }, to: [to], subject, htmlContent: html }),
-  });
-  if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
-}
-
 function depositSecuredEmailHtml(brideName: string, weddingDate: string, depositCents: number, balanceCents: number, reference: string): string {
-  return `<p>Hi ${esc(brideName)},</p>
-<p>🎉 Your payment is in — <strong>${esc(weddingDate)}</strong> is officially secured. We can't wait.</p>
-<p>We've received your deposit of <strong>${zar(depositCents)}</strong> (ref ${esc(reference)}). The balance of <strong>${zar(balanceCents)}</strong> is payable closer to your day — we'll send a reminder.</p>
-<p>We'll be in touch soon to start planning the details.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+  return emailShell({
+    heading: `Your date is secured, ${firstN(brideName)}.`,
+    body: ep(`Your deposit is in — ${em(fmtDate(weddingDate))} is officially yours. We can&#8217;t wait to be part of your day.`) +
+      emailTable([
+        { key: "Date", val: fmtDate(weddingDate) },
+        { key: "Deposit received", val: fmtZAR(depositCents), bold: true },
+        { key: "Balance due", val: fmtZAR(balanceCents), bold: true },
+        { key: "Your reference", val: reference, ref: true },
+      ]),
+    btnZone: emailNote(`We&#8217;ll send you a balance reminder closer to your day.`),
+  });
 }
 
 function fullyPaidEmailHtml(brideName: string, weddingDate: string, balanceCents: number, reference: string): string {
-  return `<p>Hi ${esc(brideName)},</p>
-<p>🎉 Your balance is in — <strong>${esc(weddingDate)}</strong> is fully paid and all set. We can't wait to be part of your day.</p>
-<p>We've received your balance of <strong>${zar(balanceCents)}</strong> (ref ${esc(reference)}). Nothing further is needed from you.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+  return emailShell({
+    heading: `All settled, ${firstN(brideName)}.`,
+    body: ep(`Your balance is in — ${em(fmtDate(weddingDate))} is fully paid and we are ready for your day. There&#8217;s nothing more to do.`) +
+      emailTable([
+        { key: "Date", val: fmtDate(weddingDate) },
+        { key: "Balance received", val: fmtZAR(balanceCents), bold: true },
+        { key: "Your reference", val: reference, ref: true },
+      ]),
+    btnZone: emailNote(`We&#8217;ll be in touch closer to your day with final details.`),
+  });
 }
 
 function paymentFailedBrideEmailHtml(
@@ -183,25 +154,26 @@ function paymentFailedBrideEmailHtml(
   amountCents: number,
   reference: string,
 ): string {
-  return `<p>Hi ${esc(brideName)},</p>
-<p>It looks like your card payment didn't go through. No worries — you can still secure your date for <strong>${esc(weddingDate)}</strong> by making a manual EFT transfer.</p>
-<p><strong>Amount due:</strong> ${zar(amountCents)}</p>
-<table style="border-collapse:collapse;font:15px/1.7 system-ui,sans-serif;margin:.6rem 0 1rem;">
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Bank</td><td>${esc(eft.bank)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account name</td><td>${esc(eft.accountHolder)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account no.</td><td>${esc(eft.accountNumber)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Branch code</td><td>${esc(eft.branchCode)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Reference</td><td><strong>${esc(reference)}</strong></td></tr>
-</table>
-<p style="font-size:.92rem;color:#8a7d72;">Please use <strong>${esc(reference)}</strong> as your reference. Once it reflects we'll send your date-secured confirmation.</p>
-<p>If you'd like to retry with your card, please reply to this email and we'll send a new payment link.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+  return emailShell({
+    heading: `Your payment didn&#8217;t go through, ${firstN(brideName)}.`,
+    body: ep(`Your card payment wasn&#8217;t processed. No need to worry — your date for ${em(fmtDate(weddingDate))} is still held. Please complete your payment by EFT using the details below.`) +
+      emailTable([
+        { key: "Amount due", val: fmtZAR(amountCents), bold: true },
+        { key: "Bank", val: eft.bank },
+        { key: "Account holder", val: eft.accountHolder },
+        { key: "Account no.", val: eft.accountNumber },
+        { key: "Branch code", val: eft.branchCode },
+        { key: "Payment reference", val: reference, ref: true },
+      ]),
+    btnZone: emailNote(`Please use your payment reference above when making the EFT transfer so we can match the payment.`),
+    footerNote: `If you&#8217;d like to retry with a card payment, reply to this email and we&#8217;ll send a new link. Questions? <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>`,
+  });
 }
 
 function paymentFailedAdminEmailHtml(brideName: string, weddingDate: string, amountCents: number, reference: string): string {
-  return `<p><strong>${esc(brideName)}</strong> — ${esc(weddingDate)} — card payment failed. She's been emailed EFT instructions.</p>
-<p>Amount: <strong>${zar(amountCents)}</strong> · Ref: <strong>${esc(reference)}</strong></p>
-<p style="font-size:.88rem;color:#8a7d72;">If she pays by EFT, use the "Mark deposit received" link from the original approval email to confirm receipt.</p>`;
+  return `<p style="font:14px/1.6 system-ui,sans-serif;"><strong>${esc(brideName)}</strong> — ${esc(weddingDate)} — card payment failed. She&#8217;s been emailed EFT instructions.</p>
+<p style="font:14px/1.6 system-ui,sans-serif;">Amount: <strong>${fmtZAR(amountCents)}</strong> &middot; Ref: <strong>${esc(reference)}</strong></p>
+<p style="font-size:.88rem;color:#8a7d72;">If she pays by EFT, use the &#8220;Mark deposit received&#8221; link from the original approval email to confirm receipt.</p>`;
 }
 
 // ── shared failure handler (webhook + sweep) ──────────────────────────────────
@@ -228,14 +200,14 @@ async function handlePaymentFailure(
   try {
     const eft = await getEftSettings(env, f);
     const amountCents = Number(payment["net_cents"]);
-    await brevoEmail(
+    await sendEmail(
       env,
       { email: booking.bride_email, name: booking.bride_name },
       "Your payment didn't go through — Lustique Co.",
       paymentFailedBrideEmailHtml(eft, booking.bride_name, booking.wedding_date, amountCents, booking.reference),
       f,
     );
-    await brevoEmail(
+    await sendEmail(
       env,
       { email: env.NOTIFY_EMAIL, name: "Lustique" },
       `Payment failed · ${booking.bride_name} · ${booking.wedding_date}`,
@@ -329,7 +301,7 @@ export async function handleYocoWebhook(
         const html = kind === "balance"
           ? fullyPaidEmailHtml(booking.bride_name, booking.wedding_date, booking.balance_net_cents, booking.reference)
           : depositSecuredEmailHtml(booking.bride_name, booking.wedding_date, booking.deposit_net_cents, booking.balance_net_cents, booking.reference);
-        await brevoEmail(env, { email: booking.bride_email, name: booking.bride_name }, subject, html, fetchImpl);
+        await sendEmail(env, { email: booking.bride_email, name: booking.bride_name }, subject, html, fetchImpl);
         await writeAudit(env, { bookingId, eventType: `payment.${kind}-paid`, payload: { reference: booking.reference, checkoutId, yocoPaymentId } }, fetchImpl);
       } catch {
         await writeAudit(env, { bookingId, eventType: "payment.email-failed", payload: { reference: booking.reference, checkoutId } }, fetchImpl).catch(() => {});

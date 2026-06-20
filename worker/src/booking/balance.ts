@@ -13,23 +13,16 @@ import { writeAudit, type AuditEnv } from "./audit";
 import { signActionToken, verifyActionToken } from "./token";
 import { workingDaysBefore } from "./util";
 import { recordPayment, type WaveEnv } from "../lib/wave";
+import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail, getEftSettings, type EftSettings } from "../lib/email";
 
 export interface BookingBalanceEnv extends AuditEnv, WaveEnv {
   BREVO_API_KEY: string;
   NOTIFY_EMAIL: string;
   ALLOWED_ORIGIN: string;
   SIGNING_SECRET: string;
-  EFT_BANK: string;
-  EFT_ACCOUNT_NAME: string;
-  EFT_ACCOUNT_NO: string;
-  EFT_BRANCH_CODE: string;
 }
 
 const BALANCE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
-
-const esc = (s = "") =>
-  s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] as string));
-const zar = (cents: number) => `R ${(cents / 100).toLocaleString("en-ZA")}`;
 
 function htmlResponse(html: string, status = 200): Response {
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8" } });
@@ -57,24 +50,6 @@ const expiredHtml = () =>
 const handledHtml = () =>
   pageShell("Already handled", "<h1>This booking has already been handled</h1><p>It's no longer in a pending balance state — there's nothing more to do here.</p>");
 
-async function brevoEmail(
-  env: BookingBalanceEnv,
-  to: { email: string; name?: string },
-  subject: string,
-  html: string,
-  fetchImpl: typeof fetch,
-): Promise<void> {
-  const r = await fetchImpl("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: { "api-key": env.BREVO_API_KEY, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({
-      sender: { email: env.NOTIFY_EMAIL, name: "Lustique Co." },
-      to: [to], subject, htmlContent: html,
-    }),
-  });
-  if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
-}
-
 type Load = { ok: true; booking: ConfirmBookingRow } | { ok: false; reason: "invalid" | "expired" | "handled" };
 
 async function loadDepositPaidBooking(env: BookingBalanceEnv, token: string, f: typeof fetch): Promise<Load> {
@@ -93,7 +68,7 @@ function markBalancePaidPageBody(b: ConfirmBookingRow, token: string): string {
 <table>
 <tr><td class="k">Bride</td><td><strong>${esc(b.bride_name)}</strong></td></tr>
 <tr><td class="k">Date</td><td><strong>${esc(b.wedding_date)}</strong></td></tr>
-<tr><td class="k">Balance</td><td><strong>${zar(b.balance_net_cents)}</strong></td></tr>
+<tr><td class="k">Balance</td><td><strong>${fmtZAR(b.balance_net_cents)}</strong></td></tr>
 <tr><td class="k">Reference</td><td>${esc(b.reference)}</td></tr>
 </table>
 <div class="actions">
@@ -123,10 +98,16 @@ const balanceRecordedHtml = (b: ConfirmBookingRow) =>
   pageShell("Balance recorded", `<h1>Balance recorded ✓</h1><p><strong>${esc(b.bride_name)}</strong>'s booking for <strong>${esc(b.wedding_date)}</strong> is now fully paid, and she's been emailed her all-paid confirmation. You can close this tab.</p>`);
 
 function fullyPaidEmailHtml(b: ConfirmBookingRow): string {
-  return `<p>Hi ${esc(b.bride_name)},</p>
-<p>🎉 Your balance is in — <strong>${esc(b.wedding_date)}</strong> is fully paid and all set. We can't wait to be part of your day.</p>
-<p>We've received your balance of <strong>${zar(b.balance_net_cents)}</strong> (ref ${esc(b.reference)}). Nothing further is needed from you.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+  return emailShell({
+    heading: `All settled, ${firstN(b.bride_name)}.`,
+    body: ep(`Your balance is in — ${em(fmtDate(b.wedding_date))} is fully paid and we are ready for your day. There&#8217;s nothing more to do.`) +
+      emailTable([
+        { key: "Date", val: fmtDate(b.wedding_date) },
+        { key: "Balance received", val: fmtZAR(b.balance_net_cents), bold: true },
+        { key: "Your reference", val: b.reference, ref: true },
+      ]),
+    btnZone: emailNote(`We&#8217;ll be in touch closer to your day with final details.`),
+  });
 }
 
 /** POST — guarded deposit_paid→settled, email the bride "fully paid". */
@@ -167,8 +148,8 @@ export async function handleMarkBalancePaid(
   }
 
   try {
-    await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
-      "You're all set — fully paid 🎉 · Lustique Co.", fullyPaidEmailHtml(b), fetchImpl);
+    await sendEmail(env, { email: b.bride_email, name: b.bride_name },
+      "All settled — fully paid · Lustique Co.", fullyPaidEmailHtml(b), fetchImpl);
     await writeAudit(env, { bookingId: b.id, eventType: "payment.balance-recorded", payload: { reference: b.reference } }, fetchImpl);
   } catch {
     await writeAudit(env, { bookingId: b.id, eventType: "payment.email-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
@@ -178,25 +159,27 @@ export async function handleMarkBalancePaid(
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
-function balanceReminderEmailHtml(env: BookingBalanceEnv, b: ConfirmBookingRow): string {
-  return `<p>Hi ${esc(b.bride_name)},</p>
-<p>Your wedding on <strong>${esc(b.wedding_date)}</strong> is coming up — your remaining balance of <strong>${zar(b.balance_net_cents)}</strong> is now due. Please pay by EFT using the details below.</p>
-<table style="border-collapse:collapse;font:15px/1.7 system-ui,sans-serif;margin:.6rem 0 1rem;">
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Balance due</td><td><strong>${zar(b.balance_net_cents)}</strong></td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Bank</td><td>${esc(env.EFT_BANK)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account name</td><td>${esc(env.EFT_ACCOUNT_NAME)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account no.</td><td>${esc(env.EFT_ACCOUNT_NO)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Branch code</td><td>${esc(env.EFT_BRANCH_CODE)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Payment reference</td><td><strong>${esc(b.reference)}</strong></td></tr>
-</table>
-<p style="font-size:.92rem;color:#8a7d72;">Please use <strong>${esc(b.reference)}</strong> as your reference so we can match the payment. Once it reflects we'll send your all-paid confirmation.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+function balanceReminderEmailHtml(eft: EftSettings, b: ConfirmBookingRow, dueDateIso: string): string {
+  return emailShell({
+    heading: `Your balance is due, ${firstN(b.bride_name)}.`,
+    body: ep(`Your wedding on ${em(fmtDate(b.wedding_date))} is almost here. Your balance is due by ${em(fmtDate(dueDateIso))} — please pay by EFT using the details below.`) +
+      emailTable([
+        { key: "Balance due", val: fmtZAR(b.balance_net_cents), bold: true },
+        { key: "Due by", val: fmtDate(dueDateIso), bold: true },
+        { key: "Bank", val: eft.bank },
+        { key: "Account holder", val: eft.accountHolder },
+        { key: "Account no.", val: eft.accountNumber },
+        { key: "Branch code", val: eft.branchCode },
+        { key: "Payment reference", val: b.reference, ref: true },
+      ]),
+    btnZone: emailNote(`Please use your payment reference above when making the EFT transfer. Non-payment by the due date results in automatic cancellation.`),
+  });
 }
 
 function balanceAdminEmailHtml(b: ConfirmBookingRow, markUrl: string): string {
-  return `<p><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — balance reminder sent. She owes <strong>${zar(b.balance_net_cents)}</strong> (ref <strong>${esc(b.reference)}</strong>) by EFT.</p>
+  return `<p style="font:14px/1.6 system-ui,sans-serif;"><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — balance reminder sent. She owes <strong>${fmtZAR(b.balance_net_cents)}</strong> (ref <strong>${esc(b.reference)}</strong>) by EFT.</p>
 <p style="margin:1.2rem 0;"><a href="${esc(markUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">When the balance lands — mark received &amp; complete her booking</a></p>
-<p style="font-size:.88rem;color:#8a7d72;">Only click once the money reflects. This completes the booking and emails her the all-paid confirmation. Link valid 90 days.</p>`;
+<p style="font-size:.88rem;color:#8a7d72;">Only click once the money reflects. Link valid 90 days.</p>`;
 }
 
 /** Daily cron sweep: find deposit_paid bookings due a balance reminder and send them. */
@@ -212,13 +195,16 @@ export async function balanceSweep(
   const due = candidates.filter(
     (b) => workingDaysBefore(new Date(`${b.wedding_date}T00:00:00Z`), 14).getTime() <= today.getTime(),
   );
+  const eft = due.length > 0 ? await getEftSettings(env, fetchImpl) : { bank: "", accountHolder: "", accountNumber: "", branchCode: "" };
   for (const b of due) {
     try {
+      const dueDateObj = workingDaysBefore(new Date(`${b.wedding_date}T00:00:00Z`), 14);
+      const dueDateIso = ymd(dueDateObj);
       const token = await signActionToken(b.id, new Date(today.getTime() + BALANCE_TTL_MS), env.SIGNING_SECRET, "balance");
       const markUrl = `${origin}/api/booking/mark-balance-paid?token=${encodeURIComponent(token)}`;
-      await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
-        "Your balance is due — Lustique Co.", balanceReminderEmailHtml(env, b), fetchImpl);
-      await brevoEmail(env, { email: env.NOTIFY_EMAIL, name: "Lustique" },
+      await sendEmail(env, { email: b.bride_email, name: b.bride_name },
+        "Your balance is due — Lustique Co.", balanceReminderEmailHtml(eft, b, dueDateIso), fetchImpl);
+      await sendEmail(env, { email: env.NOTIFY_EMAIL, name: "Lustique" },
         `Balance reminder sent · ${b.bride_name} · ${b.wedding_date}`, balanceAdminEmailHtml(b, markUrl), fetchImpl);
       const stamped = await transitionBooking(env, b.id, "deposit_paid", { balance_reminder_sent_at: today.toISOString() }, fetchImpl);
       if (stamped) {

@@ -10,7 +10,6 @@ const env = {
   SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc",
   BREVO_API_KEY: "brevo-key", NOTIFY_EMAIL: "z@lustique.co.za",
   ALLOWED_ORIGIN: "https://lustiqueco.co.za", SIGNING_SECRET,
-  EFT_BANK: "FNB", EFT_ACCOUNT_NAME: "Lustique Co", EFT_ACCOUNT_NO: "62000000000", EFT_BRANCH_CODE: "250655",
   AUDIT: { put: vi.fn().mockResolvedValue(undefined) },
 };
 const bookingRow = (over: Record<string, unknown> = {}) => ({
@@ -104,26 +103,33 @@ const NOW = () => new Date("2026-06-15T06:00:00Z");
 const dueRow = (over: Record<string, unknown> = {}) => bookingRow({ status: "deposit_paid", wedding_date: "2026-07-03", balance_reminder_sent_at: null, ...over });
 
 describe("balanceSweep", () => {
+  const eftMockRows = [
+    { key: "eft_bank_name", value: "TymeBank" },
+    { key: "eft_account_holder", value: "Lustique Co." },
+    { key: "eft_account_number", value: "53000138448" },
+    { key: "eft_branch_code", value: "678910" },
+  ];
   it("emails bride + Zandeline, stamps balance_reminder_sent_at, audits — for a due booking", async () => {
     const f = vi.fn()
       .mockResolvedValueOnce(res([dueRow()]))               // listBookingsDueForBalanceReminder
+      .mockResolvedValueOnce(res(eftMockRows))              // getEftSettings (business_settings)
       .mockResolvedValueOnce(res({ messageId: "m1" }, 201)) // Brevo → bride
       .mockResolvedValueOnce(res({ messageId: "m2" }, 201)) // Brevo → Zandeline
       .mockResolvedValueOnce(res([dueRow({ balance_reminder_sent_at: "2026-06-15T06:00:00Z" })], 200)) // transition stamp
       .mockResolvedValueOnce(res({}, 201));                 // audit sent
     await balanceSweep(env, f as unknown as typeof fetch, NOW);
-    const bride = JSON.parse((f.mock.calls[1]![1] as RequestInit).body as string);
+    const bride = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
     expect(bride.to[0].email).toBe("anke@example.com");
-    expect(bride.htmlContent).toContain("62000000000");        // EFT account no
+    expect(bride.htmlContent).toContain("53000138448");        // TymeBank account no
     expect(bride.htmlContent).toContain("LUS-2026-111122");    // reference
-    const zan = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    const zan = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(zan.to[0].email).toBe(env.NOTIFY_EMAIL);
     expect(zan.htmlContent).toContain("/api/booking/mark-balance-paid?token=");
-    const patchUrl = f.mock.calls[3]![0] as string;
+    const patchUrl = f.mock.calls[4]![0] as string;
     expect(patchUrl).toContain("status=eq.deposit_paid");
-    const patch = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
+    const patch = JSON.parse((f.mock.calls[4]![1] as RequestInit).body as string);
     expect(patch.balance_reminder_sent_at).toBeTruthy();
-    const audit = JSON.parse((f.mock.calls[4]![1] as RequestInit).body as string);
+    const audit = JSON.parse((f.mock.calls[5]![1] as RequestInit).body as string);
     expect(audit.event_type).toBe("payment.balance-reminder.sent");
   });
   it("skips a booking still more than 14 working days out (no emails)", async () => {
@@ -135,24 +141,26 @@ describe("balanceSweep", () => {
   it("does not stamp when the bride email fails — next run retries", async () => {
     const f = vi.fn()
       .mockResolvedValueOnce(res([dueRow()]))
+      .mockResolvedValueOnce(res(eftMockRows))        // getEftSettings
       .mockRejectedValueOnce(new Error("Brevo 503")) // bride email fails
       .mockResolvedValueOnce(res({}, 201));           // failure audit
     await balanceSweep(env, f as unknown as typeof fetch, NOW);
     const calls = f.mock.calls.map((c) => c[0] as string);
     expect(calls.some((u) => u.includes("status=eq.deposit_paid") && u.includes("bookings?id="))).toBe(false); // no stamp PATCH
-    const audit = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    const audit = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(audit.event_type).toBe("payment.balance-reminder.failed");
   });
   it("one booking's failure does not abort the others", async () => {
     const f = vi.fn()
       .mockResolvedValueOnce(res([dueRow({ id: "aaaaaaaa-0000-0000-0000-000000000001" }), dueRow({ id: "bbbbbbbb-0000-0000-0000-000000000002" })]))
-      .mockRejectedValueOnce(new Error("Brevo 503")) // booking 1 bride email fails
-      .mockResolvedValueOnce(res({}, 201))            // booking 1 failure audit
+      .mockResolvedValueOnce(res(eftMockRows))             // getEftSettings (once before loop)
+      .mockRejectedValueOnce(new Error("Brevo 503"))       // booking 1 bride email fails
+      .mockResolvedValueOnce(res({}, 201))                 // booking 1 failure audit
       .mockResolvedValueOnce(res({ messageId: "m" }, 201)) // booking 2 bride
       .mockResolvedValueOnce(res({ messageId: "m" }, 201)) // booking 2 Zandeline
       .mockResolvedValueOnce(res([dueRow()], 200))         // booking 2 stamp
       .mockResolvedValueOnce(res({}, 201));                // booking 2 audit sent
     await balanceSweep(env, f as unknown as typeof fetch, NOW);
-    expect(f.mock.calls.length).toBe(7);
+    expect(f.mock.calls.length).toBe(8);
   });
 });

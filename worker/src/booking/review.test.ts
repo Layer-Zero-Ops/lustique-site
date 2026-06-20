@@ -123,7 +123,7 @@ describe("handleReview — approve (no override)", () => {
     const brideEmail = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
     expect(brideEmail.htmlContent).toContain("/api/booking/accept?token=");
     expect(brideEmail.htmlContent).toContain("/api/booking/reject?token=");
-    expect(brideEmail.htmlContent).toContain("2027-11-14"); // wedding date appears in bride email body
+    expect(brideEmail.htmlContent).toContain("November 2027"); // wedding date appears in bride email body
 
     // Zandeline email has invoice link; mark-paid link is sent at accept time, not here
     const zandelineEmail = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);

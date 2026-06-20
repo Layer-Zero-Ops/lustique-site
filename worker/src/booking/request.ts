@@ -11,6 +11,7 @@ import { insertBooking, countBookingsOnDate, getDateAvailability } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { signToken, hashToken } from "./token";
 import { makeReference } from "./util";
+import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail } from "../lib/email";
 
 // ── env interface ─────────────────────────────────────────────────────────────
 export interface BookingRequestEnv extends AuditEnv {
@@ -51,28 +52,7 @@ interface RequestBody {
 const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const SANITY_CAP_RAND = 200_000;
 
-const esc = (s = "") => s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] as string));
 const n = (v: unknown): number => Math.max(0, parseInt(String(v ?? 0), 10) || 0);
-
-async function brevoEmail(
-  env: BookingRequestEnv,
-  to: { email: string; name?: string },
-  subject: string,
-  html: string,
-  fetchImpl: typeof fetch,
-): Promise<void> {
-  const r = await fetchImpl("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: { "api-key": env.BREVO_API_KEY, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({
-      sender: { email: env.NOTIFY_EMAIL, name: "Lustique Co." },
-      to: [to],
-      subject,
-      htmlContent: html,
-    }),
-  });
-  if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
-}
 
 async function verifyTurnstile(token: string, secret: string, fetchImpl: typeof fetch): Promise<boolean> {
   try {
@@ -230,40 +210,49 @@ export async function handleBookingRequest(
   // the recovery trace until S5 adds a cron retry sweep.
   try {
     const confirmUrl = `${env.ALLOWED_ORIGIN}/api/booking/review?token=${encodeURIComponent(token)}`;
+    const where = [body.venue, body.town, body.province].filter(Boolean).join(", ");
     const sameDateHtml = sameDateCount > 0
       ? `<p style="color:#b91c1c;font-weight:600;margin:0 0 .8rem;">⚠️ ${sameDateCount} other active booking${sameDateCount === 1 ? "" : "s"} already hold${sameDateCount === 1 ? "s" : ""} this date.</p>`
       : "";
-    await brevoEmail(
+
+    // Team notification — compact operational email
+    await sendEmail(
       env,
       { email: env.NOTIFY_EMAIL, name: "Lustique" },
       `Booking request — ${body.brideName!.trim()} · ${body.weddingDate}`,
-      `<p><strong>${esc(body.brideName!.trim())}</strong><br/>
-       ${esc(body.brideEmail!.trim())} · ${esc(body.bridePhone!.trim())}</p>
-       ${sameDateHtml}
-       <table style="border-collapse:collapse;font:14px/1.6 system-ui,sans-serif;margin:.4rem 0 .8rem;">
-         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Date</td><td><strong>${esc(body.weddingDate!)}</strong></td></tr>
-         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Venue</td><td>${esc([body.venue, body.town, body.province].filter(Boolean).join(", ") || "—")}</td></tr>
-         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Party size</td><td>${result.heads} looks</td></tr>
-         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Server total</td><td><strong>R ${result.total.toLocaleString()}</strong></td></tr>
-         <tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Reference</td><td>${esc(reference)}</td></tr>
-       </table>
-       ${avail.conflict ? `<p style="color:#b91c1c;font-weight:600;">⚠️ Date near capacity (${avail.bookingCount}/${avail.slots} slots filled) — review carefully before approving.</p>` : ""}
-       ${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
-       <p style="margin:1.2rem 0;">
-         <a href="${esc(confirmUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Review &amp; approve booking</a>
-       </p>
-       <p style="font-size:.88rem;color:#8a7d72;">Confirming emails the bride her EFT deposit details. The token expires in 14 days.</p>`,
+      `<p style="font:14px/1.6 system-ui,sans-serif;margin:0 0 .5rem;"><strong>${esc(body.brideName!.trim())}</strong> — ${esc(body.brideEmail!.trim())} · ${esc(body.bridePhone!.trim())}</p>
+${sameDateHtml}
+<table style="border-collapse:collapse;font:14px/1.6 system-ui,sans-serif;margin:.4rem 0 .8rem;">
+<tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Date</td><td><strong>${esc(body.weddingDate!)}</strong></td></tr>
+<tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Venue</td><td>${esc(where || "—")}</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Party</td><td>${result.heads} looks</td></tr>
+<tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Total</td><td><strong>${fmtZAR(totalCents)}</strong></td></tr>
+<tr><td style="color:#8a7d72;padding:2px 12px 2px 0;white-space:nowrap;">Reference</td><td>${esc(reference)}</td></tr>
+</table>
+${avail.conflict ? `<p style="color:#b91c1c;font-weight:600;">⚠️ Date near capacity (${avail.bookingCount}/${avail.slots} slots filled) — review carefully before approving.</p>` : ""}
+${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
+<p style="margin:1.2rem 0;"><a href="${esc(confirmUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Review &amp; approve booking</a></p>
+<p style="font-size:.88rem;color:#8a7d72;">Token expires in 14 days.</p>`,
       fetchImpl,
     );
-    await brevoEmail(
+
+    // Bride — Email 1: Booking received
+    const tableRows = [
+      { key: "Date", val: fmtDate(body.weddingDate!) },
+      ...(where ? [{ key: "Venue", val: where }] : []),
+      { key: "Bridal party", val: `${result.heads} looks` },
+      { key: "Your reference", val: reference, ref: true },
+    ];
+    await sendEmail(
       env,
       { email: body.brideEmail!.trim(), name: body.brideName!.trim() },
       "Your booking request is with us — Lustique Co.",
-      `<p>Hi ${esc(body.brideName!.trim())},</p>
-       <p>We have your booking request for <strong>${esc(body.weddingDate!)}</strong>.</p>
-       <p>Your reference is <strong>${esc(reference)}</strong>.</p>
-       <p>Our team will review artist availability and confirm within 24 hours. Once confirmed we'll send you your deposit payment details to officially secure your date.</p>
-       <p>Blessings,<br/>The Lustique Cosmetology Team</p>`,
+      emailShell({
+        heading: `We have your request, ${firstN(body.brideName!.trim())}.`,
+        body: ep(`Your booking request for ${em(fmtDate(body.weddingDate!))} is with us. Our team will review artist availability and come back to you within 24 hours.`) +
+          emailTable(tableRows),
+        btnZone: emailNote("No action needed from you right now — we&#8217;ll be in touch."),
+      }),
       fetchImpl,
     );
   } catch {

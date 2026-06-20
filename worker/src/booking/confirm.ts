@@ -12,6 +12,7 @@
 import { getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, type ConfirmBookingRow } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken, verifyActionToken } from "./token";
+import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail, getEftSettings, type EftSettings } from "../lib/email";
 
 export interface BookingConfirmEnv extends AuditEnv {
   BREVO_API_KEY: string;
@@ -20,34 +21,7 @@ export interface BookingConfirmEnv extends AuditEnv {
   SIGNING_SECRET: string;
 }
 
-interface EftSettings {
-  bankName: string;
-  accountHolder: string;
-  accountNumber: string;
-  branchCode: string;
-}
-
-async function getEftSettings(env: BookingConfirmEnv, f: typeof fetch): Promise<EftSettings> {
-  const url = `${env.SUPABASE_URL}/rest/v1/business_settings?key=in.(eft_bank_name,eft_account_holder,eft_account_number,eft_branch_code)&select=key,value`;
-  const r = await f(url, {
-    headers: { apikey: env.SUPABASE_SERVICE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
-  });
-  if (!r.ok) throw new Error(`getEftSettings ${r.status}`);
-  const rows = (await r.json()) as Array<{ key: string; value: string }>;
-  const m = Object.fromEntries(rows.map(({ key, value }) => [key, value]));
-  return {
-    bankName: m["eft_bank_name"] ?? "",
-    accountHolder: m["eft_account_holder"] ?? "",
-    accountNumber: m["eft_account_number"] ?? "",
-    branchCode: m["eft_branch_code"] ?? "",
-  };
-}
-
 const MARK_PAID_TTL_MS = 90 * 24 * 60 * 60 * 1000;
-
-const esc = (s = "") =>
-  s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] as string));
-const zar = (cents: number) => `R ${(cents / 100).toLocaleString("en-ZA")}`;
 
 type LoadResult =
   | { ok: true; booking: ConfirmBookingRow }
@@ -105,8 +79,8 @@ function confirmPageBody(b: ConfirmBookingRow, token: string): string {
 <tr><td class="k">Date</td><td><strong>${esc(b.wedding_date)}</strong></td></tr>
 <tr><td class="k">Venue</td><td>${esc(where)}</td></tr>
 <tr><td class="k">Party</td><td>${b.party_size} looks</td></tr>
-<tr><td class="k">Total</td><td><strong>${zar(b.total_cents)}</strong></td></tr>
-<tr><td class="k">Deposit</td><td>${b.deposit_pct}% — <strong>${zar(b.deposit_net_cents)}</strong> due now</td></tr>
+<tr><td class="k">Total</td><td><strong>${fmtZAR(b.total_cents)}</strong></td></tr>
+<tr><td class="k">Deposit</td><td>${b.deposit_pct}% — <strong>${fmtZAR(b.deposit_net_cents)}</strong> due now</td></tr>
 <tr><td class="k">Reference</td><td>${esc(b.reference)}</td></tr>
 </table>
 <div class="actions">
@@ -133,45 +107,31 @@ export async function renderConfirmPage(
   return htmlResponse(pageShell("Confirm booking", confirmPageBody(loaded.booking, token)));
 }
 
-async function brevoEmail(
-  env: BookingConfirmEnv,
-  to: { email: string; name?: string },
-  subject: string,
-  html: string,
-  fetchImpl: typeof fetch,
-): Promise<void> {
-  const r = await fetchImpl("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: { "api-key": env.BREVO_API_KEY, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({
-      sender: { email: env.NOTIFY_EMAIL, name: "Lustique Co." },
-      to: [to], subject, htmlContent: html,
-    }),
-  });
-  if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
-}
-
 function confirmEmailHtml(eft: EftSettings, b: ConfirmBookingRow): string {
-  return `<p>Hi ${esc(b.bride_name)},</p>
-<p>Wonderful news — <strong>${esc(b.wedding_date)}</strong> is available! To book your date, please pay your deposit by EFT. As soon as it reflects, we'll send you your booking confirmation.</p>
-<table style="border-collapse:collapse;font:15px/1.7 system-ui,sans-serif;margin:.6rem 0 1rem;">
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Deposit due</td><td><strong>${zar(b.deposit_net_cents)}</strong> (${b.deposit_pct}%)</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Bank</td><td>${esc(eft.bankName)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account name</td><td>${esc(eft.accountHolder)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Account no.</td><td>${esc(eft.accountNumber)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Branch code</td><td>${esc(eft.branchCode)}</td></tr>
-<tr><td style="color:#8a7d72;padding:2px 14px 2px 0;">Payment reference</td><td><strong>${esc(b.reference)}</strong></td></tr>
-</table>
-<p style="font-size:.92rem;color:#8a7d72;">Please use <strong>${esc(b.reference)}</strong> as your payment reference so we can match it to your booking. The balance of ${zar(b.balance_net_cents)} is payable closer to your day.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+  return emailShell({
+    heading: `Your date is available, ${firstN(b.bride_name)}.`,
+    body: ep(`Wonderful news — ${em(fmtDate(b.wedding_date))} is available! To secure your date, please pay your deposit by EFT using the details below. As soon as it reflects, we&#8217;ll send your booking confirmation.`) +
+      emailTable([
+        { key: "Date", val: fmtDate(b.wedding_date) },
+        { key: "Deposit due", val: `${fmtZAR(b.deposit_net_cents)} (${b.deposit_pct}%)`, bold: true },
+        { key: "Bank", val: eft.bank },
+        { key: "Account holder", val: eft.accountHolder },
+        { key: "Account no.", val: eft.accountNumber },
+        { key: "Branch code", val: eft.branchCode },
+        { key: "Payment reference", val: b.reference, ref: true },
+      ]),
+    btnZone: emailNote(`Please use your payment reference above when making the EFT so we can match the payment. The balance of ${fmtZAR(b.balance_net_cents)} is due 14 working days before your event.`),
+  });
 }
 
 function declineEmailHtml(b: ConfirmBookingRow): string {
-  return `<p>Hi ${esc(b.bride_name)},</p>
-<p>Thank you so much for thinking of Lustique for <strong>${esc(b.wedding_date)}</strong>.</p>
-<p>Sadly we're not able to take this booking — most often that's because the date is already fully committed with our artists. We're truly sorry to miss your day.</p>
-<p>If your plans shift or you'd like to explore another date, we'd love to hear from you at <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a>.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+  return emailShell({
+    heading: `Thank you for thinking of us, ${firstN(b.bride_name)}.`,
+    body: ep(`We&#8217;re so grateful you considered Lustique for ${em(fmtDate(b.wedding_date))}. Sadly, we&#8217;re not able to take this booking — most often because the date is already fully committed with our artists.`) +
+      ep(`We&#8217;re truly sorry to miss your day.`),
+    btnZone: emailNote(`If your plans change or another date opens up, we&#8217;d love to hear from you.`),
+    footerNote: `Reach us any time at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a> — we&#8217;ll do our best to help.`,
+  });
 }
 
 function redirect(location: string): Response {
@@ -211,19 +171,19 @@ export async function handleBookingConfirm(
 
   try {
     if (decline) {
-      await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
-        "An update on your Lustique booking", declineEmailHtml(b), fetchImpl);
+      await sendEmail(env, { email: b.bride_email, name: b.bride_name },
+        "An update on your Lustique booking — Lustique Co.", declineEmailHtml(b), fetchImpl);
     } else {
       const eft = await getEftSettings(env, fetchImpl);
-      await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
+      await sendEmail(env, { email: b.bride_email, name: b.bride_name },
         "Your date is available — secure it with your deposit · Lustique Co.", confirmEmailHtml(eft, b), fetchImpl);
       const markPaidToken = await signActionToken(b.id, new Date(Date.now() + MARK_PAID_TTL_MS), env.SIGNING_SECRET, "deposit");
       const markPaidUrl = `${origin}/api/booking/mark-paid?token=${encodeURIComponent(markPaidToken)}`;
-      await brevoEmail(env, { email: env.NOTIFY_EMAIL, name: "Lustique" },
+      await sendEmail(env, { email: env.NOTIFY_EMAIL, name: "Lustique" },
         `Confirmed — awaiting EFT · ${b.bride_name} · ${b.wedding_date}`,
-        `<p><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — confirmed. The bride has her EFT deposit details (${zar(b.deposit_net_cents)}, ref <strong>${esc(b.reference)}</strong>).</p>
+        `<p style="font:14px/1.6 system-ui,sans-serif;"><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — confirmed. The bride has her EFT deposit details (${fmtZAR(b.deposit_net_cents)}, ref <strong>${esc(b.reference)}</strong>).</p>
 <p style="margin:1.2rem 0;"><a href="${esc(markPaidUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">When the EFT lands — mark deposit received &amp; secure her date</a></p>
-<p style="font-size:.88rem;color:#8a7d72;">Only click once the deposit reflects in the account. This secures the date and emails her the confirmation. Link valid 90 days.</p>`,
+<p style="font-size:.88rem;color:#8a7d72;">Only click once the deposit reflects. Link valid 90 days.</p>`,
         fetchImpl);
     }
     await writeAudit(env, { bookingId: b.id, eventType: decline ? "confirm.declined" : "confirm.confirmed", payload: { reference: b.reference } }, fetchImpl);
@@ -255,7 +215,7 @@ function markPaidPageBody(b: ConfirmBookingRow, token: string): string {
 <table>
 <tr><td class="k">Bride</td><td><strong>${esc(b.bride_name)}</strong></td></tr>
 <tr><td class="k">Date</td><td><strong>${esc(b.wedding_date)}</strong></td></tr>
-<tr><td class="k">Deposit</td><td><strong>${zar(b.deposit_net_cents)}</strong></td></tr>
+<tr><td class="k">Deposit</td><td><strong>${fmtZAR(b.deposit_net_cents)}</strong></td></tr>
 <tr><td class="k">Reference</td><td>${esc(b.reference)}</td></tr>
 </table>
 <div class="actions">
@@ -268,11 +228,17 @@ const depositRecordedHtml = (b: ConfirmBookingRow) =>
   pageShell("Deposit recorded", `<h1>Deposit recorded ✓</h1><p><strong>${esc(b.bride_name)}</strong>'s date <strong>${esc(b.wedding_date)}</strong> is now secured, and she's been emailed her confirmation. You can close this tab.</p>`);
 
 function depositSecuredEmailHtml(b: ConfirmBookingRow): string {
-  return `<p>Hi ${esc(b.bride_name)},</p>
-<p>🎉 Your deposit is in — <strong>${esc(b.wedding_date)}</strong> is officially secured. We can't wait.</p>
-<p>We've received <strong>${zar(b.deposit_net_cents)}</strong> (ref ${esc(b.reference)}). The balance of <strong>${zar(b.balance_net_cents)}</strong> is payable closer to your day — we'll send a reminder.</p>
-<p>We'll be in touch soon to start planning the details.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+  return emailShell({
+    heading: `Your date is secured, ${firstN(b.bride_name)}.`,
+    body: ep(`Your deposit is in — ${em(fmtDate(b.wedding_date))} is officially yours. We can&#8217;t wait to be part of your day.`) +
+      emailTable([
+        { key: "Date", val: fmtDate(b.wedding_date) },
+        { key: "Deposit received", val: fmtZAR(b.deposit_net_cents), bold: true },
+        { key: "Balance remaining", val: fmtZAR(b.balance_net_cents) },
+        { key: "Your reference", val: b.reference, ref: true },
+      ]),
+    btnZone: emailNote(`We&#8217;ll send a balance reminder closer to your day — there&#8217;s nothing more to do right now.`),
+  });
 }
 
 /** GET — render-only deposit-received page. */
@@ -309,8 +275,8 @@ export async function handleMarkPaid(env: BookingConfirmEnv, req: Request, fetch
   if (!updated) return htmlResponse(handledHtml(), 200);
 
   try {
-    await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
-      "Your date is secured 🎉 · Lustique Co.", depositSecuredEmailHtml(b), fetchImpl);
+    await sendEmail(env, { email: b.bride_email, name: b.bride_name },
+      "Your date is secured · Lustique Co.", depositSecuredEmailHtml(b), fetchImpl);
     await writeAudit(env, { bookingId: b.id, eventType: "payment.deposit-recorded", payload: { reference: b.reference } }, fetchImpl);
   } catch {
     await writeAudit(env, { bookingId: b.id, eventType: "payment.email-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});

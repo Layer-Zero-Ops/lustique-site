@@ -16,6 +16,7 @@ import { getBookingByTokenHashForReview, transitionRequestedBooking, updateBooki
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken } from "./token";
 import { createCustomer, createInvoice, type WaveEnv } from "../lib/wave";
+import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailBtn, emailBtnLink, emailNote, firstN, sendEmail } from "../lib/email";
 
 export interface BookingReviewEnv extends AuditEnv, WaveEnv {
   BREVO_API_KEY: string;
@@ -23,10 +24,6 @@ export interface BookingReviewEnv extends AuditEnv, WaveEnv {
   ALLOWED_ORIGIN: string;
   SIGNING_SECRET: string;
 }
-
-const esc = (s = "") =>
-  s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] as string));
-const zar = (cents: number) => `R ${(cents / 100).toLocaleString("en-ZA")}`;
 
 type LoadResult =
   | { ok: true; booking: ReviewBookingRow }
@@ -119,27 +116,14 @@ t&&t.addEventListener('input',u);
 }());</script>`;
 }
 
-async function brevoEmail(
-  env: BookingReviewEnv,
-  to: { email: string; name?: string },
-  subject: string,
-  html: string,
-  f: typeof fetch,
-): Promise<void> {
-  const r = await f("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: { "api-key": env.BREVO_API_KEY, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ sender: { email: env.NOTIFY_EMAIL, name: "Lustique Co." }, to: [to], subject, htmlContent: html }),
-  });
-  if (!r.ok) throw new Error(`Brevo ${r.status}: ${await r.text()}`);
-}
-
 function declineEmailHtml(b: ReviewBookingRow): string {
-  return `<p>Hi ${esc(b.bride_name)},</p>
-<p>Thank you so much for thinking of Lustique for <strong>${esc(b.wedding_date)}</strong>.</p>
-<p>Sadly we're not able to take this booking — most often that's because the date is already fully committed with our artists. We're truly sorry to miss your day.</p>
-<p>If your plans shift or you'd like to explore another date, we'd love to hear from you at <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a>.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`;
+  return emailShell({
+    heading: `Thank you for thinking of us, ${firstN(b.bride_name)}.`,
+    body: ep(`We&#8217;re so grateful you considered Lustique for ${em(fmtDate(b.wedding_date))}. Sadly, we&#8217;re not able to take this booking — most often because the date is already fully committed with our artists.`) +
+      ep(`We&#8217;re truly sorry to miss your day.`),
+    btnZone: emailNote(`If your plans change or another date opens up, we&#8217;d love to hear from you.`),
+    footerNote: `Reach us any time at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a> — we&#8217;ll do our best to help.`,
+  });
 }
 
 /** GET — render-only. Never mutates (spec §12 prefetch safety). */
@@ -192,8 +176,8 @@ export async function handleReview(
     );
     if (!updated) return htmlResponse(handledHtml(), 200);
     try {
-      await brevoEmail(env, { email: b.bride_email, name: b.bride_name },
-        "An update on your Lustique booking", declineEmailHtml(b), fetchImpl);
+      await sendEmail(env, { email: b.bride_email, name: b.bride_name },
+        "An update on your Lustique booking — Lustique Co.", declineEmailHtml(b), fetchImpl);
       await writeAudit(env, { bookingId: b.id, eventType: "confirm.declined", payload: { reference: b.reference } }, fetchImpl);
     } catch {
       await writeAudit(env, { bookingId: b.id, eventType: "confirm.email-failed", payload: { reference: b.reference, action: "decline" } }, fetchImpl).catch(() => {});
@@ -246,34 +230,34 @@ export async function handleReview(
   const invoiceUrl = `${origin}/api/booking/invoice?token=${encodeURIComponent(invoiceToken)}`;
 
   try {
-    // T2 — bride: "Here's your quote, please accept or decline"
-    await brevoEmail(
+    // Email 2 — bride: quote ready, accept or decline
+    await sendEmail(
       env,
       { email: b.bride_email, name: b.bride_name },
-      `Your Lustique quote is ready — ${esc(b.wedding_date)} ✨`,
-      `<p>Hi ${esc(b.bride_name)},</p>
-<p>Wonderful news — we've reviewed your booking and everything looks perfect for <strong>${esc(b.wedding_date)}</strong>!</p>
-<p style="font-size:1.1rem;font-weight:600;margin:1.2rem 0 .4rem;">Your quote: ${zar(finalTotalCents)}</p>
-<p style="margin:0 0 1.6rem;font-size:.92rem;color:#8a7d72;">You choose your deposit percentage on the next step.</p>
-<p style="text-align:center;margin:1.8rem 0;">
-  <a href="${esc(acceptUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.85em 2.2em;border-radius:9px;text-decoration:none;font-weight:700;font-size:1.05rem;">Accept &amp; choose my deposit →</a>
-</p>
-<p style="text-align:center;font-size:.88rem;color:#8a7d72;margin-top:-.8rem;">Secure card or EFT — you choose after accepting</p>
-<hr style="border:0;border-top:1px solid #ede7e0;margin:1.6rem 0;">
-<p style="text-align:center;">
-  <a href="${esc(rejectUrl)}" style="color:#8a7d72;font-size:.88rem;">I'd like to decline this booking</a>
-</p>
-<p style="text-align:center;font-size:.82rem;color:#8a7d72;margin-top:2rem;"><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View &amp; print your quote →</a></p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`,
+      `Your Lustique quote is ready — ${fmtDate(b.wedding_date)}`,
+      emailShell({
+        heading: `Your quote is ready, ${firstN(b.bride_name)}.`,
+        body: ep(`Good news — we&#8217;ve reviewed your request and we&#8217;re delighted to hold ${em(fmtDate(b.wedding_date))} for you.`) +
+          emailTable([
+            { key: "Date", val: fmtDate(b.wedding_date) },
+            { key: "Bridal party", val: `${b.party_size} looks` },
+            { key: "Quote total", val: fmtZAR(finalTotalCents), bold: true },
+            { key: "Your reference", val: b.reference, ref: true },
+          ]),
+        btnZone: emailBtn(acceptUrl, "Accept quote") +
+          emailBtnLink(invoiceUrl, "View & print your quote") +
+          emailBtnLink(rejectUrl, "I’d like to decline this booking"),
+        footerNote: `This quote is valid for 7 days. Questions? Write to us at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>.`,
+      }),
       fetchImpl,
     );
-    // T2 admin — Zandeline: "Quote sent"
-    await brevoEmail(
+    // Team notification — quote sent
+    await sendEmail(
       env,
       { email: env.NOTIFY_EMAIL, name: "Lustique" },
       `Quote sent — ${b.bride_name} · ${b.wedding_date}`,
-      `<p><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — quote sent (${zar(finalTotalCents)}, ref <strong>${esc(b.reference)}</strong>).</p>
-<p style="font-size:.88rem;color:#8a7d72;">She has 7 days to accept or decline. You'll be notified when she responds.</p>
+      `<p style="font:14px/1.6 system-ui,sans-serif;margin:0 0 .5rem;"><strong>${esc(b.bride_name)}</strong> — ${esc(b.wedding_date)} — quote sent (${fmtZAR(finalTotalCents)}, ref <strong>${esc(b.reference)}</strong>).</p>
+<p style="font-size:.88rem;color:#8a7d72;">She has 7 days to accept or decline. You’ll be notified when she responds.</p>
 <p><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View quote →</a></p>`,
       fetchImpl,
     );
