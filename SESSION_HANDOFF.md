@@ -1,10 +1,16 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete + email templates done · **Updated:** 2026-06-20 (Sonnet)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete + email templates done · **Updated:** 2026-06-20 (Sonnet) · **Session cleared ✅**
 
 ## ▶ NEXT (Sonnet, Build lane)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
+
+### 0. Vercel deployment error email — WRONG PROJECT
+
+Pieter received a Vercel error for `peaceful-chaum-c206cb`. Lustique deploys to **Cloudflare**, not Vercel — this error is from a different project (AXIS / edge-analytics / sats-survival). Check that project separately; no action needed here.
+
+---
 
 ### 1. Run live SQL for TymeBank EFT details (Pieter — Supabase SQL Editor)
 
@@ -21,7 +27,43 @@ UPDATE business_settings SET value = 'LUS'            WHERE key = 'eft_reference
 
 All C-wave commits + email templates are on local `main` — push to trigger CF Pages/Worker deploy.
 
-### 3. Dashboard auth — 2 steps remaining (no code)
+### 3. Build: Google Review email (Email 8) — next code task
+
+**Spec:** 48 hours after `wedding_date`, send the bride a thank-you + Google review request email. One CTA button → her Google Maps review link. Fully automated via the daily cron sweep.
+
+**Pieter must supply:** the Google review URL (e.g. `https://g.page/r/...`) before this can go live. Store it in `business_settings` as `google_review_url`.
+
+**What to build (Sonnet):**
+
+1. **Migration** — `supabase/migrations/0010_review_email.sql` (or next available number):
+   - `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS review_email_sent_at timestamptz;`
+   - `INSERT INTO business_settings (key, value) VALUES ('google_review_url', 'PLACEHOLDER') ON CONFLICT (key) DO NOTHING;`
+
+2. **`worker/src/booking/review-email.ts`** (new file):
+   - `reviewEmailHtml(b, googleUrl)` → `emailShell` with:
+     - heading: `"Thank you, ${firstN(b.bride_name)}."`
+     - body: warm 2-sentence thank-you (honoured to share their day, would mean the world to read their experience)
+     - btnZone: `emailBtn(googleUrl, "Leave us a Google review")` (blush pill → opens Google review page)
+     - footerNote: quiet italic note ("Only takes a minute — we truly appreciate it.")
+   - `reviewEmailSweep(env, fetchImpl, now)`:
+     - Query: settled bookings where `wedding_date <= today - 2 days` AND `review_email_sent_at IS NULL`
+     - Fetch `google_review_url` from `business_settings` (use `getEftSettings`-style helper or inline)
+     - For each: `sendEmail()` bride → stamp `review_email_sent_at` → audit `review.email.sent`
+     - Catches per-booking; continues on failure
+
+3. **Wire into cron** (`worker/src/index.ts` scheduled handler) alongside `balanceSweep`
+
+4. **`review-email.test.ts`** — mock pattern mirrors `balance.test.ts`:
+   - happy path: email sent, stamped, audited
+   - booking >2 days out: skipped
+   - email failure: no stamp, audited as failed
+   - `google_review_url` comes from `business_settings` mock row
+
+**ENV:** no new env vars — `google_review_url` lives in `business_settings` table (runtime editable without redeploy).
+
+---
+
+### 4. Dashboard auth — 2 steps remaining (no code)
 
 All code shipped. Migrations applied. Pieter has rotated Brevo keys (new keys in Lustique Supabase vault: `LUSTIQUE_BREVO_SMTP_KEY` + `LUSTIQUE_BREVO_API_KEY`).
 
