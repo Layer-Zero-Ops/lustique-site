@@ -1,6 +1,6 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete · **Updated:** 2026-06-21 (Sonnet) · **Session cleared ✅**
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete + Yoco webhook live · **Updated:** 2026-06-21 (Sonnet) · **Session cleared ✅**
 
 ## ▶ NEXT (Sonnet, Build lane)
 
@@ -10,14 +10,28 @@
 
 1. **Test dashboard login** — `https://lustiqueco.co.za/api/admin/login` → `info@lustiqueco.co.za` → click magic link → confirm Inbox dashboard loads *(SMTP + email template already configured)*
 2. **GA4 Measurement ID** — swap `G-XXXXXXXXXX` in `site/src/data/site.ts` once Google Workspace + GA4 are set up; then `git push`
-3. **Yoco webhook** — register in Yoco portal before first live booking (events: `payment.succeeded`, `payment.failed`, `refund.succeeded`)
+3. ~~**Save Yoco webhook secret to Supabase Vault**~~ ✅ Done 2026-06-21
+4. **Confirm migration 0012 applied** — check Supabase Dashboard → Database → Migrations. File exists; unclear if applied to live DB.
+5. **Yoco online checkout rate** — log into Yoco Business Portal → Settings → Pricing → Online Payments. Record the blended online rate and update `YOCO_FEE_PCT` in `wrangler.toml` (currently placeholder `3.5`). Also record which plan (Core/Plus/Pro) in `PRICING.md §9`.
+6. **Google Business Profile** — create/claim listing at business.google.com. Name: "Lustique Co." · address: 242 Frangipani Street, La Montagne, Pretoria, 0184 · categories: Make-up Artist + Bridal · service areas: Pretoria, Centurion, Midrand, Hartbeespoort. Once live, share the GBP URL so we can add `hasMap` to `site/src/data/site.ts`.
+7. **Supabase Pro upgrade** — free tier is fine for now (keep-warm cron prevents pausing); upgrade before first real deposit clears. ~$25/mo, Zandeline owns billing.
 
 ### Pre-go-live infra (no urgency — before first live deposit)
 - Supabase Pro upgrade (free plan daily cron keeps it alive; Pro only needed when taking real money)
-- CF WAF rate-limit rules + Health Checks (Pro plan; defer)
+- CF WAF rate-limit rules → **will be implemented in Worker code** (CF Workers Rate Limiting binding, free tier) — no CF Pro needed
+- CF Health Checks (Pro plan; UptimeRobot covers this on free)
 
-### Next code task
-Nothing outstanding — all 8 emails, full booking flow, dashboard, and admin login are complete and deployed (319 tests green). Next work driven by Zandeline's feedback after using the system live.
+### Next code tasks (Opus planning required first)
+1. **Sanity CMS** — so Zandeline can manage content herself (gallery, team bios, blog, promos). Needs Opus architecture session to design content schemas + Astro integration before Sonnet builds.
+2. **Google Calendar integration** — sync booked dates to a shared Lustique Google Calendar, push calendar events when `deposit_paid` is reached. Needs Opus to design OAuth flow + Worker push vs Supabase Edge Function. Recommended shape: one shared Lustique calendar (not per-artist OAuth), all 9 artists subscribe.
+3. **Worker rate limiting** — CF Workers Rate Limiting binding (free, no CF Pro). Sonnet can implement once Opus confirms approach.
+4. **Artist allocation workflow** — `booking_artists` table exists but no UI for assigning which artist(s) go to which booking. Needed before multi-artist scheduling matters.
+
+### Recently closed (2026-06-21)
+- ✅ POPIA consent checkbox on enquiry form (`quote.astro` + `enquiry.ts`) — `1898a51`
+- ✅ Privacy policy cookies section — specific cookie table (`lc_cookie`, `_ga`, `_ga_*`) with types + retention
+- ✅ PRICING.md §9 — Yoco fee reference (in-person rates logged; online rate pending portal confirmation)
+- ✅ Pre-existing curly-quote bug in `quote.astro` lines 80-89 — `#promoToggle`, `#sendEnquiry`, `#estimateBreakdown` were silently unfindable via `getElementById` in production; fixed to ASCII double quotes
 
 ## 🟦 Decisions
 Both decisions that gated early build are resolved; #3–#7 (build-sequence doc §Decisions) are operational confirmations for Wave B/C.
@@ -52,6 +66,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Yoco webhook DONE ✅ 2026-06-21 (Sonnet)** — `78a8a79`. Registered `payment.created` + `payment.refunded` via Yoco API (subscription `ep_3FS4qYCmXojK0ODkXWo5HZfk3Ff`). Corrected event names (Wave 0 assumed `payment.succeeded`/`refund.succeeded` — Yoco's actual names confirmed via API validation error). `YOCO_WEBHOOK_SECRET` bound to Worker. 319 tests green. **Pieter: save `whsec_...` to Supabase Vault as `YOCO_WEBHOOK_SECRET`.**
 - **Admin login redesign DONE ✅ 2026-06-21 (Sonnet)** — `d6b7ceb`. Quiet-luxury restyle: logo centred, champagne card border, Georgia italic heading, blush pill CTA, ivory background, pencil peony illustration bottom-right (`mix-blend-mode:multiply`, `peony.png` in CF Pages assets). "Check your inbox" confirmation page restyled to match. 319 tests green.
 - **Email 8 (Google Review) DONE ✅ 2026-06-20 (Sonnet)** — `d482434`. `reviewEmailSweep`: daily cron, 48h after `wedding_date`, settled bookings only, fetches `google_review_url` from `business_settings`, sends emailShell thank-you + blush CTA, stamps `review_email_sent_at`, audits. Migration 0012. 4 tests → 319 green. **Pieter: apply migration 0012 to live DB.**
 - **Email templates DONE ✅ 2026-06-20 (Sonnet)** — `dd1f994`. Shared `worker/src/lib/email.ts`: `emailShell()`, `emailTable()`, `emailBtn()`, `emailNote()`, `sendEmail()`, `getEftSettings()` — single quiet-luxury wrapper for all 7 bride emails (ivory card, champagne dividers, Georgia italic headings, blush pill CTA). Consolidated 5 duplicate `brevoEmail()` + 3 duplicate `getEftSettings()` across booking files. `balance.ts` now reads EFT details from `business_settings` (not env vars). `0002_business_settings.sql` updated with real TymeBank details. Live SQL provided above for Pieter to run. 315 tests green.
