@@ -1,32 +1,132 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete + Yoco webhook live · **Updated:** 2026-06-21 (Sonnet) · **Session cleared ✅**
+**Lane:** 🔵 Plan (Opus) · **Phase:** Wave D planning · **Updated:** 2026-06-21 (Sonnet→Opus handoff) · **Session cleared ✅**
 
-## ▶ NEXT (Sonnet, Build lane)
+## ▶ NEXT (Opus, Plan lane)
 
-**Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
+**Model:** Opus · **Lane:** Plan · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-### Pieter actions remaining
+Read these first (in order):
+1. `PLAN.md` — business decisions + locked choices
+2. `BRAND.md` — quiet-luxury mandate, voice, palette
+3. `ARCHITECTURE.md` — full system design
+4. `docs/superpowers/specs/2026-06-18-lustique-replan-spec.md` — corrected booking flow + state machine
+5. `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` — wave sequence + decisions
 
-1. **Test dashboard login** — `https://lustiqueco.co.za/api/admin/login` → `info@lustiqueco.co.za` → click magic link → confirm Inbox dashboard loads *(SMTP + email template already configured)*
-2. **GA4 Measurement ID** — swap `G-XXXXXXXXXX` in `site/src/data/site.ts` once Google Workspace + GA4 are set up; then `git push`
-3. ~~**Save Yoco webhook secret to Supabase Vault**~~ ✅ Done 2026-06-21
-4. **Confirm migration 0012 applied** — check Supabase Dashboard → Database → Migrations. File exists; unclear if applied to live DB.
-5. **Yoco online checkout rate** — log into Yoco Business Portal → Settings → Pricing → Online Payments. Record the blended online rate and update `YOCO_FEE_PCT` in `wrangler.toml` (currently placeholder `3.5`). Also record which plan (Core/Plus/Pro) in `PRICING.md §9`.
-6. ~~**Google Business Profile**~~ ✅ Done 2026-06-21 — `hasMap` added to `SITE_JSONLD` in `site/src/data/site.ts`.
+Then produce **one plan doc per item below** in `docs/superpowers/plans/`, plus a single updated build sequence that slots Wave D into the existing wave map. Each plan must be Sonnet-buildable without further design calls — spec the schema, the API surface, the Worker routes, the file changes, and the Sonnet build sequence.
 
-### Pre-go-live infra (no urgency — before first live deposit)
-- **Supabase Free is sufficient** — keep-warm cron prevents the 7-day pause; daily backups + R2 audit log covers the backup obligation at this volume. Revisit Pro only if Zandeline wants PITR (optional, ~$25/mo).
-- CF WAF rate-limit rules → **will be implemented in Worker code** (CF Workers Rate Limiting binding, free tier) — no CF Pro needed
-- CF Health Checks (Pro plan; UptimeRobot covers this on free)
+---
 
-### Next code tasks (Opus planning required first)
-1. **Sanity CMS** — so Zandeline can manage content herself (gallery, team bios, blog, promos). Needs Opus architecture session to design content schemas + Astro integration before Sonnet builds.
-2. **Google Calendar integration** — sync booked dates to a shared Lustique Google Calendar, push calendar events when `deposit_paid` is reached. Needs Opus to design OAuth flow + Worker push vs Supabase Edge Function. Recommended shape: one shared Lustique calendar (not per-artist OAuth), all 9 artists subscribe.
-3. **Worker rate limiting** — CF Workers Rate Limiting binding (free, no CF Pro). Sonnet can implement once Opus confirms approach.
-4. **Artist allocation workflow** — `booking_artists` table exists but no UI for assigning which artist(s) go to which booking. Needed before multi-artist scheduling matters.
+### 🟣 Wave D — Four planning items for Opus
+
+#### D1 · Sanity CMS
+**Why:** Zandeline needs to update content herself — portfolio images, team bios, blog articles, service descriptions, promotions — without a developer. Currently all content is hard-coded in Astro `.astro` files.
+
+**Locked constraints:**
+- Stack: Astro (static, CF Pages) + Sanity v3
+- Accounts: client-owned Sanity project (LZ invited as admin). Sanity free tier sufficient at this volume.
+- Deployment: Astro fetches at build time (static). No SSR — CF Pages free tier.
+- Existing pages that need CMS backing (priority order):
+  1. `site/src/pages/portfolio.astro` — gallery images + captions
+  2. `site/src/pages/team.astro` — artist cards (name, bio, photo, specialisms)
+  3. `site/src/pages/blog.astro` + `blog-*.astro` — articles (currently 3 hard-coded pages)
+  4. `site/src/pages/services.astro` — service descriptions + pricing copy (not pricing logic — that lives in `shared/pricing`)
+  5. `site/src/pages/index.astro` — hero headline, testimonials section
+- `shared/pricing/` is NOT touched by CMS — pricing logic stays in TypeScript.
+- Blog currently has 3 hard-coded pages (`blog-2026-trends.astro`, `blog-bridal-trial.astro`, `blog-choosing-artist.astro`). These migrate to Sanity-driven dynamic routes.
+
+**Opus must answer:**
+- Schema design for each content type (portfolio, team member, blog post, service, testimonial)
+- Astro integration pattern: `@sanity/astro` vs raw `@sanity/client` fetch in `getStaticPaths`
+- Where Sanity Studio lives: hosted (`sanity.io/manage`) vs embedded route in the Astro site (`/studio`)
+- Webhook-triggered rebuild on Sanity publish → CF Pages build hook
+- Image handling: Sanity CDN (`sanity.io/images/...`) vs CF Images — recommend one
+- Migration path for the 3 existing hard-coded blog pages
+- What Zandeline's day-1 publishing flow looks like end-to-end
+
+---
+
+#### D2 · Google Calendar integration
+**Why:** When a booking reaches `deposit_paid`, Zandeline and all 9 artists need the date blocked on their shared calendar automatically. Currently bookings only live in the DB; there is no calendar sync.
+
+**Locked constraints:**
+- One shared Lustique Google Calendar (not per-artist OAuth). All 9 artists subscribe to it as viewers.
+- Trigger point: `deposit_paid` state transition (Worker `confirm.ts` → `handleYocoWebhook` sets `deposit_paid`; EFT path: `balance.ts` → `handleMarkPaid`)
+- Stack: CF Worker (already has `SUPABASE_URL` + service key). No Supabase Edge Functions preferred — keep all async logic in the Worker.
+- Google Calendar API: service account (not user OAuth) — simpler, no refresh token rotation. LZ creates a service account, shares the Lustique calendar with it.
+- Existing `booking_artists` table: `(booking_id, artist_id, role)` — artist allocation UI is D4; for D2 assume "all artists on the booking" initially.
+- Events must include: bride name, wedding date, venue/town, party size, reference number. No sensitive financial data in calendar events.
+- Cancellation/rejection must delete the calendar event (`bookings.google_event_id` column needed).
+
+**Opus must answer:**
+- Service account setup steps (what LZ does once; what goes into Worker secrets)
+- Worker secret name(s) and shape (service account JSON → individual fields, or base64-encoded JSON blob)
+- Which Worker file handles the push (new `calendar.ts` or inline in `confirm.ts`/`balance.ts`)
+- Migration needed: `bookings.google_event_id TEXT` column
+- Error handling: calendar push fails → booking still transitions (non-blocking); retry strategy
+- Event deletion path: which Worker handlers trigger delete (reject, cancel)
+- Whether a backfill script is needed for existing `deposit_paid` bookings
+
+---
+
+#### D3 · Worker rate limiting
+**Why:** The Worker has no rate limiting beyond Turnstile on the enquiry form. Before go-live, the API endpoints need protection — especially `/api/admin/login` (OTP abuse) and `/api/booking/*` (enumeration).
+
+**Locked constraints:**
+- CF Workers Rate Limiting binding (free tier) — no CF Pro WAF. Already decided.
+- Worker is deployed as `lustique-form-handler` on `lustiqueco.co.za/api/*`
+- Existing protection: Cloudflare Turnstile on `POST /api/enquiry` (bot protection, already live)
+- `wrangler.toml` already has the R2 binding pattern to follow for new bindings
+
+**Endpoints to protect (Opus to confirm limits):**
+- `POST /api/admin/login` — OTP request; suggest 5 req/15 min per IP
+- `POST /api/enquiry` — already has Turnstile; add IP rate limit as belt-and-suspenders
+- `POST /api/booking/request` — booking creation; suggest 3 req/hour per IP
+- `GET /api/admin/*` — already JWT-gated; rate limit as defence-in-depth
+- Yoco webhook endpoints — should be exempt (Yoco IPs) or very high limit
+
+**Opus must answer:**
+- CF Workers Rate Limiting binding declaration in `wrangler.toml`
+- Where the rate-limit middleware lives (new `lib/rateLimit.ts` helper vs inline per route)
+- Response shape on limit exceeded (429 + JSON body matching existing Worker error pattern)
+- Whether to rate-limit by IP, by email (for login), or both
+- Whether limits should differ between production and staging
+
+---
+
+#### D4 · Artist allocation workflow
+**Why:** `booking_artists` table exists (`booking_id, artist_id, role, assigned_at`) but there is no UI for Zandeline to assign which artist(s) attend which booking. This is needed before multi-artist scheduling becomes a real problem (the calendar in the dashboard currently shows load vs capacity, but doesn't show per-artist assignments).
+
+**Locked constraints:**
+- Dashboard is server-rendered HTML in `worker/src/booking/dashboard.ts` (same pattern as all other admin views)
+- Artists are not yet stored in the DB — they are currently hardcoded. There is no `artists` table. D4 must include a migration to create one and seed the 9 artists.
+- `booking_artists` schema: `id UUID PK, booking_id UUID FK, artist_id UUID FK, role TEXT ('lead'|'assistant'), assigned_at TIMESTAMPTZ`
+- Assignment happens at `quote_sent` or `accepted` stage (not at request — availability not yet confirmed)
+- Zandeline assigns from the booking detail page (`GET /api/admin/booking/:id`)
+
+**Opus must answer:**
+- `artists` table schema (name, email, phone, active flag, specialisms)
+- Seed data for the 9 Lustique artists (names known from `BRAND.md`/team page — pull them)
+- Migration number (next after 0012 = **0013**)
+- UI design for the assignment widget on the booking detail page (dropdown + add/remove, or checkbox list)
+- API surface: new Worker route(s) for assigning/removing artists from a booking
+- How this feeds into the calendar view (D2 dependency: when D2 ships, assigned artists → calendar event attendees)
+- Whether artists need login access (out of scope for now — just allocation by Zandeline)
+
+---
+
+### Pieter actions still open (carry forward)
+1. **Test dashboard login** — `lustiqueco.co.za/api/admin/login` → `info@lustiqueco.co.za` → click magic link → confirm Inbox loads. CF Pages deploy was triggered at ~19:50 SAST 2026-06-21.
+2. **Migration 0012** — confirm applied: Supabase Dashboard → Database → Migrations
+3. **Yoco online checkout rate** — Yoco Business Portal → Settings → Pricing → Online Payments → record rate → update `YOCO_FEE_PCT` in `wrangler.toml` + `PRICING.md §9`
+4. **GA4 Measurement ID** — swap `G-XXXXXXXXXX` in `site/src/data/site.ts` once Google Workspace + GA4 live
+
+### Known open (not blocking go-live)
+- **Brevo custom SMTP** — still not connecting (tried 587 + 465, zero Brevo log entries). Admin magic link email currently comes from `noreply@mail.app.supabase.io`. Functional, not branded. Revisit separately — likely a Brevo account config issue (sender domain vs SMTP relay permissions).
+- **Admin email template** — Lustique-branded template designed (see last Sonnet session) but can't be applied to Supabase without working custom SMTP. Template HTML is in the session transcript.
 
 ### Recently closed (2026-06-21)
+- ✅ **Admin login unblocked** — `2c27d7b`. Root causes found + fixed: (1) no auth user existed in Supabase (`create_user:false` silently no-ops); (2) Site URL was `localhost:3000`; (3) Supabase default magic link puts `access_token` in URL fragment which Workers can't read. Fix: created `info@lustiqueco.co.za` auth user + seeded `profiles` row (`role='admin'`); set Site URL to `https://lustiqueco.co.za`; added fragment-extraction JS to `BaseLayout.astro` (catches `#access_token=...&type=magiclink` on any page, redirects to `/api/admin/auth/callback?access_token=...`); updated `handleAdminAuthCallback` to handle three flows (token_hash / access_token query param / no-params JS extraction page). Custom SMTP left disabled — Supabase built-in relay works for Zandeline's single-user admin login.
 - ✅ POPIA consent checkbox on enquiry form (`quote.astro` + `enquiry.ts`) — `1898a51`
 - ✅ Privacy policy cookies section — specific cookie table (`lc_cookie`, `_ga`, `_ga_*`) with types + retention
 - ✅ PRICING.md §9 — Yoco fee reference (in-person rates logged; online rate pending portal confirmation)
