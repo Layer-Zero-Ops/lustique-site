@@ -115,7 +115,7 @@ describe("handleAdminLogin — POST", () => {
     );
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("check");
+    expect(html).toContain("inbox");
     expect(f).toHaveBeenCalledOnce();
     const [url, opts] = (f as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/auth/v1/otp");
@@ -146,7 +146,7 @@ describe("handleAdminLogin — POST", () => {
     );
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("check");
+    expect(html).toContain("inbox");
     // We show the same "check email" message regardless (don't leak user-enumeration info)
   });
 });

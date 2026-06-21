@@ -211,29 +211,36 @@ export async function handleAdminLogin(
   if (req.method === "GET") {
     return htmlResponse(`<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>Admin Login — Lustique</title>
+<meta name="robots" content="noindex"><title>Admin Login — Lustique Co.</title>
 <style>
-  body{margin:0;font:15px/1.6 system-ui,sans-serif;background:#f7f3ef;display:flex;align-items:center;justify-content:center;min-height:100vh;}
-  .card{background:#fff;border-radius:14px;padding:2.4rem 2rem;max-width:380px;width:100%;box-shadow:0 6px 30px rgba(0,0,0,.06);}
-  h1{font-size:1.3rem;margin:0 0 .4rem;color:#8a3a52;}
-  p.sub{font-size:.88rem;color:#8a7d72;margin:0 0 1.6rem;}
-  label{display:block;font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;margin-bottom:.35rem;}
-  input{width:100%;font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.5em .75em;outline:none;}
-  input:focus{border-color:#8a3a52;}
-  button{margin-top:1rem;width:100%;font:inherit;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.65em 1em;cursor:pointer;font-size:.95rem;}
-  button:hover{background:#7a2e44;}
-  .msg{margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;color:#276749;font-size:.88rem;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#FAF6F0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 16px;font-family:Arial,sans-serif;}
+  .card{background:#fff;border:1px solid #E8D5B7;max-width:420px;width:100%;padding:52px 44px 44px;}
+  .logo{display:block;margin:0 auto 36px;width:108px;}
+  .divider{height:1px;background:#E8D5B7;margin:0 0 36px;}
+  h1{margin:0 0 10px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;font-style:italic;color:#5C4332;text-align:center;line-height:1.35;}
+  p.sub{margin:0 0 32px;font-size:13px;line-height:1.75;color:#8A7060;text-align:center;}
+  label{display:block;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#A89080;margin-bottom:8px;}
+  input{width:100%;font:14px/1 Arial,sans-serif;color:#3A2E26;border:1px solid #E8D5B7;padding:12px 14px;outline:none;background:#FAF6F0;transition:border-color .15s;}
+  input:focus{border-color:#5C4332;background:#fff;}
+  button{margin-top:24px;display:block;width:100%;background:#EFD2C5;color:#5C4332;border:1px solid #5C4332;border-radius:24px;padding:14px;font:500 10px/1 Arial,sans-serif;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer;transition:background .15s;}
+  button:hover{background:#e8c4b3;}
+  .msg{margin-bottom:20px;padding:10px 14px;background:#f0faf4;border:1px solid #b7dfc8;font-size:13px;color:#2d6a4f;}
+  .stamp{margin-top:36px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#C8B8AC;text-align:center;}
 </style></head><body>
 <div class="card">
-  <h1>Lustique ✦</h1>
-  <p class="sub">Admin dashboard — enter your email to receive a login link.</p>
+  <img src="https://lustiqueco.co.za/assets/logo.png" alt="Lustique Co." class="logo">
+  <div class="divider"></div>
+  <h1>Welcome back, Zandeline.</h1>
+  <p class="sub">Enter your email address to receive a secure login link for the admin dashboard.</p>
   ${msg ? `<div class="msg">${msg}</div>` : ""}
   <form method="POST" action="/api/admin/login">
     <label for="email">Email address</label>
-    <input id="email" type="email" name="email" autocomplete="email" required autofocus placeholder="you@example.com">
+    <input id="email" type="email" name="email" autocomplete="email" required autofocus placeholder="info@lustiqueco.co.za">
     <button type="submit">Send login link</button>
   </form>
 </div>
+<p class="stamp">Pretoria &middot; South Africa</p>
 </body></html>`);
   }
 
@@ -272,18 +279,26 @@ export async function handleAdminLogin(
 
   return htmlResponse(`<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>Check your email — Lustique Admin</title>
+<meta name="robots" content="noindex"><title>Check your email — Lustique Co.</title>
 <style>
-  body{margin:0;font:15px/1.6 system-ui,sans-serif;background:#f7f3ef;display:flex;align-items:center;justify-content:center;min-height:100vh;}
-  .card{background:#fff;border-radius:14px;padding:2.4rem 2rem;max-width:380px;width:100%;box-shadow:0 6px 30px rgba(0,0,0,.06);text-align:center;}
-  h1{font-size:1.3rem;margin:0 0 .8rem;color:#8a3a52;}
-  p{font-size:.92rem;color:#5c3d47;line-height:1.6;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#FAF6F0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 16px;font-family:Arial,sans-serif;}
+  .card{background:#fff;border:1px solid #E8D5B7;max-width:420px;width:100%;padding:52px 44px 44px;text-align:center;}
+  .logo{display:block;margin:0 auto 36px;width:108px;}
+  .divider{height:1px;background:#E8D5B7;margin:0 0 36px;}
+  h1{margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;font-style:italic;color:#5C4332;line-height:1.35;}
+  p{margin:0 0 0;font-size:13px;line-height:1.85;color:#3A2E26;}
+  .back{display:inline-block;margin-top:32px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#8A7060;text-decoration:none;border-bottom:1px solid #E8D5B7;padding-bottom:2px;}
+  .stamp{margin-top:36px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#C8B8AC;text-align:center;}
 </style></head><body>
 <div class="card">
-  <h1>Check your email ✦</h1>
-  <p>If <strong>${esc(email)}</strong> is registered, a login link is on its way.<br/>Please check your inbox and click the link to sign in.</p>
-  <p style="margin-top:1.5rem;font-size:.82rem;color:#8a7d72;"><a href="/api/admin/login" style="color:#8a3a52;">← Back to login</a></p>
+  <img src="https://lustiqueco.co.za/assets/logo.png" alt="Lustique Co." class="logo">
+  <div class="divider"></div>
+  <h1>Check your inbox.</h1>
+  <p>A login link is on its way to <strong style="color:#5C4332;">${esc(email)}</strong>.<br>Click the link in that email to open your dashboard.<br>It expires in one hour and can only be used once.</p>
+  <a href="/api/admin/login" class="back">← Back to login</a>
 </div>
+<p class="stamp">Pretoria &middot; South Africa</p>
 </body></html>`);
 }
 
