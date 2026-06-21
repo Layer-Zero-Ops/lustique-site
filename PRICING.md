@@ -222,7 +222,32 @@ Zandeline wants paid workshops but they're not yet defined. **Do not build a wor
 
 ---
 
-## 9. Open pricing items (need answers before estimator ships)
+## 9. Yoco payment processing fees
+
+**Purpose:** margin/reporting only. The bride pays the quoted net amount; Lustique absorbs the fee (locked 2026-06-18).
+
+### Plans and in-person rates provided by Pieter (2026-06-21, excl. VAT)
+
+| Plan | In-person local debit | In-person local debit (after R50k) | In-person local credit | In-person local credit (after R50k) |
+|---|---|---|---|---|
+| Core | 2.30% | 1.35% | 2.30% | 2.30% |
+| Plus | 2.10% | 1.25% | 2.20% | 2.20% |
+| Pro  | 1.95% | 1.20% | 2.15% | 2.15% |
+
+> **⚠️ Important distinction:** These are **in-person / card-machine** rates. Lustique uses Yoco's **online checkout** (payment links via the API), which has a **separate blended online rate**. The `YOCO_FEE_PCT` Worker var (currently `3.5` as a placeholder) must be set to the correct **online checkout** rate from the Yoco Business Portal (Settings → Pricing → Online Payments). Verify which plan Lustique is on, then record the confirmed online rate below.
+
+### Confirmed rate (update when verified from Yoco portal)
+
+| Field | Value |
+|---|---|
+| Plan | — (confirm: Core / Plus / Pro) |
+| Online checkout rate | — % (blended; confirm from portal) |
+| Verified date | — |
+| `YOCO_FEE_PCT` wrangler.toml | — (update from 3.5 once confirmed) |
+
+---
+
+## 10. Open pricing items (need answers before estimator ships)
 
 1. ~~Travel mechanic~~ ✅ **Resolved:** R7/km on **round-trip** distance, **free within 30 km**, from the La Montagne studio.
 2. **New-service prices (§6)** — confirm or adjust the eight proposed numbers.

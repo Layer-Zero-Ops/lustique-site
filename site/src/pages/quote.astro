@@ -77,10 +77,16 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         <div class="field"><label for="style">Style</label><select id="style"><option>Natural &amp; soft</option><option>Soft glam</option><option>Full glam</option><option>Editorial</option><option>Boho</option><option>Not sure yet — guide me</option></select></div>
         <div class="field"><label for="inspo">Inspiration link (Pinterest / Instagram)</label><input id="inspo" placeholder="Paste a link — optional"></div>
         <div class="field"><label for="message">Anything else we should know? (skin notes, timings, special requests)</label><textarea id="message" rows="4" placeholder="Tell us anything that helps us prepare…"></textarea></div>
-        <div id=”estimateBreakdown” style=”margin:.4rem 0 1.3rem;font-size:.92rem;color:#5c5048;”></div>
-        <div id=”promoRow”><label style=”display:flex;align-items:center;gap:.6rem;font-size:.92rem;color:#5c5048;margin:.2rem 0 1.3rem;”><input type=”checkbox” id=”promoToggle” checked style=”width:auto;”> Apply the “book 4+, least-expensive look free” offer to my estimate</label></div>
-        <div class=”cf-turnstile” data-sitekey={TURNSTILE_SITE_KEY} style=”margin:1rem 0;”></div>
-        <button type=”button” class=”btn btn-primary” id=”sendEnquiry” style=”width:100%;justify-content:center;”>Request my quote</button>
+        <div id="estimateBreakdown" style="margin:.4rem 0 1.3rem;font-size:.92rem;color:#5c5048;"></div>
+        <div id="promoRow"><label style="display:flex;align-items:center;gap:.6rem;font-size:.92rem;color:#5c5048;margin:.2rem 0 1.3rem;"><input type="checkbox" id="promoToggle" checked style="width:auto;"> Apply the "book 4+, least-expensive look free" offer to my estimate</label></div>
+        <div style="margin:1.2rem 0 .8rem;">
+          <label style="display:flex;align-items:flex-start;gap:.7rem;font-size:.92rem;color:#5c5048;cursor:pointer;">
+            <input type="checkbox" id="consentCheck" style="width:auto;margin-top:.18rem;flex-shrink:0;">
+            <span>I consent to Lustique Co. processing my personal information to prepare my quote and contact me about my enquiry, as described in the <a href="privacy.html" target="_blank" style="color:var(--burgundy);">Privacy Policy</a>. (Required)</span>
+          </label>
+        </div>
+        <div class="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} style="margin:1rem 0;"></div>
+        <button type="button" class="btn btn-primary" id="sendEnquiry" style="width:100%;justify-content:center;">Request my quote</button>
         <noscript><p class="note center" style="margin-top:1rem;">This live form needs JavaScript to send. To enquire right now, email <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a> with your date, venue and party — we reply within 24 hours.</p></noscript>
         <p class="note center" id="enquiryStatus" role="alert" style="margin-top:1rem;color:var(--burgundy);"></p>
         <p class="note center" style="margin-top:1rem;">We reply within 24 hours, often sooner. <strong>Blessings, The Lustique Cosmetology Team.</strong></p>

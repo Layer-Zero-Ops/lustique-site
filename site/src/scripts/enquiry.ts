@@ -119,6 +119,11 @@ btn?.addEventListener("click", async () => {
     say("Please add your name and email so we can reply.");
     return;
   }
+  const consent = document.getElementById("consentCheck") as HTMLInputElement | null;
+  if (consent && !consent.checked) {
+    say("Please tick the consent box so we can contact you about your enquiry.");
+    return;
+  }
   // For weddings, the length buckets must account for everyone needing hair — so the quote is exact.
   if ((val("occasion") || "wedding") === "wedding") {
     const need = numv("bmHair") + numv("momHair") + numv("guestHair");
