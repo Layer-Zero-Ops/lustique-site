@@ -40,6 +40,9 @@ const canonical = `${SITE}/${slug === "index.html" ? "" : slug}`;
   {robots && <meta name="robots" content={robots} />}
   <meta name="theme-color" content="#A0625E" />
   <script is:inline define:vars={{ gaId: GA_MEASUREMENT_ID }}>window.LUSTIQUE_GA_ID = gaId;</script>
+  <script is:inline>
+    (function(){var h=location.hash;if(h.includes('access_token=')&&h.includes('type=magiclink')){var p=new URLSearchParams(h.slice(1));var t=p.get('access_token');if(t)location.replace('/api/admin/auth/callback?access_token='+encodeURIComponent(t));}})();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet" />

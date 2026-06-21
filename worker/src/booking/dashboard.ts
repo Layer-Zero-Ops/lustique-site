@@ -308,12 +308,20 @@ export async function handleAdminLogin(
 // ── handleAdminAuthCallback ──────────────────────────────────────────────────
 
 /**
- * GET /api/admin/auth/callback?token_hash=...&type=email
- * Exchanges the Supabase token_hash for an access_token, sets the session cookie,
- * and redirects to the dashboard.
+ * GET /api/admin/auth/callback
  *
- * Requires the Supabase email template to use {{.TokenHash}} so the link lands
- * on this endpoint with the hash as a query param (not URL fragment). See RUNBOOK.
+ * Handles three flows in order of precedence:
+ *
+ * 1. ?token_hash=...&type=email  — custom template flow ({{.TokenHash}})
+ *    Exchanges token_hash for an access_token via /auth/v1/verify.
+ *
+ * 2. ?access_token=...           — fragment extraction flow (step 2 below)
+ *    Validates the JWT directly and sets the session cookie.
+ *
+ * 3. No params                   — default Supabase template flow
+ *    Supabase redirects here with tokens in the URL fragment (#access_token=...).
+ *    Fragments are invisible to the server, so we serve a tiny JS page that reads
+ *    window.location.hash and redirects back here with access_token as a query param.
  */
 export async function handleAdminAuthCallback(
   req: Request,
@@ -323,35 +331,65 @@ export async function handleAdminAuthCallback(
   const url = new URL(req.url);
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") ?? "email";
+  const accessTokenParam = url.searchParams.get("access_token");
 
-  if (!tokenHash) return loginRedirect("invalid-link");
-
-  let accessToken: string;
-  try {
-    const res = await fetchFn(`${env.SUPABASE_URL}/auth/v1/verify`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        apikey: env.SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
-      },
-      body: JSON.stringify({ token_hash: tokenHash, type }),
+  // Flow 1: token_hash — exchange for access_token via Supabase verify endpoint
+  if (tokenHash) {
+    let accessToken: string;
+    try {
+      const res = await fetchFn(`${env.SUPABASE_URL}/auth/v1/verify`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          apikey: env.SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        },
+        body: JSON.stringify({ token_hash: tokenHash, type }),
+      });
+      if (!res.ok) return loginRedirect("expired-link");
+      const data = (await res.json()) as { access_token?: string };
+      if (!data.access_token) return loginRedirect("expired-link");
+      accessToken = data.access_token;
+    } catch {
+      return loginRedirect("error");
+    }
+    return new Response(null, {
+      status: 302,
+      headers: { Location: "/api/admin/dashboard", "Set-Cookie": sessionCookieHeader(accessToken) },
     });
-    if (!res.ok) return loginRedirect("expired-link");
-    const data = (await res.json()) as { access_token?: string };
-    if (!data.access_token) return loginRedirect("expired-link");
-    accessToken = data.access_token;
-  } catch {
-    return loginRedirect("error");
   }
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: "/api/admin/dashboard",
-      "Set-Cookie": sessionCookieHeader(accessToken),
-    },
-  });
+  // Flow 2: access_token query param — extracted from fragment by the JS page below
+  if (accessTokenParam) {
+    const payload = await verifySupabaseJwt(accessTokenParam, env.SUPABASE_JWT_SECRET);
+    if (!payload) return loginRedirect("expired-link");
+    return new Response(null, {
+      status: 302,
+      headers: { Location: "/api/admin/dashboard", "Set-Cookie": sessionCookieHeader(accessTokenParam) },
+    });
+  }
+
+  // Flow 3: no params — Supabase default template puts tokens in the URL fragment.
+  // Serve a JS extraction page; it reads the fragment and redirects back with ?access_token=
+  return new Response(
+    `<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><title>Signing in — Lustique Co.</title>
+</head><body>
+<script>
+(function(){
+  var h=window.location.hash.slice(1);
+  var p=new URLSearchParams(h);
+  var t=p.get('access_token');
+  if(t){window.location.replace('/api/admin/auth/callback?access_token='+encodeURIComponent(t));}
+  else{window.location.replace('/api/admin/login?msg=invalid-link');}
+})();
+</script>
+<noscript><p style="font-family:sans-serif;padding:2rem;">
+  Redirecting… <a href="/api/admin/login">Back to login</a>
+</p></noscript>
+</body></html>`,
+    { status: 200, headers: { "content-type": "text/html;charset=UTF-8" } },
+  );
 }
 
 // ── handleAdminAuthLogout ────────────────────────────────────────────────────
