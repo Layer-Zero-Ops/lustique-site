@@ -19,6 +19,7 @@ export const SITE_JSONLD = {
     { "@type": "OpeningHoursSpecification", dayOfWeek: ["Tuesday","Wednesday","Thursday","Friday"], opens: "08:00", closes: "17:00" },
     { "@type": "OpeningHoursSpecification", dayOfWeek: "Saturday", opens: "07:00", closes: "14:00" },
   ],
+  hasMap: "https://share.google/R6t6HICG43BFPqSLz",
   areaServed: ["Gauteng", "Limpopo", "Mpumalanga", "North West"],
   founder: { "@type": "Person", name: "Zandeline Kemp" },
   sameAs: ["https://www.instagram.com/lustique_cosmetology/", "https://www.facebook.com/LustiqueCosmetology", "https://www.tiktok.com/@lustique_co"],

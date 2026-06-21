@@ -13,11 +13,10 @@
 3. ~~**Save Yoco webhook secret to Supabase Vault**~~ ✅ Done 2026-06-21
 4. **Confirm migration 0012 applied** — check Supabase Dashboard → Database → Migrations. File exists; unclear if applied to live DB.
 5. **Yoco online checkout rate** — log into Yoco Business Portal → Settings → Pricing → Online Payments. Record the blended online rate and update `YOCO_FEE_PCT` in `wrangler.toml` (currently placeholder `3.5`). Also record which plan (Core/Plus/Pro) in `PRICING.md §9`.
-6. **Google Business Profile** — create/claim listing at business.google.com. Name: "Lustique Co." · address: 242 Frangipani Street, La Montagne, Pretoria, 0184 · categories: Make-up Artist + Bridal · service areas: Pretoria, Centurion, Midrand, Hartbeespoort. Once live, share the GBP URL so we can add `hasMap` to `site/src/data/site.ts`.
-7. **Supabase Pro upgrade** — free tier is fine for now (keep-warm cron prevents pausing); upgrade before first real deposit clears. ~$25/mo, Zandeline owns billing.
+6. ~~**Google Business Profile**~~ ✅ Done 2026-06-21 — `hasMap` added to `SITE_JSONLD` in `site/src/data/site.ts`.
 
 ### Pre-go-live infra (no urgency — before first live deposit)
-- Supabase Pro upgrade (free plan daily cron keeps it alive; Pro only needed when taking real money)
+- **Supabase Free is sufficient** — keep-warm cron prevents the 7-day pause; daily backups + R2 audit log covers the backup obligation at this volume. Revisit Pro only if Zandeline wants PITR (optional, ~$25/mo).
 - CF WAF rate-limit rules → **will be implemented in Worker code** (CF Workers Rate Limiting binding, free tier) — no CF Pro needed
 - CF Health Checks (Pro plan; UptimeRobot covers this on free)
 
