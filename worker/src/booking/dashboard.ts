@@ -217,11 +217,11 @@ export async function handleAdminLogin(
   body{margin:0;background:#FAF6F0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 16px;font-family:Arial,sans-serif;}
   .card{background:#fff;border:1px solid #E8D5B7;max-width:420px;width:100%;padding:52px 44px 44px;}
   .logo{display:block;margin:0 auto 36px;width:108px;}
-  .divider{height:1px;background:#E8D5B7;margin:0 0 36px;}
+  .divider{height:1px;width:60px;background:#E8D5B7;margin:0 auto 36px;}
   h1{margin:0 0 10px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;font-style:italic;color:#5C4332;text-align:center;line-height:1.35;}
   p.sub{margin:0 0 32px;font-size:13px;line-height:1.75;color:#8A7060;text-align:center;}
   label{display:block;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#A89080;margin-bottom:8px;}
-  input{width:100%;font:14px/1 Arial,sans-serif;color:#3A2E26;border:1px solid #E8D5B7;padding:12px 14px;outline:none;background:#FAF6F0;transition:border-color .15s;}
+  input{width:100%;font:14px/1.4 Arial,sans-serif;color:#3A2E26;border:1px solid #E8D5B7;border-radius:2px;padding:12px 14px;outline:none;background:#FAF6F0;transition:border-color .15s;}
   input:focus{border-color:#5C4332;background:#fff;}
   button{margin-top:24px;display:block;width:100%;background:#EFD2C5;color:#5C4332;border:1px solid #5C4332;border-radius:24px;padding:14px;font:500 10px/1 Arial,sans-serif;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer;transition:background .15s;}
   button:hover{background:#e8c4b3;}
@@ -232,7 +232,7 @@ export async function handleAdminLogin(
   <img src="https://lustiqueco.co.za/assets/logo.png" alt="Lustique Co." class="logo">
   <div class="divider"></div>
   <h1>Welcome back, Zandeline.</h1>
-  <p class="sub">Enter your email address to receive a secure login link for the admin dashboard.</p>
+  <p class="sub">We'll send a private link straight to your inbox.</p>
   ${msg ? `<div class="msg">${msg}</div>` : ""}
   <form method="POST" action="/api/admin/login">
     <label for="email">Email address</label>
