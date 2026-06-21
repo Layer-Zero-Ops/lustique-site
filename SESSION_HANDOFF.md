@@ -1,70 +1,23 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete + email templates done · **Updated:** 2026-06-20 (Sonnet) · **Session cleared ✅**
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Wave C complete · **Updated:** 2026-06-21 (Sonnet) · **Session cleared ✅**
 
 ## ▶ NEXT (Sonnet, Build lane)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-### 0. Vercel deployment error email — WRONG PROJECT
+### Pieter actions remaining
 
-Pieter received a Vercel error for `peaceful-chaum-c206cb`. Lustique deploys to **Cloudflare**, not Vercel — this error is from a different project (AXIS / edge-analytics / sats-survival). Check that project separately; no action needed here.
+1. **Test dashboard login** — `https://lustiqueco.co.za/api/admin/login` → `info@lustiqueco.co.za` → click magic link → confirm Inbox dashboard loads *(SMTP + email template already configured)*
+2. **GA4 Measurement ID** — swap `G-XXXXXXXXXX` in `site/src/data/site.ts` once Google Workspace + GA4 are set up; then `git push`
+3. **Yoco webhook** — register in Yoco portal before first live booking (events: `payment.succeeded`, `payment.failed`, `refund.succeeded`)
 
----
+### Pre-go-live infra (no urgency — before first live deposit)
+- Supabase Pro upgrade (free plan daily cron keeps it alive; Pro only needed when taking real money)
+- CF WAF rate-limit rules + Health Checks (Pro plan; defer)
 
-### 1. Run live SQL for TymeBank EFT details (Pieter — Supabase SQL Editor)
-
-Migration seeds new DBs only. Apply to the live Supabase database:
-```sql
-UPDATE business_settings SET value = 'TymeBank'       WHERE key = 'eft_bank_name';
-UPDATE business_settings SET value = 'Lustique Co.'   WHERE key = 'eft_account_holder';
-UPDATE business_settings SET value = '53000138448'    WHERE key = 'eft_account_number';
-UPDATE business_settings SET value = '678910'         WHERE key = 'eft_branch_code';
-UPDATE business_settings SET value = 'LUS'            WHERE key = 'eft_reference_prefix';
-```
-
-### 2. git push origin main (Pieter to authorise)
-
-All C-wave commits + email templates are on local `main` — push to trigger CF Pages/Worker deploy.
-
-### 3. ✅ Email 8 — Google Review email DONE (2026-06-20, commit d482434)
-
-`reviewEmailSweep` wired into daily cron. Migration `0012` adds `review_email_sent_at` + seeds `google_review_url`. **Pieter still needs to apply migration 0012 to live Supabase + run live SQL for google_review_url** (or update the seeded value).
-
----
-
-### 4. Dashboard auth — 2 steps remaining (no code)
-
-All code shipped. Migrations applied. Pieter has rotated Brevo keys (new keys in Lustique Supabase vault: `LUSTIQUE_BREVO_SMTP_KEY` + `LUSTIQUE_BREVO_API_KEY`).
-
-**Step 1 — Configure Brevo SMTP in Supabase Auth:**
-Supabase → Authentication → Providers → Email → SMTP Settings:
-- Host: `smtp-relay.brevo.com` · Port: `587`
-- Username: `autom8iq@gmail.com`
-- Password: value of `LUSTIQUE_BREVO_SMTP_KEY` from vault
-- Sender name: `Lustique Co.` · Sender email: `info@lustiqueco.co.za`
-- Site URL: `https://lustiqueco.co.za`
-- Redirect URLs: `https://lustiqueco.co.za/api/admin/auth/callback`
-
-**Step 2 — Patch magic-link email template (unlocks after SMTP saved):**
-Supabase → Authentication → Emails → Magic Link → Source tab.
-Replace the link href with:
-```
-{{ .SiteURL }}/api/admin/auth/callback?token_hash={{ .TokenHash }}&type=email
-```
-
-**Then test:** visit `https://lustiqueco.co.za/api/admin/login` → enter `info@lustiqueco.co.za` → check inbox → click link → should land on Inbox dashboard.
-
-**Pieter dashboard tasks still pending (Wave-S; no code):**
-(unchanged from Wave B.3 baton)
-
-**Pieter dashboard tasks still pending (Wave-S; no code):**
-1. CF Zone Transform Rule — set security headers (CSP/HSTS/X-Frame/Referrer/Permissions-Policy) on `http.host eq "lustiqueco.co.za"` (full values in SEO/security plan §1a)
-2. CF WAF Rate-Limit Rules — 5 rules (booking/request, enquiry, admin, token pages, zone fallback; plan §3)
-3. CF Health Checks — `/api/health` + `/` → email alerts (plan §5)
-4. TLS Full-strict + Always Use HTTPS in CF dashboard
-5. Supabase Pro upgrade (before first live deposit — plan §6)
-6. GA4 property → replace `G-XXXXXXXXXX` in `site/src/data/site.ts` with real Measurement ID, then redeploy
+### Next code task
+Nothing outstanding — all 8 emails, full booking flow, dashboard, and admin login are complete and deployed (319 tests green). Next work driven by Zandeline's feedback after using the system live.
 
 ## 🟦 Decisions
 Both decisions that gated early build are resolved; #3–#7 (build-sequence doc §Decisions) are operational confirmations for Wave B/C.
@@ -99,6 +52,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Admin login redesign DONE ✅ 2026-06-21 (Sonnet)** — `d6b7ceb`. Quiet-luxury restyle: logo centred, champagne card border, Georgia italic heading, blush pill CTA, ivory background, pencil peony illustration bottom-right (`mix-blend-mode:multiply`, `peony.png` in CF Pages assets). "Check your inbox" confirmation page restyled to match. 319 tests green.
 - **Email 8 (Google Review) DONE ✅ 2026-06-20 (Sonnet)** — `d482434`. `reviewEmailSweep`: daily cron, 48h after `wedding_date`, settled bookings only, fetches `google_review_url` from `business_settings`, sends emailShell thank-you + blush CTA, stamps `review_email_sent_at`, audits. Migration 0012. 4 tests → 319 green. **Pieter: apply migration 0012 to live DB.**
 - **Email templates DONE ✅ 2026-06-20 (Sonnet)** — `dd1f994`. Shared `worker/src/lib/email.ts`: `emailShell()`, `emailTable()`, `emailBtn()`, `emailNote()`, `sendEmail()`, `getEftSettings()` — single quiet-luxury wrapper for all 7 bride emails (ivory card, champagne dividers, Georgia italic headings, blush pill CTA). Consolidated 5 duplicate `brevoEmail()` + 3 duplicate `getEftSettings()` across booking files. `balance.ts` now reads EFT details from `business_settings` (not env vars). `0002_business_settings.sql` updated with real TymeBank details. Live SQL provided above for Pieter to run. 315 tests green.
 - **Wave C.3 DONE ✅ 2026-06-19 (Sonnet)** — `51a1a89`. Notifications bell: `GET /api/admin/notifications` (JWT-gated, returns `{count, items[]}` of unread rows); `POST /api/admin/notifications/read` (mark one UUID or all as read; UUID guard blocks filter injection). `adminShell` updated: bell button + count badge in sidebar, dropdown with DOM-built items (`.textContent` not `innerHTML` — XSS-safe), 60s poll, close-on-outside-click. 10 new tests → 315 green. **Push pending: `git push origin main` (Pieter to authorise).**
