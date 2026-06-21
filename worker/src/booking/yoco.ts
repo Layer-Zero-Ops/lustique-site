@@ -1,26 +1,25 @@
 // worker/src/booking/yoco.ts
 /**
- * POST /api/booking/yoco-webhook — Yoco payment webhook handler (Wave 0 rewrite).
+ * POST /api/booking/yoco-webhook — Yoco payment webhook handler.
  *
- * Fixes two live defects found in the 2026-06-18 re-plan:
- *   C-A: was listening for "checkout.succeeded"; Yoco emits "payment.succeeded" / "payment.failed"
- *   C-B: was using a custom hex-HMAC over the raw body; Yoco uses Standard Webhooks
- *        (header: webhook-signature = "v1,<base64>"; signed: "${id}.${ts}.${body}"; 3-min window)
+ * Yoco's actual event types (confirmed 2026-06-21 via API):
+ *   payment.created  — fires when a card payment succeeds (Yoco never fires on failure)
+ *   payment.refunded — fires when a refund is processed
  *
- * Flow for payment.succeeded:
+ * Signature: Standard Webhooks (https://www.standardwebhooks.com/)
+ *   header: webhook-signature = "v1,<base64>"; signed: "${id}.${ts}.${body}"; 3-min window
+ *
+ * Flow for payment.created:
  *   1. Verify Standard Webhooks signature + timestamp
  *   2. Idempotency check: findPaymentByYocoId (already processed? return 200)
  *   3. Look up pending payment row by checkout ID
  *   4. Mark payment paid; kind-branch transition (deposit→deposit_paid, balance→settled)
  *   5. Email bride "date secured 🎉" / "fully paid 🎉"
  *
- * Flow for payment.failed:
- *   1–3 same; mark payment failed; send EFT-fallback emails (once, guarded by failure_notified_at)
+ * payment.failed handler is retained but Yoco never fires it — failed cards produce no
+ * payment object. The pendingPaymentSweep() cron covers failures (24h stale-pending → EFT fallback).
  *
- * refund.succeeded: audit-only in Wave 0 (no booking transition needed yet).
- *
- * pendingPaymentSweep(): cron helper — finds 24h+ stale-pending payments and runs the
- * same failure path as payment.failed so brides always get the EFT fallback.
+ * payment.refunded: audit-only (no booking transition needed yet).
  */
 import {
   findPaymentByCheckoutId,
@@ -242,8 +241,8 @@ export async function handleYocoWebhook(
     return new Response("Bad request", { status: 400 });
   }
 
-  // ── payment.succeeded ──────────────────────────────────────────────────────
-  if (event.type === "payment.succeeded") {
+  // ── payment.created ────────────────────────────────────────────────────────
+  if (event.type === "payment.created") {
     const yocoPaymentId = event.payload?.id;
     const checkoutId = event.payload?.checkoutId;
     if (!yocoPaymentId || !checkoutId) return new Response("Bad request", { status: 400 });
@@ -323,8 +322,8 @@ export async function handleYocoWebhook(
     return new Response("OK", { status: 200 });
   }
 
-  // ── refund.succeeded — audit-only in Wave 0 ───────────────────────────────
-  if (event.type === "refund.succeeded") {
+  // ── payment.refunded — audit-only ─────────────────────────────────────────
+  if (event.type === "payment.refunded") {
     return new Response("OK", { status: 200 });
   }
 

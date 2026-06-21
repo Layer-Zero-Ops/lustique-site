@@ -100,7 +100,7 @@ function webhookReq(
 
 const paymentSucceededEvent = {
   id: "evt_xxx",
-  type: "payment.succeeded",
+  type: "payment.created",
   createdDate: "2026-06-17T12:00:00Z",
   payload: {
     id: YOCO_PAYMENT_ID,
@@ -163,14 +163,14 @@ describe("handleYocoWebhook — Standard Webhooks signature", () => {
   });
 
   it("returns 200 for a valid signature with correct timestamp", async () => {
-    const body = JSON.stringify({ type: "refund.succeeded", payload: { id: "ref_1", paymentId: YOCO_PAYMENT_ID } });
+    const body = JSON.stringify({ type: "payment.refunded", payload: { id: "ref_1", paymentId: YOCO_PAYMENT_ID } });
     const { sig, webhookId, webhookTimestamp } = await sign(body);
-    const resp = await handleYocoWebhook(env, webhookReq({ type: "refund.succeeded", payload: { id: "ref_1", paymentId: YOCO_PAYMENT_ID } }, sig, webhookId, webhookTimestamp), vi.fn() as unknown as typeof fetch);
+    const resp = await handleYocoWebhook(env, webhookReq({ type: "payment.refunded", payload: { id: "ref_1", paymentId: YOCO_PAYMENT_ID } }, sig, webhookId, webhookTimestamp), vi.fn() as unknown as typeof fetch);
     expect(resp.status).toBe(200);
   });
 });
 
-describe("handleYocoWebhook — payment.succeeded (deposit)", () => {
+describe("handleYocoWebhook — payment.created (deposit)", () => {
   it("marks payment paid, transitions booking accepted→deposit_paid (Wave A primary path), emails bride", async () => {
     const body = JSON.stringify(paymentSucceededEvent);
     const { sig, webhookId, webhookTimestamp } = await sign(body);
@@ -284,9 +284,9 @@ describe("handleYocoWebhook — payment.failed → EFT fallback", () => {
   });
 });
 
-describe("handleYocoWebhook — refund.succeeded", () => {
+describe("handleYocoWebhook — payment.refunded", () => {
   it("returns 200 with no DB calls (audit-only in Wave 0)", async () => {
-    const refundEvent = { type: "refund.succeeded", payload: { id: "ref_1", paymentId: YOCO_PAYMENT_ID } };
+    const refundEvent = { type: "payment.refunded", payload: { id: "ref_1", paymentId: YOCO_PAYMENT_ID } };
     const body = JSON.stringify(refundEvent);
     const { sig, webhookId, webhookTimestamp } = await sign(body);
     const f = vi.fn();
