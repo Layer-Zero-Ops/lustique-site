@@ -227,7 +227,9 @@ export async function handleAdminLogin(
   button:hover{background:#e8c4b3;}
   .msg{margin-bottom:20px;padding:10px 14px;background:#f0faf4;border:1px solid #b7dfc8;font-size:13px;color:#2d6a4f;}
   .stamp{margin-top:36px;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#C8B8AC;text-align:center;}
+  .peony{position:fixed;bottom:-60px;right:-40px;width:340px;opacity:0.18;mix-blend-mode:multiply;pointer-events:none;user-select:none;}
 </style></head><body>
+<img src="https://lustiqueco.co.za/assets/peony.png" alt="" class="peony">
 <div class="card">
   <img src="https://lustiqueco.co.za/assets/logo.png" alt="Lustique Co." class="logo">
   <div class="divider"></div>
