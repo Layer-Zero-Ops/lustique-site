@@ -154,15 +154,19 @@ describe("handleAdminLogin — POST", () => {
 // ── handleAdminAuthCallback ──────────────────────────────────────────────────
 
 describe("handleAdminAuthCallback", () => {
-  it("redirects to login with error when token_hash is missing", async () => {
+  it("serves the JS fragment-extraction page when no params are present", async () => {
+    // Flow 3: Supabase default template puts tokens in the URL fragment (#access_token=...).
+    // The callback serves a JS page that reads the fragment and redirects back with ?access_token=
     const f = vi.fn();
     const res = await handleAdminAuthCallback(
       getReq("/api/admin/auth/callback"),
       env,
       f as unknown as typeof fetch,
     );
-    expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toContain("/api/admin/login");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("access_token");
+    expect(body).toContain("/api/admin/auth/callback");
     expect(f).not.toHaveBeenCalled();
   });
 

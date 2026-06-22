@@ -6,6 +6,9 @@ import type { EstimateResult } from "@lustique/pricing";
 // ── helpers ─────────────────────────────────────────────────────────────────
 const res = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+// Mock for countBookingsOnDate: count returned in Content-Range header (Prefer: count=exact)
+const countRes = (count: number) =>
+  new Response("[]", { status: 200, headers: { "content-type": "application/json", "content-range": `*/${count}` } });
 
 const BOOKING_ID = "11111111-2222-3333-4444-555555555555";
 
@@ -56,7 +59,7 @@ function happyChain() {
   return vi.fn()
     .mockResolvedValueOnce(res({ success: true }))                                       // 1. Turnstile
     .mockResolvedValueOnce(res([]))                                                      // 2. isDateBlocked → not blocked
-    .mockResolvedValueOnce(res([{ count: "0" }]))                                        // 3. countBookingsOnDate
+    .mockResolvedValueOnce(countRes(0))                                        // 3. countBookingsOnDate
     .mockResolvedValueOnce(res([{ id: BOOKING_ID, reference: "LUS-2026-111122" }], 201)) // 4. insertBooking
     .mockResolvedValueOnce(res({}, 201))                                                 // 5. audit_log
     .mockResolvedValueOnce(res({ messageId: "m1" }, 201))                               // 6. Brevo → Lustique
@@ -103,7 +106,7 @@ describe("handleBookingRequest — happy path", () => {
     const f = vi.fn()
       .mockResolvedValueOnce(res({ success: true }))    // Turnstile
       .mockResolvedValueOnce(res([]))                   // isDateBlocked
-      .mockResolvedValueOnce(res([{ count: "2" }]))     // countBookingsOnDate
+      .mockResolvedValueOnce(countRes(2))                // countBookingsOnDate
       .mockResolvedValueOnce(res([{ id: BOOKING_ID, reference: "LUS-2026-111122" }], 201))
       .mockResolvedValueOnce(res({}, 201))
       .mockResolvedValueOnce(res({ messageId: "1" }, 201))
@@ -126,7 +129,7 @@ describe("handleBookingRequest — happy path", () => {
     const f = vi.fn()
       .mockResolvedValueOnce(res({ success: true }))                                       // 1. Turnstile
       .mockResolvedValueOnce(res([]))                                                      // 2. isDateBlocked
-      .mockResolvedValueOnce(res([{ count: "0" }]))                                        // 3. countBookingsOnDate
+      .mockResolvedValueOnce(countRes(0))                                        // 3. countBookingsOnDate
       .mockResolvedValueOnce(res([{ id: BOOKING_ID, reference: "LUS-2026-111122" }], 201)) // 4. insertBooking
       .mockResolvedValueOnce(res({}, 201))                                                 // 5. insertAudit (request.created)
       .mockRejectedValueOnce(new Error("Brevo 503"))                                       // 6. Lustique email fails
@@ -182,7 +185,7 @@ describe("handleBookingRequest — dedupe", () => {
     const f = vi.fn()
       .mockResolvedValueOnce(res({ success: true }))  // Turnstile
       .mockResolvedValueOnce(res([]))                 // isDateBlocked
-      .mockResolvedValueOnce(res([{ count: "0" }]))   // countBookingsOnDate
+      .mockResolvedValueOnce(countRes(0))   // countBookingsOnDate
       .mockResolvedValueOnce(res([{ id: EXISTING_ID, reference: "LUS-2026-EXIST" }], 201)); // insertBooking (dedupe)
     const resp = await handleBookingRequest(env, makeReq(validBody), f, mockCompute, () => BOOKING_ID);
     expect(resp.status).toBe(200);

@@ -10,14 +10,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "astro": "^4.16.0",
     "@lustique/pricing": "*",
-    "@sanity/client": "^6.0.0",
-    "@sanity/image-url": "^1.0.0",
+    "@sanity/client": "^6.29.1",
+    "@sanity/image-url": "^1.2.0",
+    "astro": "^4.16.0",
     "astro-portabletext": "^0.13.0"
   },
   "devDependencies": {
-    "vitest": "^1.0.0",
-    "@vitest/coverage-v8": "^1.0.0"
+    "@vitest/coverage-v8": "^1.6.1",
+    "vitest": "^1.6.1"
   }
 }

@@ -4,6 +4,9 @@ import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, coun
 const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc" };
 const res = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+// Mock for countBookingsOnDate: returns count via Content-Range header (Prefer: count=exact)
+const countRes = (count: number, status = 200) =>
+  new Response("[]", { status, headers: { "content-type": "application/json", "content-range": `*/${count}` } });
 
 describe("insertBooking", () => {
   it("returns the inserted row", async () => {
@@ -118,19 +121,19 @@ describe("transitionBooking (generalized guard)", () => {
 });
 
 describe("countBookingsOnDate", () => {
-  it("returns the count from the PostgREST aggregate", async () => {
-    const f = vi.fn().mockResolvedValue(res([{ count: "3" }]));
+  it("returns the count from the Content-Range header", async () => {
+    const f = vi.fn().mockResolvedValue(countRes(3));
     const n = await countBookingsOnDate(env, "2026-11-14", f as unknown as typeof fetch);
     expect(n).toBe(3);
     const url = f.mock.calls[0]![0] as string;
     expect(url).toContain("wedding_date=eq.2026-11-14");
     expect(url).toContain("status=not.in.(expired,declined,cancelled,rejected,invoice_expired)");
   });
-  it("returns 0 when no active bookings exist on that date", async () => {
-    const f = vi.fn().mockResolvedValue(res([{ count: "0" }]));
+  it("returns 0 when count is zero", async () => {
+    const f = vi.fn().mockResolvedValue(countRes(0));
     expect(await countBookingsOnDate(env, "2026-12-25", f as unknown as typeof fetch)).toBe(0);
   });
-  it("returns 0 when PostgREST returns an empty array (defensive guard)", async () => {
+  it("returns 0 when Content-Range header is absent (defensive guard)", async () => {
     const f = vi.fn().mockResolvedValue(res([]));
     expect(await countBookingsOnDate(env, "2026-12-25", f as unknown as typeof fetch)).toBe(0);
   });
