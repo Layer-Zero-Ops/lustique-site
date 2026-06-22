@@ -11,6 +11,7 @@ import {
   type AuthEnv,
   type AdminUser,
 } from "./auth";
+import { listArtists, listBookingArtists, type ArtistRow, type BookingArtistRow } from "./artists";
 import type { Env } from "../index";
 import { checkRateLimit, RATE_LIMITS } from "../lib/rateLimit";
 
@@ -596,6 +597,8 @@ interface RejectionRow {
   created_at: string;
 }
 
+const ARTIST_ASSIGNABLE_STATUSES = ["quote_sent", "accepted"];
+
 /**
  * GET /api/admin/booking/:id — booking detail + inline quote editor
  * POST /api/admin/quote/:id  — update total_cents, bump quote_revision
@@ -671,8 +674,15 @@ export async function handleAdminBookingDetail(
     return new Response(null, { status: 302, headers: { Location: `/api/admin/booking/${id}?saved=1` } });
   }
 
-  // GET — fetch booking + related data
-  const [bRes, pRes, qrRes, rjRes] = await Promise.all([
+  // GET — fetch booking + related data (+ artists for widget)
+  const artistsEnv = {
+    SUPABASE_URL: env.SUPABASE_URL,
+    SUPABASE_SERVICE_KEY: env.SUPABASE_SERVICE_KEY,
+    SUPABASE_JWT_SECRET: env.SUPABASE_JWT_SECRET ?? "",
+    AUDIT: env.AUDIT,
+  };
+
+  const [bRes, pRes, qrRes, rjRes, allArtists, assignedArtists] = await Promise.all([
     fetchFn(
       supabaseUrl(
         env,
@@ -692,6 +702,8 @@ export async function handleAdminBookingDetail(
       supabaseUrl(env, `rejections?booking_id=eq.${encodeURIComponent(id)}&select=id,rejected_by,reason_code,reason_text,created_at&order=created_at.desc`),
       { headers: hdr },
     ),
+    listArtists(artistsEnv, fetchFn).catch((): ArtistRow[] => []),
+    listBookingArtists(artistsEnv, id, fetchFn).catch((): BookingArtistRow[] => []),
   ]);
 
   if (!bRes.ok) return htmlResponse(`<p>Fetch error. <a href="/api/admin/dashboard">Back</a></p>`, 502);
@@ -704,6 +716,7 @@ export async function handleAdminBookingDetail(
 
   const url = new URL(req.url);
   const saved = url.searchParams.get("saved") === "1";
+  const errorMsg = url.searchParams.get("error");
 
   const quoteLines = (b.quote_lines || [])
     .map((l) => `<tr><td>${esc(l.label)}</td><td style="text-align:right;">${formatZAR(l.amount)}</td></tr>`)
@@ -745,8 +758,53 @@ export async function handleAdminBookingDetail(
       </form>`
     : `<p style="font-size:.82rem;color:#8a7d72;margin-top:.5rem;">Quote editing locked — status is <strong>${esc(b.status)}</strong>.</p>`;
 
+  // ── Artist assignment widget ────────────────────────────────────────────────
+  const canAssign = ARTIST_ASSIGNABLE_STATUSES.includes(b.status);
+  const assignedIds = new Set(assignedArtists.map((a) => a.artist_id));
+
+  const assignedRowsHtml = assignedArtists.length
+    ? assignedArtists.map((a) => `
+        <tr>
+          <td>${esc(a.artists.name)}</td>
+          <td><span class="badge" style="background:${a.lead ? "#e9d8fd" : "#ebf8ff"};color:${a.lead ? "#553c9a" : "#2b6cb0"};">${a.lead ? "Lead" : "Artist"}</span></td>
+          <td>
+            ${canAssign ? `<form method="POST" action="/api/admin/booking/${esc(id)}/artists/remove" style="display:inline;">
+              <input type="hidden" name="artist_id" value="${esc(a.artist_id)}">
+              <button type="submit" style="font:inherit;font-size:.8rem;font-weight:700;color:#c53030;background:none;border:1.5px solid #f5c6c6;border-radius:6px;padding:.2em .7em;cursor:pointer;">Remove</button>
+            </form>` : ""}
+          </td>
+        </tr>`).join("")
+    : `<tr><td colspan="3" class="empty">No artists assigned.</td></tr>`;
+
+  const unassignedArtists = allArtists.filter((a) => !assignedIds.has(a.id));
+  const artistOptions = unassignedArtists
+    .map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`)
+    .join("");
+
+  const assignFormHtml = canAssign && unassignedArtists.length
+    ? `<form method="POST" action="/api/admin/booking/${esc(id)}/artists" style="display:flex;gap:.6rem;align-items:center;margin-top:.8rem;flex-wrap:wrap;">
+        <select name="artist_id" required style="font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em .6em;min-width:160px;">
+          <option value="">Select artist…</option>
+          ${artistOptions}
+        </select>
+        <select name="lead" style="font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em .6em;">
+          <option value="false">Artist</option>
+          <option value="true">Lead</option>
+        </select>
+        <button type="submit" style="font:inherit;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.4em 1em;cursor:pointer;">Assign artist</button>
+      </form>`
+    : canAssign && !unassignedArtists.length
+      ? `<p style="font-size:.82rem;color:#8a7d72;margin-top:.5rem;">All artists are already assigned.</p>`
+      : `<p style="font-size:.82rem;color:#8a7d72;margin-top:.5rem;">Artist assignment locked — status is <strong>${esc(b.status)}</strong>.</p>`;
+
+  const artistsHtml = `
+    <table><thead><tr><th>Artist</th><th>Role</th><th></th></tr></thead>
+    <tbody>${assignedRowsHtml}</tbody></table>
+    ${assignFormHtml}`;
+
   const inner = `
-    ${saved ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;color:#276749;font-size:.88rem;">✓ Quote updated.</div>` : ""}
+    ${saved ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;color:#276749;font-size:.88rem;">✓ Saved.</div>` : ""}
+    ${errorMsg ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#fff5f5;color:#c53030;font-size:.88rem;">Error: ${esc(errorMsg)}</div>` : ""}
     <a href="/api/admin/dashboard" style="font-size:.82rem;color:#8a3a52;">← Inbox</a>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1rem;">
       <div>
@@ -785,6 +843,7 @@ export async function handleAdminBookingDetail(
     <h2>Payments</h2>${paymentsHtml}
     <h2>Revisions</h2>${revisionsHtml}
     <h2>Rejections</h2>${rejectionsHtml}
+    <h2>Artists</h2>${artistsHtml}
     ${b.notes ? `<h2>Notes</h2><p style="white-space:pre-wrap;">${esc(b.notes)}</p>` : ""}
   `;
 

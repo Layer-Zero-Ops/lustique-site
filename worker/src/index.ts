@@ -27,6 +27,7 @@ import {
   handleAdminNotifications,
   handleAdminNotificationsRead,
 } from "./booking/dashboard";
+import { handleAssignArtist, handleRemoveArtist } from "./booking/artists";
 import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLimit";
 
 /* ============================================================
@@ -314,6 +315,16 @@ export default {
       // GET /api/admin/dashboard — Inbox view (requires valid session)
       if (req.method === "GET" && url.pathname === "/api/admin/dashboard") {
         return await handleAdminDashboard(req, dashEnv);
+      }
+      // POST /api/admin/booking/:id/artists — assign artist to booking (D4)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/artists")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/artists".length);
+        if (id) return await handleAssignArtist(req, dashEnv, id);
+      }
+      // POST /api/admin/booking/:id/artists/remove — remove artist from booking (D4)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/artists/remove")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/artists/remove".length);
+        if (id) return await handleRemoveArtist(req, dashEnv, id);
       }
       // GET /api/admin/booking/:id — booking detail + inline quote editor
       if (req.method === "GET" && url.pathname.startsWith("/api/admin/booking/")) {
