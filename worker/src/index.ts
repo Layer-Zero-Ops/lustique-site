@@ -35,6 +35,8 @@ import {
   handleAdminMarkDepositPaid,
   handleAdminMarkBalancePaid,
 } from "./booking/admin-actions";
+import { handleCalendarFeed } from "./booking/calendar";
+import { persistEnquiry } from "./booking/db";
 import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLimit";
 
 /* ============================================================
@@ -81,6 +83,9 @@ export interface Env {
   // Set via: wrangler secret put SUPABASE_JWT_SECRET
   // Value: Supabase dashboard → Settings → API → JWT Settings → JWT Secret
   SUPABASE_JWT_SECRET?: string;
+  // iCal feed secret — URL key for GET /api/calendar.ics
+  // Set via: wrangler secret put ICAL_KEY  (generate with: openssl rand -hex 24)
+  ICAL_KEY?: string;
   AUDIT: { put(key: string, value: string): Promise<unknown> };
   // Wave D3 — rate-limiting bindings (declared in wrangler.toml [[ratelimits]])
   // Optional so existing tests that don't supply them compile without changes.
@@ -231,6 +236,11 @@ export default {
         status: ok ? 200 : 503,
         headers: { "content-type": "application/json", ...secHeaderMap({ html: false }) },
       });
+    }
+
+    // GET /api/calendar.ics — iCal feed of active bookings (key-protected)
+    if (req.method === "GET" && url.pathname === "/api/calendar.ics") {
+      return handleCalendarFeed(req, env);
     }
 
     // POST /api/booking/request — request-to-book endpoint (S2)
@@ -471,6 +481,22 @@ export default {
 
     const name = body.name!.trim();
     try {
+      // 0) Persist enquiry first — no lead is lost even if email delivery fails
+      if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
+        await persistEnquiry(env, {
+          name,
+          email: body.email!.trim(),
+          phone: (body.phone ?? "").trim(),
+          occasion: body.occasion,
+          event_date: body.date,
+          town: body.town,
+          estimate: body.estimate,
+          message: body.message ? cap(body.message, 2000) : undefined,
+          details: Array.isArray(body.details) ? body.details : undefined,
+          ip: req.headers.get("cf-connecting-ip") ?? undefined,
+        });
+      }
+
       // 1) Confirm the bride
       await brevoEmail(
         env,
@@ -502,8 +528,6 @@ export default {
          ${body.message ? `<p style="margin-top:12px;white-space:pre-wrap;">${esc(cap(body.message, 2000))}</p>` : ""}`,
       );
 
-      // TODO (Phase B/C): append to the Google Sheet / CRM, kick off the Brevo nurture flow,
-      // and add /api/quote + /api/quote/respond using shared/pricing for the authoritative recompute.
       return json({ ok: true }, 200, origin);
     } catch {
       // Never fail silently on a real lead — tell her how to reach us directly.

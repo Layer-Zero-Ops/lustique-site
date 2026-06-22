@@ -8,8 +8,8 @@ export interface DbEnv {
   SUPABASE_SERVICE_KEY: string;
 }
 
-const rest = (env: DbEnv, path: string) => `${env.SUPABASE_URL}/rest/v1/${path}`;
-const headers = (env: DbEnv): HeadersInit => ({
+export const rest = (env: DbEnv, path: string) => `${env.SUPABASE_URL}/rest/v1/${path}`;
+export const headers = (env: DbEnv): HeadersInit => ({
   apikey: env.SUPABASE_SERVICE_KEY,
   authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
   "content-type": "application/json",
@@ -534,4 +534,31 @@ export async function listBookingsDueForBalanceReminder(
   const r = await f(rest(env, q), { headers: headers(env) });
   if (!r.ok) throw new Error(`listBookingsDueForBalanceReminder ${r.status}`);
   return (await r.json()) as Array<ConfirmBookingRow & { balance_reminder_sent_at: string | null }>;
+}
+
+export interface EnquiryRow {
+  name: string;
+  email: string;
+  phone: string;
+  occasion?: string;
+  event_date?: string;
+  town?: string;
+  estimate?: string;
+  message?: string;
+  details?: unknown;
+  ip?: string;
+}
+
+/** Persist a /api/enquiry submission so no lead is lost even if email delivery fails. */
+export async function persistEnquiry(
+  env: DbEnv,
+  row: EnquiryRow,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, "enquiries"), {
+    method: "POST",
+    headers: { ...headers(env), prefer: "return=minimal" },
+    body: JSON.stringify(row),
+  });
+  if (!r.ok) throw new Error(`persistEnquiry ${r.status}: ${await r.text()}`);
 }

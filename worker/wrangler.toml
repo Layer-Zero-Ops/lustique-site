@@ -25,6 +25,11 @@ YOCO_FEE_PCT = "3.5"
 # Wave C Phase 1 (admin dashboard auth):
 #   SUPABASE_JWT_SECRET — Supabase dashboard → Settings → API → JWT Settings → JWT Secret
 #                         Enables JWT-gated /api/admin/login + /api/admin/dashboard routes.
+# iCal feed (D2 replacement):
+#   ICAL_KEY — random URL key for GET /api/calendar.ics?key=<ICAL_KEY>
+#              Generate: openssl rand -hex 24
+#              Subscribe URL: https://lustiqueco.co.za/api/calendar.ics?key=<ICAL_KEY>
+#              Share with Zandeline + all 9 artists (one-time subscribe in Google Calendar / Apple Calendar)
 # EFT bank details: business_settings table, not Worker secrets.
 
 # Booking core (S1):
