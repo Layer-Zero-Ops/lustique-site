@@ -1,37 +1,55 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { ARTISTS } from "../data/team";
+import Photo from "../components/Photo.astro";
+import { sanityClient } from "../lib/sanity";
+import { TEAM_QUERY, type SanityTeamMember } from "../queries/team";
+
 const title = "The Team — Lustique Co.";
 const desc = "Meet the nine bridal artists of Lustique Co. — 40+ years of combined experience.";
----
-<BaseLayout slug="team.html" title={title} desc={desc} breadcrumb={[{name:"The Team"}]}>
 
-  
+const artists = await sanityClient.fetch<SanityTeamMember[]>(TEAM_QUERY);
+---
+<BaseLayout slug="team.html" title={title} desc={desc} breadcrumb={[{ name: "The Team" }]}>
+
   <section class="page-hero">
     <span class="eyebrow">The Team</span>
-    <h1>Nine artists. One quiet<br>morning at a time.</h1>
-    <p>Together our nine bridal artists bring over 40 years of combined experience. Whoever joins you on your day brings the same calm, the same standard, the same care.</p>
+    <h1>Nine artists. One quiet<br />morning at a time.</h1>
+    <p>
+      Together our nine bridal artists bring over 40 years of combined experience.
+      Whoever joins you on your day brings the same calm, the same standard, the same care.
+    </p>
   </section>
+
   <section class="section"><div class="wrap">
     <div class="artist-grid">
-      {ARTISTS.map((a, i) => (
+      {artists.map((a, i) => (
         <div class={`artist reveal${["", " d1", " d2"][i % 3]}`}>
-          <div class="ph"></div>
+          {a.photo
+            ? <Photo sanityImage={a.photo} alt={`${a.name} — Lustique Co. bridal artist`} width={400} height={400} />
+            : <div class="ph"></div>
+          }
           <h3>{a.name}</h3>
           <div class="role">{a.role}</div>
-          <p>{a.blurb}</p>
+          <p>{a.bio}</p>
         </div>
       ))}
     </div>
-    <p class="note center" style="margin-top:2.4rem;max-width:60ch;margin-inline:auto;">Each artist’s portfolio will live as a highlight on our Instagram. We allocate the right artists for your wedding by date and party size — so you simply get the Lustique standard, every time. <em>Artist photos &amp; bios coming soon.</em></p>
+    <p class="note center" style="margin-top:2.4rem;max-width:60ch;margin-inline:auto;">
+      Each artist's portfolio will live as a highlight on our Instagram. We allocate the right
+      artists for your wedding by date and party size — so you simply get the Lustique standard,
+      every time.
+    </p>
   </div></section>
-  
+
   <section class="section cta-band">
     <div class="wrap">
-      <span class="eyebrow reveal">Let’s begin</span>
+      <span class="eyebrow reveal">Let's begin</span>
       <h2 class="reveal d1" style="margin-top:1rem;">Tell us about your day.</h2>
-      <p class="reveal d2">Share a few details and we’ll send a personalised quote — usually within 24 hours, often sooner.</p>
+      <p class="reveal d2">
+        Share a few details and we'll send a personalised quote — usually within 24 hours, often sooner.
+      </p>
       <a class="btn btn-primary reveal d2" href="quote.html">Get a Quote</a>
     </div>
   </section>
+
 </BaseLayout>

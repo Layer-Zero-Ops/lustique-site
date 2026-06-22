@@ -1,17 +1,43 @@
 ---
-/* Real responsive image with blur-up reveal. The .ph container keeps all the
-   existing layout CSS (aspect-ratio, radius, hover-zoom); the <img> inside fades
-   + sharpens from the champagne placeholder once it loads (site.js adds .loaded).
-   Multi-size srcset + true LQIP arrive with the Sanity image CDN in Pass 2. */
-interface Props { src: string; alt: string; cls?: string; eager?: boolean; }
-const { src, alt, cls = "", eager = false } = Astro.props as Props;
+/* Photo.astro — responsive image wrapper.
+   Accepts either:
+     src (string): legacy path under /assets/ (existing site images)
+     sanityImage (SanityImageObject): Sanity CDN image reference
+   Backward-compatible — no existing page that passes only `src` needs to change.
+*/
+import { resolvePhotoSrc } from "../lib/imageUrl";
+import type { SanityImageObject } from "@sanity/image-url/lib/types/types";
+
+interface Props {
+  src?: string;
+  sanityImage?: SanityImageObject;
+  alt: string;
+  cls?: string;
+  eager?: boolean;
+  width?: number;
+  height?: number;
+}
+
+const {
+  src,
+  sanityImage,
+  alt,
+  cls = "",
+  eager = false,
+  width = 800,
+  height = 800,
+} = Astro.props as Props;
+
+const imgSrc = resolvePhotoSrc(src, sanityImage, width, height);
 ---
 <div class={`ph img ${cls}`}>
   <img
     class="ph-img"
-    src={`assets/${src}`}
+    src={imgSrc}
     alt={alt}
     loading={eager ? "eager" : "lazy"}
     decoding="async"
+    width={width}
+    height={height}
   />
 </div>
