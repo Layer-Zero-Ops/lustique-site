@@ -1,6 +1,6 @@
 # Lustique Re-Plan — Master Build Sequence & Decisions
 
-**Status:** PLAN (master) · Opus planning · 2026-06-18 · **read this to execute.**
+**Status:** PLAN (master) · Opus planning · 2026-06-18 · **Wave D (post-launch platform) added 2026-06-21** · **read this to execute.**
 **Inputs:** `specs/2026-06-18-lustique-replan-spec.md` (core flow/state machine/Yoco/fees/churn/voice), `plans/2026-06-18-lustique-dashboard-data-plan.md` (dashboard/CRM/analytics/ML), `plans/2026-06-18-lustique-seo-security-infra-plan.md` (#16).
 **Grounding:** built on a 14-agent code map of the live worker/DB/emails/frontend/pricing/infra + the Jun-18 corrections. The Yoco webhook defect (spec §0) was verified against Yoco's live docs.
 
@@ -42,7 +42,14 @@ Delivers most corrections without waiting for auth. Ships the corrected flow liv
 - **CRM (#7):** `contacts` + `bookings.contact_id`; `upsertContactFromBooking`; CSV import (admin-session); CRM views + repeat-bride badge. (~3–4 d)
 - **IMAP (#13, optional, re-justify):** Gmail API + OAuth incremental sync in a scheduled Supabase Edge Function; metadata+snippet+deep-link only (POPIA). (~4–6 d, **gated on Decision #6**)
 
-### Wave D — Data Layer-3 + heuristics (incremental, alongside B/C)
+### Wave D — Post-launch platform (Sanity CMS · Google Calendar · rate limiting · artist allocation)
+Added 2026-06-21 (Opus). Four independent plan docs, built in the order below; **TDD throughout; Worker stays sole writer.** ⚠️ Each plan carries a **"Build corrections"** checklist at its top (adversarial-review fixes) — apply those first.
+1. **D3 · Worker rate limiting** (`plans/2026-06-21-lustique-wave-d3-rate-limiting.md`) — **first**; protects the already-live `/api/*`. CF Workers Rate Limiting bindings in `wrangler.toml` + `worker/src/lib/rateLimit.ts`; login keyed by IP (+email), booking ~3/h-equiv, enquiry on top of Turnstile, all `/api/admin/*` (incl. the 4 legacy `ADMIN_SECRET` routes), Yoco webhook exempt. **No migration.** (~1–2 d)
+2. **D1 · Sanity CMS** (`plans/2026-06-21-lustique-wave-d1-sanity-cms.md`) — independent of the others. Standalone hosted Studio (`lustique.sanity.studio`); raw `@sanity/client` build-time fetch (no SSR); Sanity CDN images; webhook → CF Pages deploy hook; 6 schemas; 3 hard-coded blog pages → `blog/[slug].astro`. `shared/pricing` untouched. **No Supabase migration.** (~4–6 d)
+3. **D4 · Artist allocation** (`plans/2026-06-21-lustique-wave-d4-artist-allocation.md`) — **before D2.** New dedicated `artists` table + seed the 9 + **re-point `booking_artists.artist_id` FK `profiles`→`artists`** (booking_artists is empty; **no `auth.users` writes**). JWT-gated assign/remove on the booking-detail page; uses the existing `lead boolean` (not a new `role TEXT`). Migration **`0013_artists.sql`**. (~2–3 d)
+4. **D2 · Google Calendar** (`plans/2026-06-21-lustique-wave-d2-google-calendar.md`) — **last** (uses D4 artist emails as attendees). Service-account RS256 JWT (WebCrypto) → one shared calendar; **one event per booking** (create at `deposit_paid` if null, **PATCH** at `settled`, delete on cancel); fire-and-forget / non-blocking; base64 SA secret `GOOGLE_SA_KEY_B64`. Migration **`0014_booking_google_event.sql`** (`bookings.google_event_id`). (~3–4 d)
+
+### Wave DL — Data Layer-3 + heuristics (analytics; **renamed from "Wave D" on 2026-06-21** to free the D letter for the platform wave above)
 Cloudflare Web Analytics + consent-gated `POST /api/track`→`funnel_events` + nightly rollup; lead-temperature view + nudge already shipped in Wave A. **No ML** (deliverable 6 verdict: defer behind the data layer).
 
 ### Wave S — SEO/Security/Infra (#16, parallelizable; several items launch-gating)
@@ -51,7 +58,7 @@ Mostly independent of the waves. **Launch-blocking subset** (do alongside Wave 0
 ---
 
 ## Migration sequence (recommended; Sonnet finalises numbers at build)
-`0005_payment_failure` (Wave 0) → capacity/status `0006_capacity_and_status` (Wave A) → analytics/attribution `0007` (Wave A) → **`0008_quote_editing`** (`quote_revisions` + `rejections`, **Wave A** — needed for the interim per-line editor + bride reject loop, per Decision #2) → Phase-1 identity `0009_identity_and_allocation` (Wave B) → dashboard tables (`message_templates`/`notifications`) `0010` (Wave B) → CRM `0011` → email `0012`. Renumber coherently when building; the **dependency order is the contract**, not the digits. (`quote_revisions`/`rejections` moved earlier — into Wave A — because Decision #2 puts per-line editing on the token page now.)
+`0005_payment_failure` (Wave 0) → capacity/status `0006_capacity_and_status` (Wave A) → analytics/attribution `0007` (Wave A) → **`0008_quote_editing`** (`quote_revisions` + `rejections`, **Wave A** — needed for the interim per-line editor + bride reject loop, per Decision #2) → Phase-1 identity `0009_identity_and_allocation` (Wave B) → dashboard tables (`message_templates`/`notifications`) `0010` (Wave B) → CRM `0011` → email `0012`. Renumber coherently when building; the **dependency order is the contract**, not the digits. (`quote_revisions`/`rejections` moved earlier — into Wave A — because Decision #2 puts per-line editing on the token page now.) **Wave D (2026-06-21):** `0001–0012` are applied; next are **`0013_artists`** (D4 — creates `artists`, re-points `booking_artists.artist_id`) → **`0014_booking_google_event`** (D2 — `bookings.google_event_id`). D3 (rate limiting) and D1 (Sanity) add **no** Supabase migration.
 
 ## Estimated total
 Wave 0: ~2–3 d · Wave A: ~6–9 d · Wave B: ~10–14 d · Wave C: ~7–10 d · Wave S launch subset: ~2–3 d (overlaps). Trust the sequenced total (~28–40 build-days for Waves 0–C single-lane), not the additive sum — auth is shared across the dashboard/CRM.
@@ -72,7 +79,9 @@ Decisions #1 and #2 (the two that gated the early build) are **resolved**; #3–
 ---
 
 ## ▶ NEXT (for the build lane / Sonnet)
-**Wave 0 — the CRITICAL Yoco webhook hotfix** (spec §0). It has no dependencies and no open decisions, and it unblocks real payments. Build it TDD-first, then the Wave-S launch-gating security subset, then Wave A. **Both early-gating decisions are resolved** — #1 fee model = **absorb**, #2 review = **interim per-line editing on the token page** — so Wave A is fully unblocked. Decisions #3–#7 are operational confirmations for Wave B/C.
+Waves **0, S, A, B, C are shipped** (319 tests green — see `SESSION_HANDOFF.md` done-ledger). **▶ Wave D — Post-launch platform**, built in order **D3 → D1 → D4 → D2** (see the four `plans/2026-06-21-lustique-wave-d*` docs; **apply each doc's top "Build corrections" checklist first**). Start with **D3 (rate limiting)** — no migration, no open decisions, protects the live endpoints. Migrations land as `0013` (D4 artists) then `0014` (D2 calendar). D1 (Sanity) is independent and can run in parallel with D3/D4 if a second lane is free.
+
+_(Historical: the original ▶ NEXT here was Wave 0 — the critical Yoco webhook hotfix — now shipped. Both early-gating decisions remain resolved: #1 fee model = **absorb**, #2 review = **interim per-line editing on the token page**.)_
 
 ## Secrets still pending
 Wave keys only (`WAVE_API_KEY`, `WAVE_BUSINESS_ID`, `WAVE_PRODUCT_ID`, `WAVE_BANK_ACCOUNT_ID`) — when Wave credentials arrive. New: `YOCO_FEE_PCT` is a **var**, not a secret. Supabase Auth (Wave B) needs Brevo SMTP wired for magic links.

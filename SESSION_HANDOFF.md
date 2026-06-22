@@ -1,23 +1,26 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 Plan (Opus) · **Phase:** Wave D planning · **Updated:** 2026-06-21 (Sonnet→Opus handoff) · **Session cleared ✅**
+**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Wave D planned; ready to build · **Updated:** 2026-06-21 (Opus → Sonnet handoff)
 
-## ▶ NEXT (Opus, Plan lane)
+## ▶ NEXT (Sonnet, Build lane) — 🔵 PLAN SET
 
-**Model:** Opus · **Lane:** Plan · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
+**Model:** Sonnet · **Lane:** Build · **Branch:** `main` (or branch per wave-item) · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-Read these first (in order):
-1. `PLAN.md` — business decisions + locked choices
-2. `BRAND.md` — quiet-luxury mandate, voice, palette
-3. `ARCHITECTURE.md` — full system design
-4. `docs/superpowers/specs/2026-06-18-lustique-replan-spec.md` — corrected booking flow + state machine
-5. `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` — wave sequence + decisions
+**Build Wave D — post-launch platform**, in order **D3 → D1 → D4 → D2**. Use **`superpowers:executing-plans`** (or `subagent-driven-development`) — each plan is bite-sized TDD with complete code.
 
-Then produce **one plan doc per item below** in `docs/superpowers/plans/`, plus a single updated build sequence that slots Wave D into the existing wave map. Each plan must be Sonnet-buildable without further design calls — spec the schema, the API surface, the Worker routes, the file changes, and the Sonnet build sequence.
+**Each plan has a `⚠️ Build corrections` checklist at the very top — apply those fixes FIRST; they override conflicting inline text (adversarial-review findings).**
+1. **D3 · rate limiting** → `docs/superpowers/plans/2026-06-21-lustique-wave-d3-rate-limiting.md` — no migration, no open decisions, no Pieter prereqs; protects the already-live `/api/*`. **Start here.**
+2. **D1 · Sanity CMS** → `docs/superpowers/plans/2026-06-21-lustique-wave-d1-sanity-cms.md` — independent; needs the Sanity-project Pieter prereqs + `npm install` in your terminal.
+3. **D4 · artist allocation** → `docs/superpowers/plans/2026-06-21-lustique-wave-d4-artist-allocation.md` — migration `0013_artists.sql`; build before D2.
+4. **D2 · Google Calendar** → `docs/superpowers/plans/2026-06-21-lustique-wave-d2-google-calendar.md` — migration `0014`; last (uses D4 artist emails as attendees).
+
+Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` (§Wave D + §Migration sequence). **Cross-cutting:** `worker/` has **no `tsconfig.json`** — add a minimal one (typescript is already a devDep) or use `npx wrangler deploy --dry-run` for type checks (in every corrections list). **319 tests are green today — keep them green.**
+
+🔵 **PLAN SET — switch to Sonnet (`/model sonnet`) to build.** D3 is fully unblocked; D1/D2 need one-time external setup and D4 needs migration `0013` applied (see Pieter actions).
 
 ---
 
-### 🟣 Wave D — Four planning items for Opus
+### 🟣 Wave D — planning brief (✅ COMPLETE 2026-06-21 — produced the four plan docs above; retained below for traceability)
 
 #### D1 · Sanity CMS
 **Why:** Zandeline needs to update content herself — portfolio images, team bios, blog articles, service descriptions, promotions — without a developer. Currently all content is hard-coded in Astro `.astro` files.
@@ -120,6 +123,10 @@ Then produce **one plan doc per item below** in `docs/superpowers/plans/`, plus 
 2. **Migration 0012** — confirm applied: Supabase Dashboard → Database → Migrations
 3. **Yoco online checkout rate** — Yoco Business Portal → Settings → Pricing → Online Payments → record rate → update `YOCO_FEE_PCT` in `wrangler.toml` + `PRICING.md §9`
 4. **GA4 Measurement ID** — swap `G-XXXXXXXXXX` in `site/src/data/site.ts` once Google Workspace + GA4 live
+5. **Wave D / D1 (Sanity)** — create the client-owned Sanity project (note Project ID), add Zandeline as editor, set CF Pages build env vars (`SANITY_PROJECT_ID`, `SANITY_DATASET=production`, `SANITY_API_VERSION`), create a CF Pages deploy hook + point a Sanity publish webhook at it. (Full list in the D1 plan §Pieter.)
+6. **Wave D / D2 (Calendar)** — create a Google Cloud project + service account, enable Calendar API, share the one shared Lustique calendar with the service-account email, `wrangler secret put GOOGLE_SA_KEY_B64` (base64 of the SA JSON), set `GOOGLE_CALENDAR_ID` var. **Apply migration `0014` before deploying the Worker.** (Full list in the D2 plan §Pieter.)
+7. **Wave D / D4 (Artists)** — apply migration `0013_artists.sql` (`supabase db push`); later collect real artist emails from Zandeline to replace the seeded placeholders.
+8. **`npm install` (your terminal — sandbox blocks installs)** — D1 `site/`: `@sanity/client @sanity/image-url@^1.0.0 astro-portabletext@^0.13.0 vitest @vitest/coverage-v8`; D1 `studio/`: `sanity @sanity/vision react react-dom typescript`.
 
 ### Known open (not blocking go-live)
 - **Brevo custom SMTP** — still not connecting (tried 587 + 465, zero Brevo log entries). Admin magic link email currently comes from `noreply@mail.app.supabase.io`. Functional, not branded. Revisit separately — likely a Brevo account config issue (sender domain vs SMTP relay permissions).
@@ -165,6 +172,7 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - **Supabase:** 0001–0004 applied · bank details seeded (placeholders — Zandeline fills before live)
 
 ## State (done-ledger)
+- **Wave D PLANNED ✅ 2026-06-21 (Opus)** — four Sonnet-buildable plan docs written + adversarially verified via a 3-pass workflow (recon → design → refute; 13 agents/pass, design+verify on Sonnet to spare Opus budget). `plans/2026-06-21-lustique-wave-d{3-rate-limiting,1-sanity-cms,4-artist-allocation,2-google-calendar}.md`, each with a top `⚠️ Build corrections` checklist folding in the adversarial-review fixes. Master sequence updated (Wave D slotted; old analytics "Wave D" **renamed Wave DL** to free the letter; migrations `0013` artists → `0014` calendar). **Opus calls locked:** D4 = dedicated `artists` table + re-point `booking_artists.artist_id` FK profiles→artists (not profiles/auth.users — booking_artists is empty); D2 = **one** calendar event per booking (create at deposit_paid, PATCH at settled, delete on cancel). Build order **D3 → D1 → D4 → D2**. ▶ NEXT for Sonnet.
 - **Yoco webhook DONE ✅ 2026-06-21 (Sonnet)** — `78a8a79`. Registered `payment.created` + `payment.refunded` via Yoco API (subscription `ep_3FS4qYCmXojK0ODkXWo5HZfk3Ff`). Corrected event names (Wave 0 assumed `payment.succeeded`/`refund.succeeded` — Yoco's actual names confirmed via API validation error). `YOCO_WEBHOOK_SECRET` bound to Worker. 319 tests green. **Pieter: save `whsec_...` to Supabase Vault as `YOCO_WEBHOOK_SECRET`.**
 - **Admin login redesign DONE ✅ 2026-06-21 (Sonnet)** — `d6b7ceb`. Quiet-luxury restyle: logo centred, champagne card border, Georgia italic heading, blush pill CTA, ivory background, pencil peony illustration bottom-right (`mix-blend-mode:multiply`, `peony.png` in CF Pages assets). "Check your inbox" confirmation page restyled to match. 319 tests green.
 - **Email 8 (Google Review) DONE ✅ 2026-06-20 (Sonnet)** — `d482434`. `reviewEmailSweep`: daily cron, 48h after `wedding_date`, settled bookings only, fetches `google_review_url` from `business_settings`, sends emailShell thank-you + blush CTA, stamps `review_email_sent_at`, audits. Migration 0012. 4 tests → 319 green. **Pieter: apply migration 0012 to live DB.**
@@ -195,6 +203,9 @@ Both decisions that gated early build are resolved; #3–#7 (build-sequence doc 
 - Agency-platform roadmap: `docs/ROADMAP-agency-platform.md` (the re-plan pulls Phase 2 forward; Phase 1 auth becomes a prerequisite)
 
 ## ⇄ Umbrella
+
+**⬆ To umbrella — 🟢 SHIPPED: Wave D planned (Opus, 2026-06-21)**
+Four Sonnet-buildable plan docs (Sanity CMS · Google Calendar · Worker rate limiting · artist allocation) + master-sequence update, from a 3-pass recon→design→adversarial-verify workflow. Two architecture one-way-doors resolved by Opus (D4 dedicated `artists` table + FK re-point; D2 single calendar event per booking). Build lane is unblocked (D3 needs nothing; D1/D2/D4 need the one-time external setup logged in Pieter actions). No umbrella decision needed.
 
 **⬆ To umbrella — 🟢 SHIPPED: Booking re-plan delivered (Opus, 2026-06-18)**
 Full re-plan of booking flow + dashboard + Yoco + CRM + analytics + ML + SEO/security, from a 14-agent fan-out. **Surfaced a live payment bug** (Yoco webhook never fires on real events) — Wave 0 hotfix queued as build ▶ NEXT. The re-plan confirms the agency-platform roadmap's Phase-1-auth-then-Phase-2-dashboard sequence is now a hard dependency of the corrected booking core (corrections #2/#8 pull Phase 2 forward). 7 decisions await Pieter (build-sequence doc §Decisions); none block the Wave 0 hotfix.
