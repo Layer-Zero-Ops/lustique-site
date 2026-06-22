@@ -2,8 +2,17 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Photo from "../components/Photo.astro";
 import { SITE } from "../data/site";
+import { sanityClient } from "../lib/sanity";
+import { SERVICES_QUERY, type SanityService } from "../queries/services";
+
 const title = "Services — Lustique Co.";
-const desc = "Bridal hair & makeup, plus matric, editorial, engagement, maternity, corporate, pageant and group lessons.";
+const desc =
+  "Bridal hair & makeup, plus matric, editorial, engagement, maternity, corporate, pageant and group lessons.";
+
+const allServices = await sanityClient.fetch<SanityService[]>(SERVICES_QUERY);
+const bridalServices = allServices.filter((s) => s.category === "bridal");
+const beyondBridalServices = allServices.filter((s) => s.category === "beyond-bridal");
+
 const serviceJsonLd = {
   "@context": "https://schema.org",
   "@graph": [
@@ -61,39 +70,94 @@ const serviceJsonLd = {
 ---
 <BaseLayout slug="services.html" title={title} desc={desc} jsonld={serviceJsonLd}>
 
-  
   <section class="page-hero">
     <span class="eyebrow">What we do</span>
     <h1>Flawless. Elegant. Unforgettable.</h1>
-    <p>From the bride and her party to special-occasion glamour, every look is tailored — with quality, care, and a personal touch.</p>
+    <p>
+      From the bride and her party to special-occasion glamour, every look is
+      tailored — with quality, care, and a personal touch.
+    </p>
   </section>
+
   <section class="section"><div class="wrap">
-    <div class="center" style="margin-bottom:2.6rem;"><span class="eyebrow reveal">The wedding day</span><h2 class="reveal d1" style="margin-top:.8rem;">Bridal hair &amp; makeup</h2></div>
+    <div class="center" style="margin-bottom:2.6rem;">
+      <span class="eyebrow reveal">The wedding day</span>
+      <h2 class="reveal d1" style="margin-top:.8rem;">Bridal hair &amp; makeup</h2>
+    </div>
     <div class="cards">
-      <article class="card reveal"><div class="card-media"><Photo src="s1.jpg" alt="Bridal makeup by Lustique Co." /></div><div class="card-body"><h3>Bridal Makeup</h3><p>Enhance your natural beauty with a customised look — soft glow or bold glam — using premium, long-wearing, photography-friendly products.</p><p style="font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R850</p></div></article>
-      <article class="card reveal d1"><div class="card-media"><Photo src="s2.jpg" alt="Bridal hair by Lustique Co." /></div><div class="card-body"><h3>Bridal Hair</h3><p>Romantic curls, elegant updos, or effortless waves — styled to complement your features, dress and theme, and to hold all day.</p><p style="font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R495</p></div></article>
-      <article class="card reveal d2"><div class="card-media"><Photo src="s3.jpg" alt="A bridal party styled by Lustique Co." /></div><div class="card-body"><h3>The Whole Party</h3><p>Bridesmaids, mothers, flower girls and guests — cohesive yet individual, calmly choreographed so everyone is ready and glowing.</p><p style="font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">see pricing</p></div></article>
+      {bridalServices.length > 0
+        ? bridalServices.map((s, i) => (
+            <article class={`card reveal${i === 1 ? " d1" : i === 2 ? " d2" : ""}`}>
+              <div class="card-media">
+                {s.image
+                  ? <Photo sanityImage={s.image} alt={s.title + " — Lustique Co."} width={600} height={400} />
+                  : <div class="ph"></div>
+                }
+              </div>
+              <div class="card-body">
+                <h3>{s.title}</h3>
+                <p>{s.description}</p>
+                <p style="font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">
+                  {s.priceDisplay}
+                </p>
+              </div>
+            </article>
+          ))
+        : (
+          <>
+            <article class="card reveal"><div class="card-media"><Photo src="s1.jpg" alt="Bridal makeup by Lustique Co." /></div><div class="card-body"><h3>Bridal Makeup</h3><p>Enhance your natural beauty with a customised look — soft glow or bold glam — using premium, long-wearing, photography-friendly products.</p><p style="font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R850</p></div></article>
+            <article class="card reveal d1"><div class="card-media"><Photo src="s2.jpg" alt="Bridal hair by Lustique Co." /></div><div class="card-body"><h3>Bridal Hair</h3><p>Romantic curls, elegant updos, or effortless waves — styled to complement your features, dress and theme, and to hold all day.</p><p style="font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R495</p></div></article>
+            <article class="card reveal d2"><div class="card-media"><Photo src="s3.jpg" alt="A bridal party styled by Lustique Co." /></div><div class="card-body"><h3>The Whole Party</h3><p>Bridesmaids, mothers, flower girls and guests — cohesive yet individual, calmly choreographed so everyone is ready and glowing.</p><p style="font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">see pricing</p></div></article>
+          </>
+        )
+      }
     </div>
   </div></section>
+
   <section class="section" style="background:var(--ivory);"><div class="wrap">
-    <div class="center" style="margin-bottom:2.6rem;"><span class="eyebrow reveal">Beyond bridal</span><h2 class="reveal d1" style="margin-top:.8rem;">For every special occasion</h2><p class="reveal d2" style="max-width:52ch;margin:1rem auto 0;color:#5c5048;">We do any event — and group lessons too. Pricing for new occasion services is being finalised; figures below are indicative.</p></div>
+    <div class="center" style="margin-bottom:2.6rem;">
+      <span class="eyebrow reveal">Beyond bridal</span>
+      <h2 class="reveal d1" style="margin-top:.8rem;">For every special occasion</h2>
+      <p class="reveal d2" style="max-width:52ch;margin:1rem auto 0;color:#5c5048;">
+        We do any event — and group lessons too.
+      </p>
+    </div>
     <div class="cards">
-      <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">01</span><h3 style="margin:.6rem 0 .6rem;">Matric Farewell</h3><p>A standout look for her big night — glam that photographs beautifully and lasts through every dance.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">R750</p></article>
-      <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">02</span><h3 style="margin:.6rem 0 .6rem;">Editorial &amp; Photoshoot</h3><p>Camera-ready makeup for editorial, brand and personal shoots. Lashes included on photoshoots.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R600</p></article>
-      <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">03</span><h3 style="margin:.6rem 0 .6rem;">Engagement &amp; Maternity</h3><p>Soft, radiant looks for engagement and maternity shoots — natural, warm, and you.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R650*</p></article>
-      <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">04</span><h3 style="margin:.6rem 0 .6rem;">Corporate &amp; Events</h3><p>Polished makeup for corporate events, galas and celebrations, for one face or many.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R650*</p></article>
-      <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">05</span><h3 style="margin:.6rem 0 .6rem;">Pageant &amp; Stage</h3><p>Bold, long-wearing makeup built for stage lighting and the camera.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R950*</p></article>
-      <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">06</span><h3 style="margin:.6rem 0 .6rem;">Group Lessons</h3><p>Learn to do your own makeup with us — groups of 6+, at Bez Ranch (Kameelfontein) or on location. Includes a brush-set goodie bag.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R600 pp</p></article>
+      {beyondBridalServices.length > 0
+        ? beyondBridalServices.map((s, i) => (
+            <article class={`card reveal${i === 1 ? " d1" : i === 2 ? " d2" : ""}`} style="padding:2.1rem 1.9rem;">
+              <span class="eyebrow">0{i + 1}</span>
+              <h3 style="margin:.6rem 0 .6rem;">{s.title}</h3>
+              <p>{s.description}</p>
+              <p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">
+                {s.priceDisplay}{s.indicative ? "*" : ""}
+              </p>
+            </article>
+          ))
+        : (
+          <>
+            <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">01</span><h3 style="margin:.6rem 0 .6rem;">Matric Farewell</h3><p>A standout look for her big night — glam that photographs beautifully and lasts through every dance.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">R750</p></article>
+            <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">02</span><h3 style="margin:.6rem 0 .6rem;">Editorial &amp; Photoshoot</h3><p>Camera-ready makeup for editorial, brand and personal shoots. Lashes included on photoshoots.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R600</p></article>
+            <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">03</span><h3 style="margin:.6rem 0 .6rem;">Engagement &amp; Maternity</h3><p>Soft, radiant looks for engagement and maternity shoots — natural, warm, and you.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R650*</p></article>
+            <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">04</span><h3 style="margin:.6rem 0 .6rem;">Corporate &amp; Events</h3><p>Polished makeup for corporate events, galas and celebrations, for one face or many.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R650*</p></article>
+            <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">05</span><h3 style="margin:.6rem 0 .6rem;">Pageant &amp; Stage</h3><p>Bold, long-wearing makeup built for stage lighting and the camera.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R950*</p></article>
+            <article class="card reveal" style="padding:2.1rem 1.9rem;"><span class="eyebrow">06</span><h3 style="margin:.6rem 0 .6rem;">Group Lessons</h3><p>Learn to do your own makeup with us — groups of 6+, at Bez Ranch (Kameelfontein) or on location. Includes a brush-set goodie bag.</p><p style="margin-top:1rem;font-family:var(--serif);font-size:1.3rem;color:var(--mocha);">from R600 pp</p></article>
+          </>
+        )
+      }
     </div>
     <p class="note center" style="margin-top:1.6rem;">* Indicative — final pricing to be confirmed with our team.</p>
   </div></section>
-  
+
   <section class="section cta-band">
     <div class="wrap">
-      <span class="eyebrow reveal">Let’s begin</span>
+      <span class="eyebrow reveal">Let's begin</span>
       <h2 class="reveal d1" style="margin-top:1rem;">Tell us about your day.</h2>
-      <p class="reveal d2">Share a few details and we’ll send a personalised quote — usually within 24 hours, often sooner.</p>
+      <p class="reveal d2">
+        Share a few details and we'll send a personalised quote — usually within 24 hours, often sooner.
+      </p>
       <a class="btn btn-primary reveal d2" href="quote.html">Get a Quote</a>
     </div>
   </section>
+
 </BaseLayout>

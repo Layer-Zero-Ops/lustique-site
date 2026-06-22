@@ -1,8 +1,47 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Photo from "../components/Photo.astro";
+import { sanityClient } from "../lib/sanity";
+import { HOME_SETTINGS_QUERY, type SanityHomeSettingsQuery } from "../queries/home";
+
 const title = "Lustique Co. — Bridal Hair & Makeup Artistry | Pretoria & Beyond";
-const desc = "Bridal hair and makeup for the bride who wants to feel most like herself. Nine artists, 40+ years combined, serving Pretoria, Gauteng and beyond since 2018.";
+const desc =
+  "Bridal hair and makeup for the bride who wants to feel most like herself. Nine artists, 40+ years combined, serving Pretoria, Gauteng and beyond since 2018.";
+
+const homeData = await sanityClient.fetch<SanityHomeSettingsQuery>(HOME_SETTINGS_QUERY);
+
+// Access via homeData.settings?.heroHeadline — the query projection wraps settings in a nested key.
+const heroHeadline = homeData?.settings?.heroHeadline ?? "Feel most like yourself.";
+const heroSub =
+  homeData?.settings?.heroSubheadline ??
+  "For the bride who wants to look softly, unmistakably, unforgettably like herself — on the morning that matters most.";
+
+const testimonials =
+  homeData?.testimonials?.length > 0
+    ? homeData.testimonials
+    : [
+        {
+          _id: "fallback-1",
+          quote:
+            "They felt less like a vendor and more like the calmest people in the room. I looked like me — just the version I always hoped to be on my wedding day.",
+          attribution: "A Lustique Bride",
+          rating: 5,
+        },
+        {
+          _id: "fallback-2",
+          quote:
+            "My whole bridal party was ready, relaxed and glowing. Not one moment of stress all morning.",
+          attribution: "A Lustique Bride",
+          rating: 5,
+        },
+        {
+          _id: "fallback-3",
+          quote:
+            "The trial sold me. They listened, adjusted, and on the day my makeup lasted from the first photo to the last dance.",
+          attribution: "A Lustique Bride",
+          rating: 5,
+        },
+      ];
 ---
 <BaseLayout slug="index.html" title={title} desc={desc}>
 
@@ -11,8 +50,8 @@ const desc = "Bridal hair and makeup for the bride who wants to feel most like h
     <div class="hero-overlay"></div>
     <div class="hero-inner">
       <span class="eyebrow">Bridal Hair &amp; Makeup Artistry · Pretoria &amp; Beyond</span>
-      <h1 class="hero-title display">Feel most like <em>yourself</em>.</h1>
-      <p class="hero-sub">For the bride who wants to look softly, unmistakably, unforgettably like herself — on the morning that matters most.</p>
+      <h1 class="hero-title display">{heroHeadline}</h1>
+      <p class="hero-sub">{heroSub}</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="pricing.html">Get your estimate</a>
         <a class="btn btn-light" href="portfolio.html">View the portfolio</a>
@@ -35,7 +74,7 @@ const desc = "Bridal hair and makeup for the bride who wants to feel most like h
       <p class="reveal d2">We are a team of nine bridal artists, working as one quiet, capable presence on the morning of your wedding. Since 2018 we have made it our craft to enhance — never to mask — so that when you look in the mirror, you simply see yourself, on your most radiant day.</p>
       <p class="reveal d2">From your trial to the final touch-up, every detail is personal, calm, and considered. We count it a blessing to play a small part in your day.</p>
       <div class="quote-block reveal d3">
-        <p class="lead">“Beauty begins the moment you decide to be yourself.”</p>
+        <p class="lead">"Beauty begins the moment you decide to be yourself."</p>
         <cite>— Coco Chanel</cite>
       </div>
     </div>
@@ -48,7 +87,7 @@ const desc = "Bridal hair and makeup for the bride who wants to feel most like h
         <p class="reveal d2" style="max-width:34ch;color:#5c5048;">Every look is tailored to you — your features, your dress, the feeling of your day.</p>
       </div>
       <div class="cards">
-        <article class="card reveal"><div class="card-media"><Photo src="s1.jpg" alt="Bridal makeup by Lustique Co." /></div><div class="card-body"><h3>Bridal Makeup</h3><p>A soft, lasting look built on flawless skin — from natural radiance to timeless glamour, made to last from “I do” to the last dance.</p><a class="card-link" href="services.html">Explore makeup <span>→</span></a></div></article>
+        <article class="card reveal"><div class="card-media"><Photo src="s1.jpg" alt="Bridal makeup by Lustique Co." /></div><div class="card-body"><h3>Bridal Makeup</h3><p>A soft, lasting look built on flawless skin — from natural radiance to timeless glamour, made to last from "I do" to the last dance.</p><a class="card-link" href="services.html">Explore makeup <span>→</span></a></div></article>
         <article class="card reveal d1"><div class="card-media"><Photo src="s2.jpg" alt="Bridal hair styling by Lustique Co." /></div><div class="card-body"><h3>Bridal Hair</h3><p>From romantic soft curls to elegant updos, styled to complement your features, your dress and the spirit of your celebration.</p><a class="card-link" href="services.html">Explore hair <span>→</span></a></div></article>
         <article class="card reveal d2"><div class="card-media"><Photo src="s3.jpg" alt="A bridal party styled by Lustique Co." /></div><div class="card-body"><h3>The Whole Party</h3><p>Bridesmaids, mothers, flower girls and guests — beautifully cohesive, individually considered, calmly choreographed on the day.</p><a class="card-link" href="pricing.html">Explore packages <span>→</span></a></div></article>
       </div>
@@ -78,7 +117,7 @@ const desc = "Bridal hair and makeup for the bride who wants to feel most like h
       <div class="pricing-head">
         <span class="eyebrow reveal">Transparent pricing</span>
         <h2 class="reveal d1">Know your investment before you enquire.</h2>
-        <p class="reveal d2">No vague ranges, no “request a quote to find out.” See clear starting prices, then build a personalised estimate in under a minute.</p>
+        <p class="reveal d2">No vague ranges, no "request a quote to find out." See clear starting prices, then build a personalised estimate in under a minute.</p>
       </div>
       <div class="price-grid">
         <div class="price reveal"><small>Solo Bride · trial + day</small><div class="amt"><sup>from R</sup>2 690</div></div>
@@ -97,12 +136,15 @@ const desc = "Bridal hair and makeup for the bride who wants to feel most like h
     <div class="wrap">
       <div class="stars reveal">★★★★★</div>
       <div class="testi-slider reveal d1">
-        <div class="testi-slide active"><p class="lead">“They felt less like a vendor and more like the calmest people in the room. I looked like me — just the version I always hoped to be on my wedding day.”</p><cite>A Lustique Bride</cite></div>
-        <div class="testi-slide"><p class="lead">“My whole bridal party was ready, relaxed and glowing. Not one moment of stress all morning.”</p><cite>A Lustique Bride</cite></div>
-        <div class="testi-slide"><p class="lead">“The trial sold me. They listened, adjusted, and on the day my makeup lasted from the first photo to the last dance.”</p><cite>A Lustique Bride</cite></div>
+        {testimonials.map((t, i) => (
+          <div class={`testi-slide${i === 0 ? " active" : ""}`}>
+            <p class="lead">"{t.quote}"</p>
+            <cite>{t.attribution ?? "A Lustique Bride"}</cite>
+          </div>
+        ))}
       </div>
       <div class="testi-dots"></div>
-      <div class="sub reveal d2">— sample reviews shown · real bride testimonials &amp; video to be added from our Google profile</div>
+      <div class="sub reveal d2">— real bride testimonials · manage in Sanity Studio</div>
     </div>
   </section>
 
@@ -117,13 +159,14 @@ const desc = "Bridal hair and makeup for the bride who wants to feel most like h
       <div class="res-media reveal d1"><Photo src="res.jpg" alt="A calm Lustique bridal morning" /></div>
     </div>
   </section>
-  
+
   <section class="section cta-band">
     <div class="wrap">
-      <span class="eyebrow reveal">Let’s begin</span>
+      <span class="eyebrow reveal">Let's begin</span>
       <h2 class="reveal d1" style="margin-top:1rem;">Tell us about your day.</h2>
-      <p class="reveal d2">Share a few details and we’ll send a personalised quote — usually within 24 hours, often sooner.</p>
+      <p class="reveal d2">Share a few details and we'll send a personalised quote — usually within 24 hours, often sooner.</p>
       <a class="btn btn-primary reveal d2" href="quote.html">Get a Quote</a>
     </div>
   </section>
+
 </BaseLayout>
