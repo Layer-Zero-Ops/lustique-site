@@ -6,10 +6,18 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "test": "vitest run"
   },
   "dependencies": {
     "astro": "^4.16.0",
-    "@lustique/pricing": "*"
+    "@lustique/pricing": "*",
+    "@sanity/client": "^6.0.0",
+    "@sanity/image-url": "^1.0.0",
+    "astro-portabletext": "^0.13.0"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "@vitest/coverage-v8": "^1.0.0"
   }
 }
