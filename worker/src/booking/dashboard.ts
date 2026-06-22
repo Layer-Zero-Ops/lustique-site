@@ -246,6 +246,16 @@ export async function handleAdminLogin(
     <input id="email" type="email" name="email" autocomplete="email" required autofocus placeholder="info@lustiqueco.co.za">
     <button type="submit">Send login link</button>
   </form>
+  <details style="margin-top:2rem;">
+    <summary style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#A89080;cursor:pointer;list-style:none;text-align:center;">Sign in with password instead</summary>
+    <form method="POST" action="/api/admin/auth/password" style="margin-top:1rem;">
+      <label for="pw-email">Email address</label>
+      <input id="pw-email" type="email" name="email" autocomplete="email" required placeholder="info@lustiqueco.co.za">
+      <label for="pw-password" style="margin-top:1rem;">Password</label>
+      <input id="pw-password" type="password" name="password" autocomplete="current-password" required placeholder="••••••••">
+      <button type="submit">Sign in</button>
+    </form>
+  </details>
 </div>
 <p class="stamp">Pretoria &middot; South Africa</p>
 </body></html>`);
@@ -323,6 +333,82 @@ export async function handleAdminLogin(
 </div>
 <p class="stamp">Pretoria &middot; South Africa</p>
 </body></html>`);
+}
+
+// ── handleAdminPasswordLogin ──────────────────────────────────────────────────
+
+/** POST /api/admin/auth/password — password login alternative to magic link. */
+export async function handleAdminPasswordLogin(
+  req: Request,
+  env: DashboardEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  let email = "";
+  let password = "";
+  try {
+    const body = await req.formData();
+    email = (body.get("email") as string | null)?.trim() ?? "";
+    password = (body.get("password") as string | null) ?? "";
+  } catch {
+    return loginRedirect("error");
+  }
+
+  if (!email || !password) return loginRedirect("invalid-credentials");
+
+  // Rate-limit by email (same budget as OTP to prevent brute-force).
+  if (env.RL_LOGIN_EMAIL) {
+    const rl = await checkRateLimit(env.RL_LOGIN_EMAIL, email, RATE_LIMITS.LOGIN_EMAIL);
+    if (!rl.success) {
+      const resp = htmlResponse(
+        `<p>Too many attempts. Please wait before trying again. <a href="/api/admin/login">Return to login</a>.</p>`,
+        429,
+      );
+      const headers = new Headers(resp.headers);
+      headers.set("retry-after", String(rl.retryAfter));
+      return new Response(resp.body, { status: 429, headers });
+    }
+  }
+
+  let accessToken: string;
+  try {
+    const res = await fetchFn(`${env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        apikey: env.SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) return loginRedirect("invalid-credentials");
+    const data = (await res.json()) as { access_token?: string };
+    if (!data.access_token) return loginRedirect("invalid-credentials");
+    accessToken = data.access_token;
+  } catch {
+    return loginRedirect("error");
+  }
+
+  // Verify it's a valid admin JWT before trusting it.
+  const payload = await verifySupabaseJwt(accessToken, env.SUPABASE_JWT_SECRET);
+  if (!payload) return loginRedirect("invalid-credentials");
+
+  const profileRes = await fetchFn(
+    `${env.SUPABASE_URL}/rest/v1/profiles?select=role&id=eq.${payload.sub}&limit=1`,
+    {
+      headers: {
+        apikey: env.SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      },
+    },
+  ).catch(() => null);
+  if (!profileRes?.ok) return loginRedirect("error");
+  const profiles = (await profileRes.json()) as Array<{ role: string }>;
+  if (!profiles.length || profiles[0]!.role !== "admin") return loginRedirect("invalid-credentials");
+
+  return new Response(null, {
+    status: 302,
+    headers: { Location: "/api/admin/dashboard", "Set-Cookie": sessionCookieHeader(accessToken) },
+  });
 }
 
 // ── handleAdminAuthCallback ──────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import { handleAdminQuotePdf } from "./booking/quote-pdf";
 import { renderInvoicePage } from "./booking/invoice";
 import {
   handleAdminLogin,
+  handleAdminPasswordLogin,
   handleAdminAuthCallback,
   handleAdminAuthLogout,
   handleAdminDashboard,
@@ -309,6 +310,10 @@ export default {
           if (!rl.success) return rate429(origin, rl.retryAfter);
         }
         return await handleAdminLogin(req, dashEnv);
+      }
+      // POST /api/admin/auth/password — password login (alternative to magic link)
+      if (req.method === "POST" && url.pathname === "/api/admin/auth/password") {
+        return await handleAdminPasswordLogin(req, dashEnv);
       }
       // GET /api/admin/auth/callback — exchange Supabase token_hash for session cookie
       if (req.method === "GET" && url.pathname === "/api/admin/auth/callback") {
