@@ -32,5 +32,68 @@ YOCO_FEE_PCT = "3.5"
 binding = "AUDIT"
 bucket_name = "lustique-audit"
 
+# Wave D3 — Rate Limiting bindings (CF Workers free tier).
+#
+# SYNTAX NOTE: [[ratelimits]] uses `name =` (not `binding =`).
+# The `name` value becomes the property name on the Env interface, just as
+# `binding` does for [[r2_buckets]]. These two stanza types use different field names.
+#
+# PERIOD CONSTRAINT: only period=10 or period=60 (seconds) is supported.
+# Targets like "5/15min" or "3/hour" use the 60s binding as a burst guard only.
+# True sliding-window limits require a KV counter layer (Phase 2 — see Task 5).
+#
+# namespace_id: arbitrary positive integers unique within this CF account.
+# CF creates the namespace on first `wrangler deploy`.
+# After deploy, confirm all five RL_* bindings appear in:
+#   CF dashboard → Workers → lustique-form-handler → Settings → Bindings
+# If a namespace_id collides with another Worker in this account, increment all by 100 and redeploy.
+#
+# Limits (must match RATE_LIMITS constants in worker/src/lib/rateLimit.ts):
+#   RL_LOGIN        5 req / 60 s  — POST /api/admin/login (IP key)
+#   RL_LOGIN_EMAIL  5 req / 60 s  — POST /api/admin/login (email key)
+#   RL_BOOKING      3 req / 60 s  — POST /api/booking/request (IP key)
+#   RL_ENQUIRY     10 req / 60 s  — POST /api/enquiry (IP key)
+#   RL_ADMIN       60 req / 60 s  — GET /api/admin/* + legacy ADMIN_SECRET routes (IP key)
+
+[[ratelimits]]
+name         = "RL_LOGIN"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+    limit  = 5
+    period = 60
+
+[[ratelimits]]
+name         = "RL_LOGIN_EMAIL"
+namespace_id = "1002"
+
+  [ratelimits.simple]
+    limit  = 5
+    period = 60
+
+[[ratelimits]]
+name         = "RL_BOOKING"
+namespace_id = "1003"
+
+  [ratelimits.simple]
+    limit  = 3
+    period = 60
+
+[[ratelimits]]
+name         = "RL_ENQUIRY"
+namespace_id = "1004"
+
+  [ratelimits.simple]
+    limit  = 10
+    period = 60
+
+[[ratelimits]]
+name         = "RL_ADMIN"
+namespace_id = "1005"
+
+  [ratelimits.simple]
+    limit  = 60
+    period = 60
+
 [triggers]
 crons = ["0 6 * * *"]   # 06:00 UTC ≈ 08:00 SAST — keep-warm now; balance sweep in S5
