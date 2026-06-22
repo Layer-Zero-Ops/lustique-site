@@ -1,6 +1,6 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Wave D building · **Updated:** 2026-06-22 (D1 code complete; awaiting Pieter npm install + Sanity setup)
+**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Wave D building · **Updated:** 2026-06-22 (D1 + D4 code complete; D2 needs external setup)
 
 ## ▶ NEXT (Sonnet, Build lane) — 🔵 PLAN SET
 
@@ -10,13 +10,15 @@
 
 **Each plan has a `⚠️ Build corrections` checklist at the very top — apply those fixes FIRST; they override conflicting inline text (adversarial-review findings).**
 1. ~~**D3 · rate limiting**~~ ✅ **DONE 2026-06-22** — `a2ff98f`→`bbdeb06`. 4 commits; 29 new tests (346 passing).
-2. **D1 · Sanity CMS** — **CODE COMPLETE 2026-06-22** (`9dc2bb8`→`d274492`, 7 commits). All Tasks 1–6 + 8 built and committed. **BLOCKED on Pieter Task 0 prereqs before tests/builds can run.** ▶ NEXT for D1: Pieter runs prereqs (below), then Sonnet does Task 7 (seed verification + delete old blog pages). After Task 7, D1 is fully done.
-3. **D4 · artist allocation** → `docs/superpowers/plans/2026-06-21-lustique-wave-d4-artist-allocation.md` — migration `0013_artists.sql`; build before D2.
-4. **D2 · Google Calendar** → `docs/superpowers/plans/2026-06-21-lustique-wave-d2-google-calendar.md` — migration `0014`; last (uses D4 artist emails as attendees).
+2. **D1 · Sanity CMS** — **CODE COMPLETE 2026-06-22** (`9dc2bb8`→`d274492`, 7 commits). All Tasks 1–6 + 8 built. **PENDING Task 7:** Pieter seeds Sanity → Sonnet deletes 3 old `blog-*.astro` pages + verifies build.
+3. ~~**D4 · artist allocation**~~ ✅ **CODE COMPLETE 2026-06-22** (`d0c8ecc`→`27cfed5`, 3 commits). Migration `0013_artists.sql`, `artists.ts` handlers + TDD (13 tests), booking-detail widget. **PENDING:** Pieter runs `supabase db push` to apply migration; then Worker deploy.
+4. **D2 · Google Calendar** → `docs/superpowers/plans/2026-06-21-lustique-wave-d2-google-calendar.md` — migration `0014`; last (uses D4 artist emails as attendees). **BLOCKED on Pieter: Google Cloud service account + CF secrets (see Pieter actions).**
 
-Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` (§Wave D + §Migration sequence). **Cross-cutting:** `worker/` has **no `tsconfig.json`** — add a minimal one (typescript is already a devDep) or use `npx wrangler deploy --dry-run` for type checks (in every corrections list). **346 tests green (worker only — site/ tests unrunnable until npm install).**
+**▶ NEXT:** If Pieter has done the D2 external setup → build D2 (read plan doc, apply corrections, TDD). If not → wait; all code that can be built is built.
 
-🔵 **PLAN SET — switch to Sonnet (`/model sonnet`) to build.** D1 code done; awaiting Pieter prereqs. D4 can start immediately (no external deps). D2 needs external setup.
+Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` (§Wave D + §Migration sequence). **Cross-cutting:** `worker/` has **no `tsconfig.json`** — use Vitest as type-check proxy; `npx wrangler deploy --dry-run` also catches import errors. **359 worker tests green (1 pre-existing failure in `handleAdminAuthCallback` — not D4).**
+
+🔵 **PLAN SET — switch to Sonnet (`/model sonnet`) to build.** D1 + D4 code done. D2 needs Pieter's external setup.
 
 ---
 
@@ -136,13 +138,14 @@ Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-bu
    - Confirm CF Pages rebuild fires → then tell Sonnet to run Task 7 (delete old blog pages + verify build)
    - Full list: D1 plan §Pieter (P1–P13)
 6. **Wave D / D2 (Calendar)** — create a Google Cloud project + service account, enable Calendar API, share the one shared Lustique calendar with the service-account email, `wrangler secret put GOOGLE_SA_KEY_B64` (base64 of the SA JSON), set `GOOGLE_CALENDAR_ID` var. **Apply migration `0014` before deploying the Worker.** (Full list in the D2 plan §Pieter.)
-7. **Wave D / D4 (Artists)** — apply migration `0013_artists.sql` (`supabase db push`); later collect real artist emails from Zandeline to replace the seeded placeholders.
+7. **Wave D / D4 (Artists)** — `supabase db push` to apply `0013_artists.sql`; verify 9-row `artists` table; deploy Worker (`npx wrangler deploy`); smoke-test assign widget on a `quote_sent` booking. Later collect real artist emails from Zandeline to replace seeded placeholders (`firstname@lustiqueco.co.za` format).
 
 ### Known open (not blocking go-live)
 - **Brevo custom SMTP** — still not connecting (tried 587 + 465, zero Brevo log entries). Admin magic link email currently comes from `noreply@mail.app.supabase.io`. Functional, not branded. Revisit separately — likely a Brevo account config issue (sender domain vs SMTP relay permissions).
 - **Admin email template** — Lustique-branded template designed (see last Sonnet session) but can't be applied to Supabase without working custom SMTP. Template HTML is in the session transcript.
 
 ### Recently closed (2026-06-22)
+- ✅ **Wave D4 · Artist allocation — CODE COMPLETE 2026-06-22 (Sonnet)** — `d0c8ecc`→`27cfed5`, 3 commits. Migration `0013_artists.sql`: `artists` table (RLS admin-read, service-role-write), seed 9 Lustique artists with fixed UUIDs, re-point `booking_artists.artist_id` FK from `profiles(id)` to `artists(id)`. `worker/src/booking/artists.ts`: `ArtistsHandlerEnv` local interface (no circular import with `dashboard.ts`); `listArtists` + `listBookingArtists` db helpers with injectable fetch + TypeScript name-sort; `handleAssignArtist` + `handleRemoveArtist` POST handlers — JWT-gated, status guard (`quote_sent`/`accepted` only), UUID validation, `writeAudit` on every mutation, PRG redirects. `dashboard.ts`: extended `Promise.all` to fetch artists in parallel; `ARTIST_ASSIGNABLE_STATUSES` constant; `errorMsg` from query param; artist widget HTML (assigned-artist table with Lead/Artist badges + Remove forms; assign dropdown filtered to unassigned artists; locked message for non-assignable statuses). `index.ts`: two new POST routes (`/artists` + `/artists/remove`) registered before the GET booking handler. 13 new TDD tests → 359 passing. **PENDING:** Pieter `supabase db push` + `npx wrangler deploy` + smoke-test. Collect real artist emails from Zandeline.
 - ✅ **Wave D1 · Sanity CMS — CODE COMPLETE 2026-06-22 (Sonnet)** — `9dc2bb8`→`d274492`, 7 commits. All 6 build corrections applied. Tasks 1–6 + 8 built:
   - Task 1: `vitest.config.ts`, `src/lib/sanity.ts` (typed client + `urlFor`), `sanity.test.ts`, CSP `img-src` + `cdn.sanity.io`, `package.json` with `@sanity/client`, `@sanity/image-url@^1.0.0`, `astro-portabletext@^0.13.0`, `vitest`.
   - Task 2: Full `studio/` scaffold — `sanity.config.ts` + 6 schema files (portfolioImage, teamMember, blogPost, service, testimonial, siteSettings singleton with `__experimental_actions`). Sidebar structure tool + visionTool configured.
