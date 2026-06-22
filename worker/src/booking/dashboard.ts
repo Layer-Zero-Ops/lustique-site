@@ -4,6 +4,7 @@
 
 import {
   getAdminSession,
+  verifySupabaseJwt,
   sessionCookieHeader,
   clearSessionCookieHeader,
   loginRedirect,

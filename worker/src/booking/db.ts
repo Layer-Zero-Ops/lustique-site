@@ -273,7 +273,8 @@ export async function keepWarm(env: DbEnv, f: typeof fetch = fetch): Promise<voi
 /**
  * Count active bookings (not in any terminal status) on a given wedding date.
  * Used for the same-date warning and capacity soft-block.
- * PostgREST aggregate: select=count() returns [{ count: "N" }].
+ * Uses Prefer:count=exact (portable across all PostgREST versions).
+ * Count is returned in the Content-Range header as "first-last/total" or "* /total".
  */
 export async function countBookingsOnDate(
   env: DbEnv,
@@ -282,12 +283,13 @@ export async function countBookingsOnDate(
 ): Promise<number> {
   const dead = "expired,declined,cancelled,rejected,invoice_expired";
   const r = await f(
-    rest(env, `bookings?select=count()&wedding_date=eq.${encodeURIComponent(weddingDate)}&status=not.in.(${dead})`),
-    { headers: headers(env) },
+    rest(env, `bookings?select=id&limit=0&wedding_date=eq.${encodeURIComponent(weddingDate)}&status=not.in.(${dead})`),
+    { headers: { ...headers(env), Prefer: "count=exact" } },
   );
   if (!r.ok) throw new Error(`countBookingsOnDate ${r.status}`);
-  const rows = (await r.json()) as Array<{ count: string }>;
-  return parseInt(rows[0]?.count ?? "0", 10);
+  const range = r.headers.get("content-range") ?? "";
+  const total = parseInt(range.split("/")[1] ?? "0", 10);
+  return isNaN(total) ? 0 : total;
 }
 
 export interface DateAvailability {
