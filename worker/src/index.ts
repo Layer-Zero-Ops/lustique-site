@@ -27,6 +27,7 @@ import {
   handleAdminNotifications,
   handleAdminNotificationsRead,
 } from "./booking/dashboard";
+import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLimit";
 
 /* ============================================================
    LUSTIQUE CO. — form-handler Worker (the stable API boundary)
@@ -73,6 +74,13 @@ export interface Env {
   // Value: Supabase dashboard → Settings → API → JWT Settings → JWT Secret
   SUPABASE_JWT_SECRET?: string;
   AUDIT: { put(key: string, value: string): Promise<unknown> };
+  // Wave D3 — rate-limiting bindings (declared in wrangler.toml [[ratelimits]])
+  // Optional so existing tests that don't supply them compile without changes.
+  RL_LOGIN?: RateLimitBinding;
+  RL_LOGIN_EMAIL?: RateLimitBinding;
+  RL_BOOKING?: RateLimitBinding;
+  RL_ENQUIRY?: RateLimitBinding;
+  RL_ADMIN?: RateLimitBinding;
 }
 
 interface Detail {
@@ -136,6 +144,14 @@ const json = (data: unknown, status: number, origin: string) =>
     headers: { "content-type": "application/json", ...corsHeaders(origin), ...secHeaderMap({ html: false }) },
   });
 
+/** Emit a 429 through the standard json() helper and add a Retry-After header. */
+function rate429(origin: string, retryAfter: number): Response {
+  const base = json({ ok: false, error: "Too many requests. Please try again later." }, 429, origin);
+  const headers = new Headers(base.headers);
+  headers.set("retry-after", String(retryAfter));
+  return new Response(base.body, { status: 429, headers });
+}
+
 async function verifyTurnstile(token: string, secret: string): Promise<boolean> {
   try {
     const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
@@ -182,7 +198,7 @@ async function brevoEmail(
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, _ctx?: ExecutionContext): Promise<Response> {
     const origin = env.ALLOWED_ORIGIN || "*";
 
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
@@ -211,6 +227,11 @@ export default {
 
     // POST /api/booking/request — request-to-book endpoint (S2)
     if (req.method === "POST" && url.pathname === "/api/booking/request") {
+      if (env.RL_BOOKING) {
+        const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+        const rl = await checkRateLimit(env.RL_BOOKING, ip, RATE_LIMITS.BOOKING);
+        if (!rl.success) return rate429(origin, rl.retryAfter);
+      }
       return handleBookingRequest(env, req);
     }
 
@@ -260,12 +281,26 @@ export default {
       return withSec(await renderInvoicePage(env, req), { html: true, noindex: true });
     }
 
+    // Wave D3: single RL_ADMIN check covers all /api/admin/* (JWT-gated AND legacy routes).
+    // Placed before the SUPABASE_JWT_SECRET block so it fires exactly once per request.
+    if (url.pathname.startsWith("/api/admin/") && env.RL_ADMIN) {
+      const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+      const rl = await checkRateLimit(env.RL_ADMIN, ip, RATE_LIMITS.ADMIN);
+      if (!rl.success) return rate429(origin, rl.retryAfter);
+    }
+
     // ── Wave C Phase 1: JWT-gated admin dashboard routes ─────────────────────
     if (env.SUPABASE_JWT_SECRET) {
       const dashEnv = { ...env, SUPABASE_JWT_SECRET: env.SUPABASE_JWT_SECRET };
 
-      // GET/POST /api/admin/login — magic-link login form
+      // GET/POST /api/admin/login — magic-link login form.
+      // POST-only IP rate limit applied here; email rate limit applied inside handleAdminLogin.
       if (url.pathname === "/api/admin/login") {
+        if (req.method === "POST" && env.RL_LOGIN) {
+          const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+          const rl = await checkRateLimit(env.RL_LOGIN, ip, RATE_LIMITS.LOGIN_IP);
+          if (!rl.success) return rate429(origin, rl.retryAfter);
+        }
         return await handleAdminLogin(req, dashEnv);
       }
       // GET /api/admin/auth/callback — exchange Supabase token_hash for session cookie
@@ -366,6 +401,13 @@ export default {
 
     if (req.method !== "POST" || url.pathname !== "/api/enquiry") {
       return json({ ok: false, error: "Not found" }, 404, origin);
+    }
+
+    // Wave D3: rate-limit POST /api/enquiry (belt-and-suspenders with Turnstile).
+    if (env.RL_ENQUIRY) {
+      const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+      const rl = await checkRateLimit(env.RL_ENQUIRY, ip, RATE_LIMITS.ENQUIRY);
+      if (!rl.success) return rate429(origin, rl.retryAfter);
     }
 
     let body: Enquiry;
