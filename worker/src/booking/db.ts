@@ -554,11 +554,96 @@ export async function persistEnquiry(
   env: DbEnv,
   row: EnquiryRow,
   f: typeof fetch = fetch,
-): Promise<void> {
-  const r = await f(rest(env, "enquiries"), {
+): Promise<{ id: string }> {
+  const r = await f(rest(env, "enquiries?select=id"), {
     method: "POST",
-    headers: { ...headers(env), prefer: "return=minimal" },
+    headers: { ...headers(env), prefer: "return=representation" },
     body: JSON.stringify(row),
   });
   if (!r.ok) throw new Error(`persistEnquiry ${r.status}: ${await r.text()}`);
+  const rows = (await r.json()) as Array<{ id: string }>;
+  return rows[0]!;
+}
+
+export interface NotificationRow {
+  type: string;
+  title: string;
+  body?: string;
+  link: string;
+  booking_id?: string;
+  payload?: Record<string, unknown>;
+}
+
+/** Write a notification row — rings the admin dashboard bell (polled every 60s). */
+export async function insertNotification(
+  env: DbEnv,
+  row: NotificationRow,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, "notifications"), {
+    method: "POST",
+    headers: { ...headers(env), prefer: "return=minimal" },
+    body: JSON.stringify({ recipient: "admin", payload: {}, ...row }),
+  });
+  if (!r.ok) throw new Error(`insertNotification ${r.status}: ${await r.text()}`);
+}
+
+export interface EnquiryCrmRow {
+  id: string;
+  created_at: string;
+  name: string;
+  email: string;
+  phone: string;
+  occasion: string | null;
+  event_date: string | null;
+  town: string | null;
+  estimate: string | null;
+  message: string | null;
+  details: unknown;
+  status: string;
+  notes: string | null;
+  contacted_at: string | null;
+}
+
+const ENQUIRY_COLS =
+  "id,created_at,name,email,phone,occasion,event_date,town,estimate,message,details,status,notes,contacted_at";
+
+export async function listEnquiries(
+  env: DbEnv,
+  statusFilter: string | null = null,
+  f: typeof fetch = fetch,
+): Promise<EnquiryCrmRow[]> {
+  let q = `enquiries?select=${ENQUIRY_COLS}&order=created_at.desc`;
+  if (statusFilter) q += `&status=eq.${encodeURIComponent(statusFilter)}`;
+  const r = await f(rest(env, q), { headers: headers(env) });
+  if (!r.ok) throw new Error(`listEnquiries ${r.status}`);
+  return (await r.json()) as EnquiryCrmRow[];
+}
+
+export async function getEnquiryById(
+  env: DbEnv,
+  id: string,
+  f: typeof fetch = fetch,
+): Promise<EnquiryCrmRow | null> {
+  const r = await f(
+    rest(env, `enquiries?id=eq.${encodeURIComponent(id)}&select=${ENQUIRY_COLS}`),
+    { headers: headers(env) },
+  );
+  if (!r.ok) throw new Error(`getEnquiryById ${r.status}`);
+  const rows = (await r.json()) as EnquiryCrmRow[];
+  return rows[0] ?? null;
+}
+
+export async function updateEnquiry(
+  env: DbEnv,
+  id: string,
+  patch: { status?: string; notes?: string; contacted_at?: string | null },
+  f: typeof fetch = fetch,
+): Promise<void> {
+  const r = await f(rest(env, `enquiries?id=eq.${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: { ...headers(env), prefer: "return=minimal" },
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) throw new Error(`updateEnquiry ${r.status}: ${await r.text()}`);
 }

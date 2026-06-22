@@ -59,9 +59,10 @@ function htmlResponse(html: string, status = 200): Response {
 }
 
 /** Shared admin nav shell. Active link is highlighted. */
-function adminShell(title: string, user: AdminUser, inner: string): string {
+export function adminShell(title: string, user: AdminUser, inner: string): string {
   const nav = [
     { href: "/api/admin/dashboard",  label: "Inbox" },
+    { href: "/api/admin/enquiries",  label: "Enquiries" },
     { href: "/api/admin/quotes",     label: "Sent Quotes" },
     { href: "/api/admin/payments",   label: "Payments" },
     { href: "/api/admin/rejections", label: "Rejections" },

@@ -36,7 +36,9 @@ import {
   handleAdminMarkBalancePaid,
 } from "./booking/admin-actions";
 import { handleCalendarFeed } from "./booking/calendar";
-import { persistEnquiry } from "./booking/db";
+import { persistEnquiry, insertNotification } from "./booking/db";
+import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry } from "./booking/enquiries";
+import { adminShell } from "./booking/dashboard";
 import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLimit";
 
 /* ============================================================
@@ -333,6 +335,21 @@ export default {
       if (req.method === "POST" && url.pathname === "/api/admin/auth/logout") {
         return await handleAdminAuthLogout(req, dashEnv);
       }
+      // GET /api/admin/enquiries — CRM list view
+      if (req.method === "GET" && url.pathname === "/api/admin/enquiries") {
+        return handleAdminEnquiries(req, env as Parameters<typeof handleAdminEnquiries>[1], adminShell);
+      }
+      // GET /api/admin/enquiries/:id — CRM detail view
+      if (req.method === "GET" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.split("/").length === 5) {
+        const id = url.pathname.slice("/api/admin/enquiries/".length);
+        return handleAdminEnquiryDetail(req, env as Parameters<typeof handleAdminEnquiryDetail>[1], adminShell, id);
+      }
+      // POST /api/admin/enquiries/:id — update status/notes (PRG)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.split("/").length === 5) {
+        const id = url.pathname.slice("/api/admin/enquiries/".length);
+        return handleAdminUpdateEnquiry(req, env as Parameters<typeof handleAdminUpdateEnquiry>[1], id);
+      }
+
       // GET /api/admin/dashboard — Inbox view (requires valid session)
       if (req.method === "GET" && url.pathname === "/api/admin/dashboard") {
         return await handleAdminDashboard(req, dashEnv);
@@ -481,9 +498,10 @@ export default {
 
     const name = body.name!.trim();
     try {
-      // 0) Persist enquiry first — no lead is lost even if email delivery fails
+      // 0) Persist enquiry first — no lead is lost even if email delivery fails.
+      //    Then ring the admin bell so Zandeline sees it in the dashboard even if Brevo is down.
       if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
-        await persistEnquiry(env, {
+        const saved = await persistEnquiry(env, {
           name,
           email: body.email!.trim(),
           phone: (body.phone ?? "").trim(),
@@ -495,6 +513,13 @@ export default {
           details: Array.isArray(body.details) ? body.details : undefined,
           ip: req.headers.get("cf-connecting-ip") ?? undefined,
         });
+        await insertNotification(env, {
+          type: "enquiry_received",
+          title: `New enquiry — ${name}`,
+          body: [body.occasion, body.date, body.town].filter(Boolean).join(" · ") || body.email!.trim(),
+          link: `/api/admin/enquiries/${saved.id}`,
+          payload: { enquiry_id: saved.id },
+        }).catch(() => { /* bell failure must never block the enquiry response */ });
       }
 
       // 1) Confirm the bride
