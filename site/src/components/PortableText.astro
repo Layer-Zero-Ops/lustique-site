@@ -1,0 +1,25 @@
+---
+// Renders Sanity Portable Text blocks to HTML using astro-portabletext.
+// Supported blocks: paragraphs, h2, h3, strong, em, external + internal links.
+// Internal links in body use relative .html hrefs (e.g. "portfolio.html") —
+// these are stored verbatim in the Sanity content and passed through unchanged.
+import { PortableText } from "astro-portabletext";
+import type { PortableTextBlock } from "@portabletext/types";
+import PortableTextLink from "./PortableTextLink.astro";
+
+interface Props {
+  value: PortableTextBlock[];
+}
+
+const { value } = Astro.props;
+
+const components = {
+  mark: {
+    // Wire the `link` annotation to the real PortableTextLink component.
+    // This component reads node.value.href and node.value.blank.
+    // Do NOT replace this with the string shorthand "a" — that drops href.
+    link: PortableTextLink,
+  },
+};
+---
+<PortableText value={value} components={components} />

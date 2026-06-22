@@ -1,37 +1,41 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { sanityClient } from "../lib/sanity";
+import { BLOG_INDEX_QUERY, type SanityBlogPost } from "../queries/blog";
+
 const title = "Journal — Bridal Beauty Advice | Lustique Co.";
 const desc = "Honest, practical bridal hair and makeup advice from a Pretoria team.";
+
+const posts = await sanityClient.fetch<SanityBlogPost[]>(BLOG_INDEX_QUERY);
 ---
 <BaseLayout slug="blog.html" title={title} desc={desc}>
 
-  
   <section class="page-hero">
     <span class="eyebrow">Journal</span>
     <h1>Notes for your big day</h1>
     <p>Honest, practical advice from a team that has spent hundreds of wedding mornings doing exactly this.</p>
   </section>
+
   <section class="section"><div class="wrap">
     <div class="cards">
-      
-        <article class="card reveal" style="padding:2rem 1.9rem;">
-          <span class="eyebrow">Guide</span>
-          <h3 style="margin:.6rem 0 .7rem;">How to Choose a Bridal Makeup Artist in Pretoria</h3>
-          <p style="font-size:.96rem;color:#5c5048;margin-bottom:1.2rem;">Five things that separate a great bridal artist from a risky booking — and the questions to ask before you pay a deposit.</p>
-          <a class="card-link" href="blog-choosing-artist.html">Read <span>→</span></a>
-        </article>
-        <article class="card reveal d1" style="padding:2rem 1.9rem;">
-          <span class="eyebrow">Guide</span>
-          <h3 style="margin:.6rem 0 .7rem;">What to Expect at Your Bridal Trial</h3>
-          <p style="font-size:.96rem;color:#5c5048;margin-bottom:1.2rem;">Your trial is the most important appointment before the wedding. Here’s how to get the most from it.</p>
-          <a class="card-link" href="blog-bridal-trial.html">Read <span>→</span></a>
-        </article>
-        <article class="card reveal d2" style="padding:2rem 1.9rem;">
-          <span class="eyebrow">Guide</span>
-          <h3 style="margin:.6rem 0 .7rem;">Bridal Beauty for 2026 & 2027: Soft, Timeless, You</h3>
-          <p style="font-size:.96rem;color:#5c5048;margin-bottom:1.2rem;">Why the most-loved looks right now are the ones that still look like you in twenty years’ time.</p>
-          <a class="card-link" href="blog-2026-trends.html">Read <span>→</span></a>
-        </article>
+      {posts.length > 0
+        ? posts.map((post, i) => (
+            <article class={`card reveal${i === 1 ? " d1" : i === 2 ? " d2" : ""}`} style="padding:2rem 1.9rem;">
+              <span class="eyebrow">{post.category}</span>
+              <h3 style="margin:.6rem 0 .7rem;">{post.title}</h3>
+              <p style="font-size:.96rem;color:#5c5048;margin-bottom:1.2rem;">{post.excerpt}</p>
+              <a class="card-link" href={`blog/${post.slug}.html`}>Read <span>→</span></a>
+            </article>
+          ))
+        : (
+          <article class="card reveal" style="padding:2rem 1.9rem;">
+            <span class="eyebrow">Journal</span>
+            <h3 style="margin:.6rem 0 .7rem;">Articles coming soon</h3>
+            <p style="font-size:.96rem;color:#5c5048;">Our journal is on its way — check back soon for honest advice from the Lustique team.</p>
+          </article>
+        )
+      }
     </div>
   </div></section>
+
 </BaseLayout>
