@@ -28,6 +28,12 @@ import {
   handleAdminNotificationsRead,
 } from "./booking/dashboard";
 import { handleAssignArtist, handleRemoveArtist } from "./booking/artists";
+import {
+  handleAdminSendQuote,
+  handleAdminDeclineBooking,
+  handleAdminMarkDepositPaid,
+  handleAdminMarkBalancePaid,
+} from "./booking/admin-actions";
 import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLimit";
 
 /* ============================================================
@@ -315,6 +321,26 @@ export default {
       // GET /api/admin/dashboard — Inbox view (requires valid session)
       if (req.method === "GET" && url.pathname === "/api/admin/dashboard") {
         return await handleAdminDashboard(req, dashEnv);
+      }
+      // POST /api/admin/booking/:id/send-quote — send quote email to bride (D5)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/send-quote")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/send-quote".length);
+        if (id) return await handleAdminSendQuote(req, dashEnv, id);
+      }
+      // POST /api/admin/booking/:id/decline-booking — decline booking, email bride (D5)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/decline-booking")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/decline-booking".length);
+        if (id) return await handleAdminDeclineBooking(req, dashEnv, id);
+      }
+      // POST /api/admin/booking/:id/mark-deposit — record EFT deposit, email bride (D5)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/mark-deposit")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/mark-deposit".length);
+        if (id) return await handleAdminMarkDepositPaid(req, dashEnv, id);
+      }
+      // POST /api/admin/booking/:id/mark-balance — record EFT balance, email bride (D5)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/mark-balance")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/mark-balance".length);
+        if (id) return await handleAdminMarkBalancePaid(req, dashEnv, id);
       }
       // POST /api/admin/booking/:id/artists — assign artist to booking (D4)
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/artists")) {

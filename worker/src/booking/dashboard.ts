@@ -802,10 +802,54 @@ export async function handleAdminBookingDetail(
     <tbody>${assignedRowsHtml}</tbody></table>
     ${assignFormHtml}`;
 
+  const actionsHtml = (() => {
+    if (b.status === "requested") {
+      return `<h2>Actions</h2>
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
+          <form method="POST" action="/api/admin/booking/${esc(id)}/send-quote">
+            <button type="submit" style="font:inherit;font-weight:700;background:#276749;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Send the quote to ${esc(b.bride_name.replace(/'/g, "\\'"))}? This emails her the Accept / Decline link.')">
+              Send Quote →
+            </button>
+          </form>
+          <form method="POST" action="/api/admin/booking/${esc(id)}/decline-booking">
+            <button type="submit" style="font:inherit;font-weight:700;background:#c53030;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Decline this booking? This emails ${esc(b.bride_name.replace(/'/g, "\\'"))} a polite decline — this cannot be undone.')">
+              Decline Booking
+            </button>
+          </form>
+        </div>`;
+    }
+    if (b.status === "accepted" || b.status === "confirmed") {
+      return `<h2>Actions</h2>
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
+          <form method="POST" action="/api/admin/booking/${esc(id)}/mark-deposit">
+            <button type="submit" style="font:inherit;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Mark EFT deposit as received? This emails ${esc(b.bride_name.replace(/'/g, "\\'"))} her date-secured confirmation.')">
+              Mark EFT Deposit Paid
+            </button>
+          </form>
+        </div>`;
+    }
+    if (b.status === "deposit_paid") {
+      return `<h2>Actions</h2>
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
+          <form method="POST" action="/api/admin/booking/${esc(id)}/mark-balance">
+            <button type="submit" style="font:inherit;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Mark EFT balance as received? This emails ${esc(b.bride_name.replace(/'/g, "\\'"))} her all-paid confirmation.')">
+              Mark EFT Balance Paid
+            </button>
+          </form>
+        </div>`;
+    }
+    return "";
+  })();
+
   const inner = `
     ${saved ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;color:#276749;font-size:.88rem;">✓ Saved.</div>` : ""}
     ${errorMsg ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#fff5f5;color:#c53030;font-size:.88rem;">Error: ${esc(errorMsg)}</div>` : ""}
     <a href="/api/admin/dashboard" style="font-size:.82rem;color:#8a3a52;">← Inbox</a>
+    ${actionsHtml}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1rem;">
       <div>
         <h2>Bride</h2>
