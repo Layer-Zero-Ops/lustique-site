@@ -1,6 +1,6 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Wave D building · **Updated:** 2026-06-22 (D1 + D4 code complete; D2 needs external setup)
+**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Wave D building · **Updated:** 2026-06-22 (D1 + D4 + D5 code complete; D2 needs external setup)
 
 ## ▶ NEXT (Sonnet, Build lane) — 🔵 PLAN SET
 
@@ -14,9 +14,11 @@
 3. ~~**D4 · artist allocation**~~ ✅ **CODE COMPLETE 2026-06-22** (`d0c8ecc`→`27cfed5`, 3 commits). Migration `0013_artists.sql`, `artists.ts` handlers + TDD (13 tests), booking-detail widget. **PENDING:** Pieter runs `supabase db push` to apply migration; then Worker deploy.
 4. **D2 · Google Calendar** → `docs/superpowers/plans/2026-06-21-lustique-wave-d2-google-calendar.md` — migration `0014`; last (uses D4 artist emails as attendees). **BLOCKED on Pieter: Google Cloud service account + CF secrets (see Pieter actions).**
 
-**▶ NEXT:** If Pieter has done the D2 external setup → build D2 (read plan doc, apply corrections, TDD). If not → wait; all code that can be built is built.
+**▶ NEXT (two tracks — do whichever is unblocked):**
+- **E2E test track:** Once Pieter has deployed the Worker (`npx wrangler deploy`) — guide the live E2E sequence: request a quote → dashboard Send Quote → bride receives email, clicks Accept → dashboard shows `accepted` + Mark EFT Deposit button → Pieter clicks it → bride gets "date secured" email → dashboard Mark EFT Balance → bride gets "all settled" email. Use Yoco test card `4242 4242 4242 4242` for any Yoco path.
+- **D2 track:** If Pieter has done the Google Cloud service account setup → build D2 (read plan doc, apply corrections, TDD).
 
-Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` (§Wave D + §Migration sequence). **Cross-cutting:** `worker/` has **no `tsconfig.json`** — use Vitest as type-check proxy; `npx wrangler deploy --dry-run` also catches import errors. **359 worker tests green (1 pre-existing failure in `handleAdminAuthCallback` — not D4).**
+Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` (§Wave D + §Migration sequence). **Cross-cutting:** `worker/` has **no `tsconfig.json`** — use Vitest as type-check proxy; `npx wrangler deploy --dry-run` also catches import errors. **373 worker tests green (1 pre-existing failure in `handleAdminAuthCallback` — not a regression).**
 
 🔵 **PLAN SET — switch to Sonnet (`/model sonnet`) to build.** D1 + D4 code done. D2 needs Pieter's external setup.
 
@@ -145,6 +147,7 @@ Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-bu
 - **Admin email template** — Lustique-branded template designed (see last Sonnet session) but can't be applied to Supabase without working custom SMTP. Template HTML is in the session transcript.
 
 ### Recently closed (2026-06-22)
+- ✅ **Wave D5 · Dashboard action handlers — CODE COMPLETE 2026-06-22 (Sonnet)** — `1805bd3`. New file `worker/src/booking/admin-actions.ts` with `AdminActionsEnv` local interface (avoids circular imports). 4 JWT-gated POST handlers: `handleAdminSendQuote` (`requested → quote_sent`, generates accept/reject/invoice action tokens, emails bride + team), `handleAdminDeclineBooking` (`requested → declined`, emails polite decline), `handleAdminMarkDepositPaid` (`accepted|confirmed → deposit_paid`, emails "date secured"), `handleAdminMarkBalancePaid` (`deposit_paid → settled`, emails "all settled"). All use `transitionRequestedBooking` or `transitionBooking` for optimistic status guards. Email templates match the token-link flows identically. Status-conditional action buttons added to `dashboard.ts` booking detail page (Send Quote + Decline for `requested`; Mark EFT Deposit for `accepted`; Mark EFT Balance for `deposit_paid`) — JS `confirm()` dialogs on destructive actions. 4 new POST routes in `index.ts` before the GET booking handler. 14 TDD tests, 14/14 passing. **PENDING:** `npx wrangler deploy` then E2E test (see ▶ NEXT).
 - ✅ **Wave D4 · Artist allocation — CODE COMPLETE 2026-06-22 (Sonnet)** — `d0c8ecc`→`27cfed5`, 3 commits. Migration `0013_artists.sql`: `artists` table (RLS admin-read, service-role-write), seed 9 Lustique artists with fixed UUIDs, re-point `booking_artists.artist_id` FK from `profiles(id)` to `artists(id)`. `worker/src/booking/artists.ts`: `ArtistsHandlerEnv` local interface (no circular import with `dashboard.ts`); `listArtists` + `listBookingArtists` db helpers with injectable fetch + TypeScript name-sort; `handleAssignArtist` + `handleRemoveArtist` POST handlers — JWT-gated, status guard (`quote_sent`/`accepted` only), UUID validation, `writeAudit` on every mutation, PRG redirects. `dashboard.ts`: extended `Promise.all` to fetch artists in parallel; `ARTIST_ASSIGNABLE_STATUSES` constant; `errorMsg` from query param; artist widget HTML (assigned-artist table with Lead/Artist badges + Remove forms; assign dropdown filtered to unassigned artists; locked message for non-assignable statuses). `index.ts`: two new POST routes (`/artists` + `/artists/remove`) registered before the GET booking handler. 13 new TDD tests → 359 passing. **PENDING:** Pieter `supabase db push` + `npx wrangler deploy` + smoke-test. Collect real artist emails from Zandeline.
 - ✅ **Wave D1 · Sanity CMS — CODE COMPLETE 2026-06-22 (Sonnet)** — `9dc2bb8`→`d274492`, 7 commits. All 6 build corrections applied. Tasks 1–6 + 8 built:
   - Task 1: `vitest.config.ts`, `src/lib/sanity.ts` (typed client + `urlFor`), `sanity.test.ts`, CSP `img-src` + `cdn.sanity.io`, `package.json` with `@sanity/client`, `@sanity/image-url@^1.0.0`, `astro-portabletext@^0.13.0`, `vitest`.
