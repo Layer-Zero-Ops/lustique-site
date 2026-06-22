@@ -80,22 +80,56 @@ function renderBreakdown(lines: EstimateLine[], total: number, destination: bool
   if (!box) return;
   box.replaceChildren();
   if (destination || lines.length === 0) return;
+
+  // Section heading
   const heading = document.createElement("div");
   heading.textContent = "What’s in your estimate";
-  heading.style.cssText = "font-weight:600;color:var(--mocha);margin-bottom:.2rem;";
+  heading.style.cssText =
+    "font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;" +
+    "color:var(--mocha);opacity:.7;margin-bottom:.6rem;";
   box.append(heading);
-  const money = (n: number) => (n < 0 ? "– R " : "R ") + rand(Math.abs(n));
-  const addRow = (label: string, amount: string, opts: { discount?: boolean; total?: boolean } = {}) => {
+
+  const money = (n: number) => (n < 0 ? "− R " : "R ") + rand(Math.abs(n));
+
+  const addRow = (
+    label: string,
+    amount: string,
+    opts: { discount?: boolean; total?: boolean; separator?: boolean } = {},
+  ) => {
+    if (opts.separator) {
+      const hr = document.createElement("div");
+      hr.style.cssText = "border-top:1px solid rgba(60,42,42,.12);margin:.4rem 0;";
+      box.append(hr);
+      return;
+    }
     const r = document.createElement("div");
-    r.style.cssText = `display:flex;justify-content:space-between;gap:1rem;padding:.4rem 0;border-top:${opts.total ? "2px" : "1px"} solid rgba(60,42,42,${opts.total ? ".25" : ".08"});${opts.total ? "margin-top:.2rem;" : ""}`;
+    r.style.cssText =
+      "display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding:.5rem 0;" +
+      (opts.total
+        ? "border-top:2px solid rgba(60,42,42,.2);margin-top:.5rem;padding-top:.75rem;"
+        : "border-bottom:1px solid rgba(60,42,42,.07);");
     const l = document.createElement("span"); l.textContent = label;
-    const a = document.createElement("span"); a.textContent = amount; a.style.whiteSpace = "nowrap";
-    if (opts.total) { l.style.fontWeight = a.style.fontWeight = "700"; }
-    if (opts.discount) { l.style.color = a.style.color = "var(--burgundy)"; }
+    const a = document.createElement("span"); a.textContent = amount;
+    a.style.cssText = "white-space:nowrap;font-variant-numeric:tabular-nums;";
+    if (opts.total) {
+      l.style.cssText = "font-weight:700;font-size:1rem;";
+      a.style.cssText += "font-weight:700;font-size:1rem;";
+    }
+    if (opts.discount) {
+      l.style.color = a.style.color = "var(--burgundy)";
+      l.style.fontStyle = a.style.fontStyle = "italic";
+    }
     r.append(l, a);
     box.append(r);
   };
-  for (const line of lines) addRow(line.label, money(line.amount), { discount: line.amount < 0 });
+
+  const serviceLines = lines.filter((ln) => ln.amount >= 0);
+  const discountLines = lines.filter((ln) => ln.amount < 0);
+  for (const ln of serviceLines) addRow(ln.label, money(ln.amount));
+  if (discountLines.length) {
+    addRow("", "", { separator: true });
+    for (const ln of discountLines) addRow(ln.label, money(ln.amount), { discount: true });
+  }
   addRow("Estimated total", "from R " + rand(total), { total: true });
 }
 
