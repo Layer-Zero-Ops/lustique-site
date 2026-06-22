@@ -1,26 +1,37 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Wave D building · **Updated:** 2026-06-22 (D1 + D4 + D5 code complete; D2 needs external setup)
+**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Wave D building · **Updated:** 2026-06-22 (D1+D4+D5 complete; 2 production bugs fixed+deployed; D2 needs external setup)
 
 ## ▶ NEXT (Sonnet, Build lane) — 🔵 PLAN SET
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-**Build Wave D — post-launch platform**, in order **D1 → D4 → D2** (D3 done ✅). Use **`superpowers:executing-plans`** (or `subagent-driven-development`) — each plan is bite-sized TDD with complete code.
+**Status:** All Wave D code complete except D2 (blocked on Google Cloud setup). Two production Worker bugs fixed and deployed this session — booking form submissions and admin password login should now work.
 
-**Each plan has a `⚠️ Build corrections` checklist at the very top — apply those fixes FIRST; they override conflicting inline text (adversarial-review findings).**
-1. ~~**D3 · rate limiting**~~ ✅ **DONE 2026-06-22** — `a2ff98f`→`bbdeb06`. 4 commits; 29 new tests (346 passing).
-2. **D1 · Sanity CMS** — **CODE COMPLETE 2026-06-22** (`9dc2bb8`→`d274492`, 7 commits). All Tasks 1–6 + 8 built. **PENDING Task 7:** Pieter seeds Sanity → Sonnet deletes 3 old `blog-*.astro` pages + verifies build.
-3. ~~**D4 · artist allocation**~~ ✅ **CODE COMPLETE 2026-06-22** (`d0c8ecc`→`27cfed5`, 3 commits). Migration `0013_artists.sql`, `artists.ts` handlers + TDD (13 tests), booking-detail widget. **PENDING:** Pieter runs `supabase db push` to apply migration; then Worker deploy.
-4. **D2 · Google Calendar** → `docs/superpowers/plans/2026-06-21-lustique-wave-d2-google-calendar.md` — migration `0014`; last (uses D4 artist emails as attendees). **BLOCKED on Pieter: Google Cloud service account + CF secrets (see Pieter actions).**
+**▶ NEXT — do in order:**
 
-**▶ NEXT (two tracks — do whichever is unblocked):**
-- **E2E test track:** Once Pieter has deployed the Worker (`npx wrangler deploy`) — guide the live E2E sequence: request a quote → dashboard Send Quote → bride receives email, clicks Accept → dashboard shows `accepted` + Mark EFT Deposit button → Pieter clicks it → bride gets "date secured" email → dashboard Mark EFT Balance → bride gets "all settled" email. Use Yoco test card `4242 4242 4242 4242` for any Yoco path.
-- **D2 track:** If Pieter has done the Google Cloud service account setup → build D2 (read plan doc, apply corrections, TDD).
+**1. E2E smoke test (do this first — validate the fixes are live):**
+- `lustiqueco.co.za/quote` → fill → submit → confirm enquiry email at `info@lustiqueco.co.za`
+- Submit a booking via `/book` → check Supabase `bookings` table now has a `requested` row (was empty before)
+- Admin login: `lustiqueco.co.za/api/admin/login` → password form → `info@lustiqueco.co.za` / `Lustique2024`
+- Dashboard: Send Quote → bride email arrives → bride clicks Accept → Mark EFT Deposit → "date secured" email
+- Confirm status transitions in Supabase after each step
 
-Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md` (§Wave D + §Migration sequence). **Cross-cutting:** `worker/` has **no `tsconfig.json`** — use Vitest as type-check proxy; `npx wrangler deploy --dry-run` also catches import errors. **373 worker tests green (1 pre-existing failure in `handleAdminAuthCallback` — not a regression).**
+**2. D4 migration (Pieter action required):**
+- `supabase db push` to apply `0013_artists.sql` (creates `artists` table, seeds 9 artists)
+- `npx wrangler deploy` from `worker/` (pushes all current code including D5 + today's fixes)
+- Smoke-test: open a `quote_sent` booking in dashboard → confirm artist assign widget
 
-🔵 **PLAN SET — switch to Sonnet (`/model sonnet`) to build.** D1 + D4 code done. D2 needs Pieter's external setup.
+**3. D1 Sanity CMS Task 7 (Pieter must seed content first):**
+- Pieter seeds Sanity (9 team members, 3 blog posts, 3 testimonials, site settings)
+- Tell Sonnet to delete 3 old `blog-*.astro` pages + verify `npx astro build`
+
+**4. D2 Google Calendar (blocked on Pieter's Google Cloud setup):**
+- Plan: `docs/superpowers/plans/2026-06-21-lustique-wave-d2-google-calendar.md` (apply ⚠️ corrections first)
+
+Master sequence: `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md`. **Cross-cutting:** `worker/` has **no `tsconfig.json`** — Vitest is type-check proxy; `npx wrangler deploy --dry-run` also catches import errors.
+
+🔵 **PLAN SET — switch to Sonnet (`/model sonnet`) to build.**
 
 ---
 
@@ -123,7 +134,7 @@ Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-bu
 ---
 
 ### Pieter actions still open (carry forward)
-1. **Test dashboard login** — `lustiqueco.co.za/api/admin/login` → `info@lustiqueco.co.za` → click magic link → confirm Inbox loads. CF Pages deploy was triggered at ~19:50 SAST 2026-06-21.
+1. **E2E test** — booking form + admin login now fixed. Use `info@lustiqueco.co.za` / `Lustique2024` for admin password login. Full test sequence in ▶ NEXT above.
 2. **Migration 0012** — confirm applied: Supabase Dashboard → Database → Migrations
 3. **Yoco online checkout rate** — Yoco Business Portal → Settings → Pricing → Online Payments → record rate → update `YOCO_FEE_PCT` in `wrangler.toml` + `PRICING.md §9`
 4. **GA4 Measurement ID** — swap `G-XXXXXXXXXX` in `site/src/data/site.ts` once Google Workspace + GA4 live
@@ -146,7 +157,14 @@ Master sequence (updated): `docs/superpowers/plans/2026-06-18-lustique-replan-bu
 - **Brevo custom SMTP** — still not connecting (tried 587 + 465, zero Brevo log entries). Admin magic link email currently comes from `noreply@mail.app.supabase.io`. Functional, not branded. Revisit separately — likely a Brevo account config issue (sender domain vs SMTP relay permissions).
 - **Admin email template** — Lustique-branded template designed (see last Sonnet session) but can't be applied to Supabase without working custom SMTP. Template HTML is in the session transcript.
 
-### Recently closed (2026-06-22)
+### Recently closed (2026-06-22 — this session)
+- ✅ **Production bug fixes · Error 1101 resolved — 2026-06-22 (Sonnet)** — `e908a45`. Two Worker runtime crashes fixed and deployed (Worker version `03310edd`):
+  1. `dashboard.ts` — missing `verifySupabaseJwt` import caused `ReferenceError` on every admin password login attempt.
+  2. `db.ts` — `countBookingsOnDate` used `select=count()` PostgREST aggregate (HTTP 400 on this Supabase project's version) → uncaught throw → every booking submission silently failed. Fixed to `Prefer: count=exact` + `Content-Range` header. Bookings table was confirmed empty; no prior submission had ever succeeded.
+  Admin password set to `Lustique2024` for `info@lustiqueco.co.za` via `worker/scripts/set-admin-password.mjs`.
+- ✅ **Price breakdown + map hint — 2026-06-22 (Sonnet)** — `6ca1ee5`. `estimator.ts`: services grouped separately from discounts with visual separator; discounts in burgundy italic; total row has 2px border-top + bold. `quote.astro`: map drag hint upgraded from plain `<p>` to styled callout box with bold heading. Both CF Pages changes committed and pushed.
+
+### Recently closed (2026-06-22 — previous session)
 - ✅ **Wave D5 · Dashboard action handlers — CODE COMPLETE 2026-06-22 (Sonnet)** — `1805bd3`. New file `worker/src/booking/admin-actions.ts` with `AdminActionsEnv` local interface (avoids circular imports). 4 JWT-gated POST handlers: `handleAdminSendQuote` (`requested → quote_sent`, generates accept/reject/invoice action tokens, emails bride + team), `handleAdminDeclineBooking` (`requested → declined`, emails polite decline), `handleAdminMarkDepositPaid` (`accepted|confirmed → deposit_paid`, emails "date secured"), `handleAdminMarkBalancePaid` (`deposit_paid → settled`, emails "all settled"). All use `transitionRequestedBooking` or `transitionBooking` for optimistic status guards. Email templates match the token-link flows identically. Status-conditional action buttons added to `dashboard.ts` booking detail page (Send Quote + Decline for `requested`; Mark EFT Deposit for `accepted`; Mark EFT Balance for `deposit_paid`) — JS `confirm()` dialogs on destructive actions. 4 new POST routes in `index.ts` before the GET booking handler. 14 TDD tests, 14/14 passing. **PENDING:** `npx wrangler deploy` then E2E test (see ▶ NEXT).
 - ✅ **Wave D4 · Artist allocation — CODE COMPLETE 2026-06-22 (Sonnet)** — `d0c8ecc`→`27cfed5`, 3 commits. Migration `0013_artists.sql`: `artists` table (RLS admin-read, service-role-write), seed 9 Lustique artists with fixed UUIDs, re-point `booking_artists.artist_id` FK from `profiles(id)` to `artists(id)`. `worker/src/booking/artists.ts`: `ArtistsHandlerEnv` local interface (no circular import with `dashboard.ts`); `listArtists` + `listBookingArtists` db helpers with injectable fetch + TypeScript name-sort; `handleAssignArtist` + `handleRemoveArtist` POST handlers — JWT-gated, status guard (`quote_sent`/`accepted` only), UUID validation, `writeAudit` on every mutation, PRG redirects. `dashboard.ts`: extended `Promise.all` to fetch artists in parallel; `ARTIST_ASSIGNABLE_STATUSES` constant; `errorMsg` from query param; artist widget HTML (assigned-artist table with Lead/Artist badges + Remove forms; assign dropdown filtered to unassigned artists; locked message for non-assignable statuses). `index.ts`: two new POST routes (`/artists` + `/artists/remove`) registered before the GET booking handler. 13 new TDD tests → 359 passing. **PENDING:** Pieter `supabase db push` + `npx wrangler deploy` + smoke-test. Collect real artist emails from Zandeline.
 - ✅ **Wave D1 · Sanity CMS — CODE COMPLETE 2026-06-22 (Sonnet)** — `9dc2bb8`→`d274492`, 7 commits. All 6 build corrections applied. Tasks 1–6 + 8 built:
