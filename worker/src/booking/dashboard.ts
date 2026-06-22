@@ -12,10 +12,13 @@ import {
   type AdminUser,
 } from "./auth";
 import type { Env } from "../index";
+import { checkRateLimit, RATE_LIMITS } from "../lib/rateLimit";
 
 // Env used by dashboard handlers — Env + auth fields
 export interface DashboardEnv extends Env {
   SUPABASE_JWT_SECRET: string;
+  // Wave D3: email-keyed rate limit for POST /api/admin/login (optional — absent in tests that don't need it)
+  RL_LOGIN_EMAIL?: { limit(opts: { key: string }): Promise<{ success: boolean }> };
 }
 
 // ── Booking shape returned from Supabase for the Inbox ───────────────────────
@@ -265,6 +268,22 @@ export async function handleAdminLogin(
       `<p>Invalid email address. <a href="/api/admin/login">Try again</a>.</p>`,
       400,
     );
+  }
+
+  // Wave D3: email-keyed rate limit — blunts distributed OTP abuse across many IPs.
+  // Applied after email validation (email is now known) and before the Supabase OTP call.
+  // The IP-keyed guard (RL_LOGIN) lives in index.ts and fires before this handler is called.
+  if (env.RL_LOGIN_EMAIL) {
+    const rl = await checkRateLimit(env.RL_LOGIN_EMAIL, email, RATE_LIMITS.LOGIN_EMAIL);
+    if (!rl.success) {
+      const resp = htmlResponse(
+        `<p>Too many requests. Please try again later. <a href="/api/admin/login">Return to login</a>.</p>`,
+        429,
+      );
+      const headers = new Headers(resp.headers);
+      headers.set("retry-after", String(rl.retryAfter));
+      return new Response(resp.body, { status: 429, headers });
+    }
   }
 
   // Fire-and-forget: always show "check your email" to avoid user enumeration
