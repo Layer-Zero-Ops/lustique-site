@@ -38,6 +38,17 @@ import {
 import { handleCalendarFeed } from "./booking/calendar";
 import { persistEnquiry, insertNotification } from "./booking/db";
 import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry } from "./booking/enquiries";
+import { handleAdminContacts } from "./booking/contacts";
+import { handleAdminPortfolio, handleAdminPortfolioDelete } from "./booking/portfolio";
+import {
+  handleAdminBlog,
+  handleAdminBlogNew,
+  handleAdminBlogEdit,
+  handleAdminBlogPublish,
+  handleAdminBlogDelete,
+  handlePublicBlogList,
+  handlePublicBlogPost,
+} from "./booking/blog";
 import { adminShell } from "./booking/dashboard";
 import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLimit";
 
@@ -427,6 +438,59 @@ export default {
       if (req.method === "POST" && url.pathname === "/api/admin/notifications/read") {
         return await handleAdminNotificationsRead(req, dashEnv);
       }
+
+      // ── Contacts ──────────────────────────────────────────────────────────
+      // GET /api/admin/contacts — unified CRM people view
+      if (req.method === "GET" && url.pathname === "/api/admin/contacts") {
+        return handleAdminContacts(req, env as Parameters<typeof handleAdminContacts>[1], adminShell);
+      }
+
+      // ── Portfolio ─────────────────────────────────────────────────────────
+      // GET  /api/admin/portfolio — gallery + upload form
+      // POST /api/admin/portfolio — upload new image
+      if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/admin/portfolio") {
+        return handleAdminPortfolio(req, env as Parameters<typeof handleAdminPortfolio>[1], adminShell);
+      }
+      // POST /api/admin/portfolio/delete — delete image
+      if (req.method === "POST" && url.pathname === "/api/admin/portfolio/delete") {
+        return handleAdminPortfolioDelete(req, env as Parameters<typeof handleAdminPortfolioDelete>[1]);
+      }
+
+      // ── Blog ──────────────────────────────────────────────────────────────
+      // GET  /api/admin/blog — list all posts
+      if (req.method === "GET" && url.pathname === "/api/admin/blog") {
+        return handleAdminBlog(req, env as Parameters<typeof handleAdminBlog>[1], adminShell);
+      }
+      // GET + POST /api/admin/blog/new — new post form + create
+      if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/admin/blog/new") {
+        return handleAdminBlogNew(req, env as Parameters<typeof handleAdminBlogNew>[1], adminShell);
+      }
+      // GET + POST /api/admin/blog/:id/edit — edit form + save
+      if ((req.method === "GET" || req.method === "POST") && url.pathname.match(/^\/api\/admin\/blog\/[^/]+\/edit$/)) {
+        const id = url.pathname.slice("/api/admin/blog/".length, -"/edit".length);
+        if (id) return handleAdminBlogEdit(req, env as Parameters<typeof handleAdminBlogEdit>[1], adminShell, id);
+      }
+      // POST /api/admin/blog/:id/publish — toggle published
+      if (req.method === "POST" && url.pathname.match(/^\/api\/admin\/blog\/[^/]+\/publish$/)) {
+        const id = url.pathname.slice("/api/admin/blog/".length, -"/publish".length);
+        if (id) return handleAdminBlogPublish(req, env as Parameters<typeof handleAdminBlogPublish>[1], id);
+      }
+      // POST /api/admin/blog/:id/delete — delete post
+      if (req.method === "POST" && url.pathname.match(/^\/api\/admin\/blog\/[^/]+\/delete$/)) {
+        const id = url.pathname.slice("/api/admin/blog/".length, -"/delete".length);
+        if (id) return handleAdminBlogDelete(req, env as Parameters<typeof handleAdminBlogDelete>[1], id);
+      }
+    }
+
+    // ── Public blog API (for Astro site) ─────────────────────────────────────
+    // GET /api/blog — list published posts (JSON)
+    if (req.method === "GET" && url.pathname === "/api/blog") {
+      return handlePublicBlogList(env, origin);
+    }
+    // GET /api/blog/:slug — single published post (JSON)
+    if (req.method === "GET" && url.pathname.startsWith("/api/blog/") && url.pathname.split("/").length === 4) {
+      const slug = url.pathname.slice("/api/blog/".length);
+      if (slug) return handlePublicBlogPost(env, slug, origin);
     }
 
     // ── Legacy ADMIN_SECRET routes (retained until Phase-1 auth fully proven) ─

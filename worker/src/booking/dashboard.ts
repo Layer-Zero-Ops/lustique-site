@@ -65,26 +65,47 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   function isActive(href: string): boolean {
     if (href === "/api/admin/dashboard") return currentPath === href || currentPath.startsWith("/api/admin/booking/");
     if (href === "/api/admin/enquiries") return currentPath.startsWith("/api/admin/enquiries");
+    if (href === "/api/admin/contacts")  return currentPath.startsWith("/api/admin/contacts");
+    if (href === "/api/admin/portfolio") return currentPath.startsWith("/api/admin/portfolio");
+    if (href === "/api/admin/blog")      return currentPath.startsWith("/api/admin/blog");
     return currentPath.startsWith(href);
   }
 
+  function navLink(href: string, label: string, badgeId?: string): string {
+    const active = isActive(href);
+    const badge = badgeId
+      ? `<span id="${badgeId}" style="display:none;background:#8a3a52;color:#fff;border-radius:20px;font-size:.7rem;font-weight:700;padding:.1em .5em;min-width:1.3em;text-align:center;margin-left:auto;line-height:1.5;"></span>`
+      : "";
+    return `<a href="${href}" style="display:flex;align-items:center;gap:.3rem;padding:.4rem .85rem;border-radius:7px;text-decoration:none;color:${active ? "#8a3a52" : "#5c3d47"};font-weight:${active ? "700" : "500"};font-size:.84rem;${active ? "background:#f7e8ec;" : ""}">${esc(label)}${badge}</a>`;
+  }
+
+  function navGroup(label: string, links: string): string {
+    return `<div style="margin-top:.9rem;">
+  <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#c0a898;padding:.15rem .85rem .4rem;">${esc(label)}</div>
+  ${links}
+</div>`;
+  }
+
   const nav = [
-    { href: "/api/admin/dashboard",  label: "Inbox" },
-    { href: "/api/admin/enquiries",  label: "Enquiries", badgeId: "enq-badge" },
-    { href: "/api/admin/quotes",     label: "Sent Quotes" },
-    { href: "/api/admin/payments",   label: "Payments" },
-    { href: "/api/admin/rejections", label: "Rejections" },
-    { href: "/api/admin/calendar",   label: "Calendar" },
-    { href: "/api/admin/templates",  label: "Templates" },
-  ]
-    .map(({ href, label, badgeId }) => {
-      const active = isActive(href);
-      const badgeHtml = badgeId
-        ? `<span id="${badgeId}" style="display:none;background:#8a3a52;color:#fff;border-radius:20px;font-size:.7rem;font-weight:700;padding:.1em .5em;min-width:1.3em;text-align:center;margin-left:auto;line-height:1.5;"></span>`
-        : "";
-      return `<a href="${href}" style="display:flex;align-items:center;gap:.3rem;padding:.45rem .9rem;border-radius:8px;text-decoration:none;color:${active ? "#8a3a52" : "#5c3d47"};font-weight:${active ? "700" : "600"};font-size:.85rem;${active ? "background:#f7e8ec;" : ""}">${esc(label)}${badgeHtml}</a>`;
-    })
-    .join("\n");
+    navGroup("Bookings", [
+      navLink("/api/admin/dashboard",  "Inbox"),
+      navLink("/api/admin/quotes",     "Sent Quotes"),
+      navLink("/api/admin/payments",   "Payments"),
+      navLink("/api/admin/rejections", "Declined"),
+    ].join("\n")),
+    navGroup("Clients", [
+      navLink("/api/admin/contacts",  "Contacts"),
+      navLink("/api/admin/enquiries", "Enquiries", "enq-badge"),
+    ].join("\n")),
+    navGroup("Content", [
+      navLink("/api/admin/portfolio", "Portfolio"),
+      navLink("/api/admin/blog",      "Blog"),
+    ].join("\n")),
+    navGroup("Admin", [
+      navLink("/api/admin/calendar",  "Calendar"),
+      navLink("/api/admin/templates", "Templates"),
+    ].join("\n")),
+  ].join("\n");
 
   return `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -92,13 +113,14 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 <style>
   *,*::before,*::after{box-sizing:border-box;}
   body{margin:0;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;color:#2b2b2b;background:#f7f3ef;display:flex;min-height:100vh;}
-  .sidebar{width:220px;min-height:100vh;background:#fff;border-right:1px solid #ede7e0;padding:1.5rem 1rem;display:flex;flex-direction:column;gap:.3rem;flex-shrink:0;}
-  .sidebar-logo{display:block;width:80px;margin:0 auto 1.4rem;opacity:.92;}
+  .sidebar{width:230px;min-height:100vh;background:#fff;border-right:1px solid #ede7e0;padding:1.5rem .75rem 1.5rem;display:flex;flex-direction:column;flex-shrink:0;}
+  .sidebar-logo{display:block;width:72px;margin:0 auto 1.2rem;opacity:.92;}
   .main{flex:1;padding:2rem 2.5rem;overflow-x:auto;}
   h1{font-size:1.35rem;margin:0 0 1.5rem;color:#2b2b2b;}
   h2{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a7d72;margin:1.6rem 0 .7rem;}
-  .meta{font-size:.82rem;color:#8a7d72;padding:.3rem .9rem;margin-top:auto;}
-  .logout{display:block;margin-top:.5rem;padding:.35rem .9rem;font:inherit;font-size:.82rem;font-weight:600;color:#8a3a52;background:none;border:1.5px solid #e0c8c8;border-radius:8px;cursor:pointer;text-align:left;}
+  .sidebar-footer{margin-top:auto;padding-top:1rem;border-top:1px solid #f3ede8;}
+  .meta{font-size:.82rem;color:#8a7d72;padding:.3rem .85rem .2rem;}
+  .logout{display:block;width:100%;margin-top:.4rem;padding:.35rem .85rem;font:inherit;font-size:.82rem;font-weight:600;color:#8a3a52;background:none;border:1.5px solid #e0c8c8;border-radius:8px;cursor:pointer;text-align:left;}
   .logout:hover{background:#fdf0f0;}
   table{border-collapse:collapse;width:100%;font-size:.9rem;}
   th{text-align:left;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;padding:.3rem 0;border-bottom:1.5px solid #ede7e0;}
@@ -118,14 +140,14 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   .empty{color:#8a7d72;font-style:italic;padding:2rem 0;}
   a.row-link{color:#8a3a52;text-decoration:none;font-weight:600;}
   a.row-link:hover{text-decoration:underline;}
-  .notif-bell{width:100%;padding:.4rem .9rem;font:inherit;font-size:.82rem;font-weight:600;color:#5c3d47;background:none;border:none;cursor:pointer;text-align:left;border-radius:8px;display:flex;align-items:center;gap:.5rem;}
+  .notif-bell{width:100%;padding:.35rem .85rem;font:inherit;font-size:.82rem;font-weight:500;color:#5c3d47;background:none;border:none;cursor:pointer;text-align:left;border-radius:7px;display:flex;align-items:center;gap:.5rem;}
   .notif-bell:hover{background:#f7f3ef;}
   .notif-count{display:none;background:#8a3a52;color:#fff;border-radius:20px;font-size:.7rem;font-weight:700;padding:.1em .5em;min-width:1.3em;text-align:center;}
 </style></head><body>
 <nav class="sidebar">
   <img src="https://lustiqueco.co.za/assets/logo.png" alt="Lustique Co." class="sidebar-logo">
   ${nav}
-  <div style="position:relative;margin-top:.4rem;" id="notif-wrap">
+  <div style="position:relative;margin-top:.6rem;" id="notif-wrap">
     <button class="notif-bell" id="notif-bell" aria-label="Notifications" aria-haspopup="true">
       <span>🔔</span><span>Notifications</span><span class="notif-count" id="notif-badge"></span>
     </button>
@@ -137,10 +159,12 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
       <div id="notif-list" style="max-height:300px;overflow-y:auto;"></div>
     </div>
   </div>
-  <div class="meta">${esc(user.name)}</div>
-  <form method="POST" action="/api/admin/auth/logout">
-    <button type="submit" class="logout">Sign out</button>
-  </form>
+  <div class="sidebar-footer">
+    <div class="meta">${esc(user.name)}</div>
+    <form method="POST" action="/api/admin/auth/logout">
+      <button type="submit" class="logout">Sign out</button>
+    </form>
+  </div>
 </nav>
 <main class="main">
   <h1>${esc(title)}</h1>
@@ -1294,6 +1318,10 @@ export async function handleAdminCalendar(
     slotsByDay.set(bd.date.slice(0, 10), bd.slots);
   }
 
+  // Today in UTC for highlighting
+  const nowUtc = new Date();
+  const todayStr = `${nowUtc.getUTCFullYear()}-${String(nowUtc.getUTCMonth() + 1).padStart(2, "0")}-${String(nowUtc.getUTCDate()).padStart(2, "0")}`;
+
   // Month grid
   const daysInMonth = lastDay.getUTCDate();
   const startDow = firstDay.getUTCDay(); // 0=Sun
@@ -1301,10 +1329,11 @@ export async function handleAdminCalendar(
   const nextMonth = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
   const monthLabel = firstDay.toLocaleString("en-ZA", { month: "long", year: "numeric", timeZone: "UTC" });
 
+  const cellStyle = "vertical-align:top;padding:.55rem .6rem;border:1px solid #ede7e0;min-width:90px;min-height:80px;cursor:pointer;transition:box-shadow .1s;";
+
   let cells = "";
-  // pad empty cells for start of week
   for (let i = 0; i < startDow; i++) {
-    cells += `<td style="background:#f7f3ef;"></td>`;
+    cells += `<td style="${cellStyle}background:#f9f6f3;cursor:default;"></td>`;
   }
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -1312,22 +1341,36 @@ export async function handleAdminCalendar(
     const slots = slotsByDay.get(dateStr) ?? null;
     const isBlocked = slots === 0;
     const overCapacity = slots !== null && slots > 0 && count >= slots;
+    const isToday = dateStr === todayStr;
+
     const bg = isBlocked ? "#fde8e8" : overCapacity ? "#fef3cd" : count > 0 ? "#edfcf2" : "#fff";
-    const indicator = isBlocked
-      ? `<div style="font-size:.65rem;color:#c53030;font-weight:700;">BLOCKED</div>`
-      : count > 0
-      ? `<div style="font-size:.75rem;color:${overCapacity ? "#c53030" : "#276749"};font-weight:700;">${count} booked${slots !== null ? ` / ${slots}` : ""}</div>`
+    const todayRing = isToday ? "box-shadow:inset 0 0 0 2px #8a3a52;" : "";
+
+    // Booking dots (up to 3) + overflow count
+    const dotColor = overCapacity ? "#c53030" : "#276749";
+    const dots = count > 0
+      ? `<div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;">
+          ${Array.from({ length: Math.min(count, 3) }, () => `<span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;"></span>`).join("")}
+          ${count > 3 ? `<span style="font-size:.65rem;color:${dotColor};font-weight:700;line-height:7px;">+${count - 3}</span>` : ""}
+        </div>`
       : "";
-    cells += `<td style="vertical-align:top;padding:.4rem;background:${bg};border:1px solid #ede7e0;min-width:70px;">
-      <div style="font-weight:700;font-size:.85rem;">${d}</div>
-      ${indicator}
+
+    const blockedTag = isBlocked
+      ? `<div style="font-size:.65rem;color:#c53030;font-weight:700;margin-top:3px;text-transform:uppercase;letter-spacing:.04em;">Blocked</div>`
+      : "";
+    const slotsTag = !isBlocked && slots !== null
+      ? `<div style="font-size:.65rem;color:#8a7d72;margin-top:2px;">${count}/${slots} slots</div>`
+      : "";
+
+    cells += `<td style="${cellStyle}background:${bg};${todayRing}" onclick="fillDate('${dateStr}')" title="Click to set capacity for ${dateStr}">
+      <div style="font-weight:700;font-size:.95rem;color:${isToday ? "#8a3a52" : "#2b2b2b"};">${d}${isToday ? `<span style="font-size:.62rem;font-weight:600;color:#8a3a52;margin-left:4px;">today</span>` : ""}</div>
+      ${dots}${blockedTag}${slotsTag}
     </td>`;
   }
-  // pad end of last row
   const total = startDow + daysInMonth;
   const endPad = total % 7 === 0 ? 0 : 7 - (total % 7);
   for (let i = 0; i < endPad; i++) {
-    cells += `<td style="background:#f7f3ef;"></td>`;
+    cells += `<td style="${cellStyle}background:#f9f6f3;cursor:default;"></td>`;
   }
 
   // Build rows of 7
@@ -1339,28 +1382,49 @@ export async function handleAdminCalendar(
 
   const saved = url.searchParams.get("saved") === "1";
   const inner = `
-    ${saved ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;color:#276749;font-size:.88rem;">✓ Capacity updated.</div>` : ""}
-    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
-      <a href="/api/admin/calendar?month=${prevMonth}" style="color:#8a3a52;text-decoration:none;font-weight:700;">← prev</a>
-      <strong style="font-size:1rem;">${esc(monthLabel)}</strong>
-      <a href="/api/admin/calendar?month=${nextMonth}" style="color:#8a3a52;text-decoration:none;font-weight:700;">next →</a>
+    ${saved ? `<div style="margin-bottom:1.2rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;border:1px solid #b7dfc8;color:#276749;font-size:.88rem;">✓ Capacity updated.</div>` : ""}
+    <div style="display:flex;align-items:center;gap:1.2rem;margin-bottom:1.2rem;">
+      <a href="/api/admin/calendar?month=${prevMonth}" style="display:inline-flex;align-items:center;gap:.3rem;color:#8a3a52;text-decoration:none;font-weight:600;font-size:.88rem;padding:.3rem .7rem;border:1.5px solid #e0c8c8;border-radius:7px;">← Prev</a>
+      <strong style="font-size:1.05rem;color:#2b2b2b;">${esc(monthLabel)}</strong>
+      <a href="/api/admin/calendar?month=${nextMonth}" style="display:inline-flex;align-items:center;gap:.3rem;color:#8a3a52;text-decoration:none;font-weight:600;font-size:.88rem;padding:.3rem .7rem;border:1.5px solid #e0c8c8;border-radius:7px;">Next →</a>
     </div>
-    <table style="border-collapse:collapse;width:100%;">
+    <table style="border-collapse:collapse;width:100%;table-layout:fixed;">
       <thead><tr>
-        ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => `<th style="font-size:.8rem;color:#8a7d72;padding:.3rem .4rem;border-bottom:2px solid #ede7e0;">${d}</th>`).join("")}
+        ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => `<th style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.4rem .6rem;border-bottom:2px solid #ede7e0;text-align:left;">${d}</th>`).join("")}
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <h2 style="margin-top:1.8rem;">Set day capacity</h2>
-    <form method="POST" action="/api/admin/calendar" style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
-      <label style="font-size:.82rem;font-weight:700;color:#8a7d72;">Date (YYYY-MM-DD)</label>
-      <input name="date" type="date" required pattern="\\d{4}-\\d{2}-\\d{2}"
-        style="font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em .6em;">
-      <label style="font-size:.82rem;font-weight:700;color:#8a7d72;">Slots (0 = hard block)</label>
-      <input name="slots" type="number" min="0" max="99" value="0"
-        style="width:80px;font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em .6em;">
-      <button type="submit" style="font:inherit;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.4em 1em;cursor:pointer;">Save</button>
-    </form>
+
+    <div style="display:flex;gap:1.2rem;margin-top:1rem;flex-wrap:wrap;">
+      <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:50%;background:#276749;display:inline-block;"></span>Booked</span>
+      <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:50%;background:#c53030;display:inline-block;"></span>Over capacity</span>
+      <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:2px;background:#fde8e8;border:1px solid #f5c6c6;display:inline-block;"></span>Blocked</span>
+      <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:2px;border:2px solid #8a3a52;display:inline-block;"></span>Today</span>
+    </div>
+
+    <div style="margin-top:1.8rem;background:#fff;border:1px solid #ede7e0;border-radius:10px;padding:1.2rem 1.4rem;">
+      <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.9rem;">Set Day Capacity</div>
+      <p style="font-size:.82rem;color:#8a7d72;margin:0 0 .9rem;">Click any day to pre-fill the date, then set the number of bookings allowed (0 = fully blocked).</p>
+      <form method="POST" action="/api/admin/calendar" style="display:flex;gap:.7rem;align-items:flex-end;flex-wrap:wrap;">
+        <div>
+          <label style="display:block;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;margin-bottom:.35rem;">Date</label>
+          <input id="cap-date" name="date" type="date" required
+            style="font:inherit;font-size:.9rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.45em .7em;background:#faf7f4;">
+        </div>
+        <div>
+          <label style="display:block;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;margin-bottom:.35rem;">Max bookings (0 = block)</label>
+          <input id="cap-slots" name="slots" type="number" min="0" max="99" value="0"
+            style="width:100px;font:inherit;font-size:.9rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.45em .7em;background:#faf7f4;">
+        </div>
+        <button type="submit" style="font:inherit;font-weight:700;font-size:.88rem;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.52em 1.2em;cursor:pointer;white-space:nowrap;">Save</button>
+      </form>
+    </div>
+    <script>
+    function fillDate(d){
+      document.getElementById('cap-date').value=d;
+      document.getElementById('cap-date').focus();
+    }
+    </script>
   `;
 
   return htmlResponse(adminShell(`Calendar — ${esc(monthLabel)}`, user, inner, new URL(req.url).pathname));

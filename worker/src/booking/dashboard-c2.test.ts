@@ -401,7 +401,7 @@ describe("handleAdminCalendar — GET", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("March 2027");
-    expect(html).toContain("1 booked");
+    expect(html).toContain("border-radius:50%"); // booking dot indicator
     expect(html).toContain("Sun");
     expect(html).toContain("Sat");
   });
@@ -418,7 +418,7 @@ describe("handleAdminCalendar — GET", () => {
       f as unknown as typeof fetch,
     );
     const html = await res.text();
-    expect(html).toContain("BLOCKED");
+    expect(html).toContain("Blocked");
   });
 
   it("renders the slots editor form", async () => {
