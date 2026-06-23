@@ -1,115 +1,136 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Post Wave D+E · **Updated:** 2026-06-23 (dashboard auth debugging; Yoco fee confirmed; site build fixed)
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Post Wave D+E polish · **Updated:** 2026-06-23
 
-## ▶ NEXT (Sonnet, Build lane) — 🔵 PLAN SET
+## ▶ NEXT (Sonnet, fresh session)
 
-**Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
+**Model:** Sonnet · **Lane:** Build · **Branch:** `main`
 
-**Status:** Wave D+E complete. YOCO_FEE_PCT = 2.95% confirmed + deployed. lustique-site build fixed (Sanity env vars added to CF Pages). Admin auth partially working — password accepted by Supabase (step 1 ✅) but JWT local verification fails (step 3 ❌). Root cause: `SUPABASE_JWT_SECRET` in Worker doesn't match signing key despite updates. Worker deployed (`564e2ce3`).
+**Start with:** `next` in the Lustique project folder.
 
-**▶ NEXT — do in order:**
+---
 
-**1. 🔴 FIX ADMIN LOGIN (blocking — Sonnet code fix, no Pieter action needed)**
+### TASK 1 — Scrap Sanity (replace with Supabase queries)
 
-The root cause is confirmed: Supabase password auth works (step 1 ✅) but `verifySupabaseJwt` fails (step 3 ❌). The fix is to **replace local JWT verification with a Supabase API call** — this removes the `SUPABASE_JWT_SECRET` dependency entirely for the password login path and is actually more correct:
+Sanity was never seeded. Every page that queries Sanity currently renders empty. Replace all Sanity data sources with direct Supabase/Storage queries, then remove the packages.
 
-In `worker/src/booking/dashboard.ts` → `handleAdminPasswordLogin`, replace the `verifySupabaseJwt` call with:
-```typescript
-// Instead of verifySupabaseJwt, validate token via Supabase API
-const userRes = await fetchFn(`${env.SUPABASE_URL}/auth/v1/user`, {
-  headers: {
-    apikey: env.SUPABASE_SERVICE_KEY,
-    Authorization: `Bearer ${accessToken}`,
-  },
-});
-if (!userRes.ok) return loginRedirect("invalid-credentials");
-const user = (await userRes.json()) as { id: string; email: string };
+**Files to replace (Sanity → Supabase):**
+
+| Page | Current Sanity source | New Supabase source |
+|---|---|---|
+| `site/src/pages/blog.astro` | GROQ blog posts | `GET /rest/v1/blog_posts?published=eq.true&order=published_at.desc` |
+| `site/src/pages/blog/[slug].astro` | GROQ blog post by slug | `GET /rest/v1/blog_posts?slug=eq.{slug}&published=eq.true` |
+| `site/src/pages/team.astro` | GROQ team members | `GET /rest/v1/artists?active=eq.true&order=name.asc` |
+| `site/src/pages/portfolio.astro` | GROQ portfolio images | Supabase Storage list + `portfolio_images` table for ordering |
+| `site/src/pages/services.astro` | GROQ services | Static content (services don't change — hardcode or keep static) |
+| `site/src/pages/index.astro` | GROQ testimonials | Static for now (no testimonials table yet) |
+| `site/src/pages/sitemap.xml.ts` | GROQ for blog slugs | Supabase `blog_posts` query |
+
+**Delete these files entirely:**
+- `site/src/lib/sanity.ts`
+- `site/src/lib/imageUrl.ts`
+- `site/src/lib/sanity.test.ts`
+- `site/src/queries/portfolio.ts`
+- `site/src/queries/team.ts`
+- `site/src/queries/services.ts`
+- `site/src/components/Photo.astro` (replace with plain `<img>` tags)
+
+**Remove from `site/package.json`:**
+- `@sanity/client`
+- `@sanity/image-url`
+
+Check for any `astro-portabletext` usage too (`astro-portabletext-0.13.0.tgz` in root).
+
+**Public blog body rendering:** `blog_posts.body` is stored as plain text (not portable text). Render as `<pre>` or markdown if the blog.ts admin form writes markdown; check what's in the DB first.
+
+**`blog_posts` table schema (migration 0016):**
 ```
-Then use `user.id` and `user.email` in place of `payload.sub` and `payload.email` for the profiles check.
+id, title, slug, excerpt, body (text), published (bool), published_at (timestamptz), created_at
+```
 
-Also fix `getAdminSession` in `worker/src/booking/auth.ts` the same way — replace `verifySupabaseJwt` with a `/auth/v1/user` API call so session cookie validation also doesn't need the secret.
+**`artists` table schema (migration 0013):**
+```
+id, name, email, active (bool), created_at
+```
 
-Write/update tests, deploy, test login with `autom8iq@gmail.com` / `LustiqueAdmin2024!`.
+**Portfolio public page:** Fetch from Supabase Storage `portfolio` bucket. Use `portfolio_images` table for ordering (`ORDER BY position ASC`). Filter by artist when `?artist=name` param. Public URL pattern: `${SUPABASE_URL}/storage/v1/object/public/portfolio/{storage_path}`.
 
-**2. iCal subscriptions (Pieter action — one-time):**
-- Share subscribe URL with Zandeline + all 9 artists:
-  `https://lustiqueco.co.za/api/calendar.ics?key=<ICAL_KEY>` (retrieve key: CF dashboard → Workers → lustique-form-handler → Settings → Variables & Secrets → ICAL_KEY)
-- Each person: Google Calendar → **+** next to "Other calendars" → **From URL** → paste → Add calendar
-
-**3. D1 Sanity CMS Task 7 (Pieter must seed content first):**
-- Pieter seeds Sanity: 9 team members, 3 blog posts (copy from old `.astro` files), 3 testimonials, site settings
-- Tell Sonnet to delete 3 old `blog-*.astro` pages + verify `npx astro build` → `dist/blog/` contains 3 HTML files
-
-**4. Collect real artist emails from Zandeline:**
-- Replace placeholder `firstname@lustiqueco.co.za` emails in `artists` table
-
-**5. Yoco portal — ✅ DONE** (2.95% confirmed, wrangler.toml + PRICING.md updated, deployed)
+After replacing all pages: run `npx astro build` in `site/` and confirm `dist/` builds cleanly. Then `npm remove @sanity/client @sanity/image-url` in `site/`.
 
 ---
 
-### Pieter actions still open (carry forward)
-1. **E2E smoke test** — see ▶ NEXT above
-2. **iCal subscriptions** — share URL with Zandeline + 9 artists (see above)
-3. **Migration 0012** — confirm applied: Supabase Dashboard → Database → Migrations (review_email sweep)
-4. **Yoco online checkout rate** — verify in portal; update `YOCO_FEE_PCT`
-5. **GA4 Measurement ID** — swap `G-XXXXXXXXXX` in `site/src/data/site.ts` once Google Workspace + GA4 live
-6. **D1 Sanity CMS** — seed content (see step 3 above); then tell Sonnet to delete old blog pages
-7. **Artist emails** — collect real emails from Zandeline; update `artists` table
+### TASK 2 — Booking flow simplification review
 
-### Known open (not blocking go-live)
-- **Brevo custom SMTP** — still not connecting. Admin magic link comes from `noreply@mail.app.supabase.io`. Functional, not branded. Revisit separately.
-- **Admin email template** — Lustique-branded template designed but can't apply without working custom SMTP.
+**Pieter's clarification (2026-06-23):**
+> The estimator doubles as the quote. When a client submits the booking form, they've already seen what it costs. If Lustique is available for their date, they receive an invoice (Yoco payment link) to secure the booking. There is no separate quote step.
 
----
+**Current flow vs. intended flow:**
 
-### Recently closed (2026-06-23 — this session)
-- ✅ **iCal feed (D2 replacement) DONE ✅ 2026-06-23 (Sonnet)** — `b18a931`. `GET /api/calendar.ics?key=<ICAL_KEY>` — RFC 5545 feed of all active bookings. All-day VEVENT per booking (bride name, reference, venue, town, party size). Key auth (401 on wrong/missing key). 12h cache-control + REFRESH-INTERVAL. No Google Cloud needed. 16 TDD tests. Replaces D2 service-account plan entirely — no migration 0014-calendar needed, no `google_event_id` column.
-- ✅ **Enquiry CRM (Wave E) DONE ✅ 2026-06-23 (Sonnet)** — `f81dcab`. Migration 0015: `enquiry_received` notification type; `status/notes/contacted_at` on `enquiries`. `GET /api/admin/enquiries` list view (status filter tabs). `GET /api/admin/enquiries/:id` detail view (all fields + occasion rows + message + CRM form). `POST /api/admin/enquiries/:id` PRG update (status/notes; auto-sets `contacted_at` on first transition from 'new'; rejects invalid status). `adminShell` exported; "Enquiries" added to admin nav. `insertNotification` in db.ts — rings bell within 60s of every enquiry submit, Brevo-independent. 14 TDD tests → 404 passing.
-- ✅ **Enquiry persistence (migration 0014) DONE ✅ 2026-06-23 (Sonnet)** — `b18a931`. `enquiries` table stores every `/api/enquiry` submit before email delivery. `persistEnquiry` now returns `{id}` for notification linking.
-- ✅ **Test fixes DONE ✅ 2026-06-23 (Sonnet)** — `9a0963b`. Fixed 3 failing tests left out of sync with production bug fixes: `countBookingsOnDate` mocks updated to use `Content-Range` header (not JSON body); `handleAdminAuthCallback` no-params test updated to expect 200 HTML (Flow 3 JS extractor).
-- ✅ **Migrations 0013–0015 applied to live DB ✅ 2026-06-23** — applied via Supabase SQL Editor (Supabase CLI not available on this machine).
-- ✅ **Worker deployed ✅ 2026-06-23** — version `a82f841b`. All Wave D+E code live.
-- ✅ **ICAL_KEY secret set ✅ 2026-06-23** — stored in CF Worker secrets (not committed)
+```
+CURRENT:  requested → quote_sent (quote email + accept/reject links) → accepted → deposit_paid → settled
+INTENDED: requested → Zandeline reviews → Yoco invoice sent → deposit_paid → settled
+```
 
-### Recently closed (2026-06-22 — previous session)
-- ✅ **Production bug fixes · Error 1101 resolved — 2026-06-22 (Sonnet)** — `e908a45`. Two Worker runtime crashes fixed and deployed.
-- ✅ **Wave D5 · Dashboard action handlers — CODE COMPLETE** — `1805bd3`. 4 JWT-gated POST handlers (send quote, decline, mark deposit paid, mark balance paid).
-- ✅ **Wave D4 · Artist allocation — CODE COMPLETE** — `d0c8ecc`→`27cfed5`. Migration `0013_artists.sql`, artist assign/remove handlers, dashboard widget.
-- ✅ **Wave D3 · Rate limiting — DONE** — `a2ff98f`–`bbdeb06`. 5 `[[ratelimits]]` bindings.
-- ✅ **Wave D1 · Sanity CMS — CODE COMPLETE** — `9dc2bb8`→`d274492`. Tasks 1–6 + 8 built. Pending Task 7 (Pieter seeds content).
+**What this means for the codebase:**
+- The "Send Quote" button in the Forms tab / booking detail currently sends a branded quote email with `accept_url`/`reject_url` token links and moves status to `quote_sent`. This is the step to reconsider.
+- The `quote_sent` + `accepted` statuses are intermediate states in the old flow. In the new flow these could be collapsed.
+- **Option A (minimal change):** Repurpose "Send Quote" → "Confirm & Send Invoice" — skip the accept/reject links, send the Yoco deposit link directly, move to `deposit_paid` on payment.
+- **Option B (bigger change):** Add a new "Send Yoco Deposit Link" button on the `requested` booking detail that directly triggers the Yoco checkout and sends the payment email. Rename `quote_sent` → `invoice_sent`.
+- The **manual Quote Composer** (`/api/admin/quotes/new`) still makes sense for non-standard jobs (custom packages, editorial, matric farewells quoted manually).
+
+**Recommended next step:** Discuss with Pieter which option to go with before changing the state machine. This is a one-way-door decision — database status values and email tokens are tightly coupled.
+
+🟣 **This needs an Opus planning session before Sonnet builds it.**
 
 ---
 
-## The re-plan (read in this order)
-- **Spec:** `docs/superpowers/specs/2026-06-18-lustique-replan-spec.md`
-- **Dashboard/data plan:** `docs/superpowers/plans/2026-06-18-lustique-dashboard-data-plan.md`
-- **SEO/security/infra plan:** `docs/superpowers/plans/2026-06-18-lustique-seo-security-infra-plan.md`
-- **Build sequence (master):** `docs/superpowers/plans/2026-06-18-lustique-replan-build-sequence.md`
+### TASK 3 — Pieter actions still open
 
-## 🟦 Decisions
-1. **Yoco fee model — ✅ RESOLVED:** Lustique absorbs the fee.
-2. **Review step — ✅ RESOLVED:** Interim token-link review in Wave A.
-3. **D2 Google Calendar — ✅ RESOLVED 2026-06-23:** iCal feed replaces service-account approach entirely.
+1. **Real artist emails** — collect from Zandeline, update `artists` table (currently placeholder `firstname@lustiqueco.co.za`)
+2. **GA4 Measurement ID** — swap `G-XXXXXXXXXX` in `site/src/data/site.ts` once GA4 live
+3. **CF Email Routing** — `info@lustiqueco.co.za` rule still points to Gmail forward. Can upgrade to "Send to Worker" once Email Inbox feature is built (see backlog).
+4. **iCal subscriptions** — share `https://lustiqueco.co.za/api/calendar.ics?key=<ICAL_KEY>` with Zandeline + all 9 artists (key: CF dashboard → Workers → lustique-form-handler → Secrets → `ICAL_KEY`)
+5. **E2E smoke test** — submit a test booking on the live site, trace through to the admin dashboard
 
-## Current state (as-built)
-- `lustiqueco.co.za` **live** via CF Workers Assets ✅
-- Worker `lustique-form-handler` deployed (`a82f841b`) ✅
-- Supabase migrations 0001–0015 applied ✅
-- 404 tests passing ✅
-- iCal feed live at `/api/calendar.ics?key=<ICAL_KEY>` ✅
-- Enquiry CRM live at `/api/admin/enquiries` ✅
+---
 
-## CI / Deploy state
-- **GitHub:** `Layer-Zero-Ops/lustique-site` · 3 commits pushed 2026-06-23 ✅
-- **CF Pages:** auto-deploys from `main` ✅
-- **Worker:** version `a82f841b` deployed ✅
+## Current state (as-built, 2026-06-23)
 
-## Pointers
-- Go-live RUNBOOK: `docs/RUNBOOK-go-live.md`
-- Key docs: `PLAN.md` · `PRICING.md` · `BRAND.md` · `ARCHITECTURE.md`
-- iCal key: stored in CF Worker secrets → ICAL_KEY (retrieve from CF dashboard if needed)
+### Worker (lustique-form-handler) — version `d39c267e`
+- All booking flows live ✅
+- Admin dashboard: Bookings / Clients / Content / Admin nav ✅
+- Calendar with occasion badges (💍 wedding, 🎓 matric, ✂︎ trial), slot editor ✅
+- Quotes tab: shows `requested` + `quote_sent` pipeline with status badges ✅
+- Manual Quote Composer: `/api/admin/quotes/new` with Brevo email send ✅
+- Forms unified inbox + Send Quote flow ✅
+- Contacts: read view + Add individual / CSV bulk import ✅
+- Enquiries CRM: list + detail + status update ✅
+- Portfolio: Supabase Storage gallery, artist filter tabs, ↑/↓ image ordering (portfolio_images table) ✅
+- Blog: CRUD (create, edit, draft/publish) ✅
+- Website tab: placeholder with live site + Sanity links ✅
+- Calendar feed: `/api/calendar.ics?key=ICAL_KEY` ✅
+
+### Supabase migrations applied (0001–0017)
+- 0016: `blog_posts` ✅ (applied by Pieter)
+- 0017: `portfolio_images` ✅ (applied via MCP this session)
+
+### Site (Cloudflare Pages — auto-deploys from `main`)
+- Public site live at `lustiqueco.co.za` ✅
+- Favicon: updated to logo.png ✅
+- ⚠ All dynamic pages (blog, team, portfolio, services) currently render **empty** — they query Sanity which was never seeded. **TASK 1 above fixes this.**
+
+### Known backlog (not blocking go-live)
+- **Email Inbox** — migration 0018, CF Email Routing "Send to Worker", `email` event handler, `/api/admin/email` tab. Parked until Sanity scrap + flow decision are done.
+- **Testimonials** — no table yet; index.astro renders static/empty
+- **Brevo custom SMTP** — not connecting; auth emails come from `noreply@mail.app.supabase.io`. Functional, not branded.
+
+---
+
+## Key files
+- `PLAN.md` · `PRICING.md` · `BRAND.md` · `ARCHITECTURE.md`
+- `docs/superpowers/specs/` — booking core spec, replan spec
+- `docs/RUNBOOK-go-live.md`
 
 ## ⇄ Umbrella
-**⬆ To umbrella — 🟢 SHIPPED: Wave D+E complete (Sonnet, 2026-06-23)**
-iCal feed replaces D2 Google Calendar (no Google Cloud needed). Enquiry CRM built: lead persistence + notification bell + admin list/detail/edit views. Migrations 0013–0015 applied live. Worker deployed. E2E smoke test still pending Pieter.
+**⬆ To umbrella — 🟢 SHIPPED: Dashboard polish wave complete (Sonnet, 2026-06-23)**
+Nav restructure, quote composer, tabbed Quotes, portfolio image ordering, Add Contact, Quotes pipeline fix. Migration 0017 applied live. Worker `d39c267e` deployed. ▶ NEXT: scrap Sanity + booking flow decision (Opus).
