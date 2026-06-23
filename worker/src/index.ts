@@ -27,6 +27,8 @@ import {
   handleAdminTemplates,
   handleAdminNotifications,
   handleAdminNotificationsRead,
+  handleAdminWebsite,
+  handleAdminQuoteComposer,
 } from "./booking/dashboard";
 import { handleAssignArtist, handleRemoveArtist } from "./booking/artists";
 import {
@@ -406,9 +408,17 @@ export default {
         const id = url.pathname.slice("/api/admin/quote/".length);
         if (id) return await handleAdminBookingDetail(req, dashEnv, id);
       }
-      // GET /api/admin/quotes — sent-quotes view
+      // GET /api/admin/quotes — tabbed: Quotes / Invoices / Payments
       if (req.method === "GET" && url.pathname === "/api/admin/quotes") {
         return await handleAdminQuotes(req, dashEnv);
+      }
+      // GET + POST /api/admin/quotes/new — manual quote composer
+      if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/admin/quotes/new") {
+        return await handleAdminQuoteComposer(req, dashEnv);
+      }
+      // GET /api/admin/website — website management placeholder
+      if (req.method === "GET" && url.pathname === "/api/admin/website") {
+        return await handleAdminWebsite(req, dashEnv);
       }
       // GET /api/admin/payments — payments view
       if (req.method === "GET" && url.pathname === "/api/admin/payments") {

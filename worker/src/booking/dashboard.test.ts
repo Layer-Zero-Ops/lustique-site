@@ -301,12 +301,11 @@ describe("handleAdminDashboard", () => {
       .mockResolvedValueOnce(json([]));
     const res = await handleAdminDashboard(getReq("/api/admin/dashboard", token), env, f as unknown as typeof fetch);
     const html = await res.text();
-    expect(html).toContain("/api/admin/dashboard");           // Inbox
-    expect(html).toContain("/api/admin/quotes");             // Sent quotes
-    expect(html).toContain("/api/admin/payments");           // Payments
-    expect(html).toContain("/api/admin/rejections");         // Rejections
-    expect(html).toContain("/api/admin/calendar");           // Calendar
-    expect(html).toContain("/api/admin/templates");          // Templates
+    expect(html).toContain("/api/admin/calendar");           // Calendar (Bookings group)
+    expect(html).toContain("/api/admin/quotes");             // Quotes (Bookings group)
+    expect(html).toContain("/api/admin/rejections");         // Declined (Bookings group)
+    expect(html).toContain("/api/admin/website");            // Website (Content group)
+    expect(html).toContain("/api/admin/templates");          // Templates (Admin group)
     expect(html).toContain("/api/admin/auth/logout");        // Logout
   });
 });

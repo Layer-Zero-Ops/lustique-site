@@ -14,6 +14,7 @@ import {
 import { listArtists, listBookingArtists, type ArtistRow, type BookingArtistRow } from "./artists";
 import type { Env } from "../index";
 import { checkRateLimit, RATE_LIMITS } from "../lib/rateLimit";
+import { sendEmail, emailShell, ep, em as emFn, esc as emailEsc } from "../lib/email";
 
 // Env used by dashboard handlers — Env + auth fields
 export interface DashboardEnv extends Env {
@@ -63,13 +64,17 @@ function htmlResponse(html: string, status = 200): Response {
  */
 export function adminShell(title: string, user: AdminUser, inner: string, currentPath = ""): string {
   function isActive(href: string): boolean {
-    if (href === "/api/admin/dashboard") return currentPath === href || currentPath.startsWith("/api/admin/booking/");
-    if (href === "/api/admin/forms")     return currentPath.startsWith("/api/admin/forms");
-    if (href === "/api/admin/enquiries") return currentPath.startsWith("/api/admin/enquiries");
-    if (href === "/api/admin/contacts")  return currentPath.startsWith("/api/admin/contacts");
-    if (href === "/api/admin/portfolio") return currentPath.startsWith("/api/admin/portfolio");
-    if (href === "/api/admin/blog")      return currentPath.startsWith("/api/admin/blog");
-    return currentPath.startsWith(href);
+    if (href === "/api/admin/forms")      return currentPath.startsWith("/api/admin/forms");
+    if (href === "/api/admin/enquiries")  return currentPath.startsWith("/api/admin/enquiries");
+    if (href === "/api/admin/contacts")   return currentPath.startsWith("/api/admin/contacts");
+    if (href === "/api/admin/portfolio")  return currentPath.startsWith("/api/admin/portfolio");
+    if (href === "/api/admin/blog")       return currentPath.startsWith("/api/admin/blog");
+    if (href === "/api/admin/quotes")     return currentPath.startsWith("/api/admin/quotes");
+    if (href === "/api/admin/rejections") return currentPath.startsWith("/api/admin/rejections");
+    if (href === "/api/admin/calendar")   return currentPath.startsWith("/api/admin/calendar");
+    if (href === "/api/admin/website")    return currentPath.startsWith("/api/admin/website");
+    if (href === "/api/admin/templates")  return currentPath.startsWith("/api/admin/templates");
+    return currentPath === href;
   }
 
   function navLink(href: string, label: string, badgeId?: string): string {
@@ -89,9 +94,8 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 
   const nav = [
     navGroup("Bookings", [
-      navLink("/api/admin/dashboard",  "Inbox"),
-      navLink("/api/admin/quotes",     "Sent Quotes"),
-      navLink("/api/admin/payments",   "Payments"),
+      navLink("/api/admin/calendar",   "Calendar"),
+      navLink("/api/admin/quotes",     "Quotes"),
       navLink("/api/admin/rejections", "Declined"),
     ].join("\n")),
     navGroup("Clients", [
@@ -101,10 +105,10 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     ].join("\n")),
     navGroup("Content", [
       navLink("/api/admin/portfolio", "Portfolio"),
+      navLink("/api/admin/website",   "Website"),
       navLink("/api/admin/blog",      "Blog"),
     ].join("\n")),
     navGroup("Admin", [
-      navLink("/api/admin/calendar",  "Calendar"),
       navLink("/api/admin/templates", "Templates"),
     ].join("\n")),
   ].join("\n");
@@ -1060,7 +1064,18 @@ interface QuoteSentBooking {
   quote_sent_at: string | null;
 }
 
-/** GET /api/admin/quotes — sent-quotes view: quote_sent bookings awaiting bride response */
+interface InvoiceBooking {
+  id: string;
+  reference: string;
+  bride_name: string;
+  wedding_date: string;
+  town: string | null;
+  party_size: number;
+  total_cents: number;
+  status: string;
+}
+
+/** GET /api/admin/quotes — tabbed: Quotes | Invoices | Payments */
 export async function handleAdminQuotes(
   req: Request,
   env: DashboardEnv,
@@ -1069,45 +1084,108 @@ export async function handleAdminQuotes(
   const user = await getAuthEnvUser(req, env, fetchFn);
   if (!user) return loginRedirect();
 
-  const res = await fetchFn(
-    supabaseUrl(
-      env,
-      `bookings?status=eq.quote_sent&select=id,reference,bride_name,bride_email,wedding_date,town,party_size,total_cents,quote_sent_at&order=wedding_date.asc`,
-    ),
-    { headers: supabaseHeaders(env) },
-  );
-  const bookings: QuoteSentBooking[] = res.ok ? ((await res.json()) as QuoteSentBooking[]) : [];
+  const url = new URL(req.url);
+  const tab = url.searchParams.get("tab") ?? "quotes";
 
-  const now = Date.now();
-  const rows = bookings.length
-    ? bookings.map((b) => {
-        const sentMs = b.quote_sent_at ? new Date(b.quote_sent_at).getTime() : now;
-        const expiresMs = sentMs + 7 * 24 * 60 * 60 * 1000;
-        const daysLeft = Math.max(0, Math.ceil((expiresMs - now) / 86400000));
-        const urgent = daysLeft <= 2;
-        return `<tr>
+  function tabLink(t: string, label: string): string {
+    const active = tab === t;
+    return `<a href="/api/admin/quotes?tab=${t}" style="padding:.45rem 1.1rem;border-radius:8px;text-decoration:none;font-size:.86rem;font-weight:${active ? "700" : "500"};color:${active ? "#8a3a52" : "#6b5d52"};background:${active ? "#f7e8ec" : "transparent"};">${label}</a>`;
+  }
+
+  const tabBar = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.4rem;">
+  <div style="display:flex;gap:.3rem;background:#f7f3ef;border-radius:10px;padding:.3rem;">
+    ${tabLink("quotes", "Quotes")}
+    ${tabLink("invoices", "Invoices")}
+    ${tabLink("payments", "Payments")}
+  </div>
+  <a href="/api/admin/quotes/new" style="display:inline-flex;align-items:center;gap:.4rem;background:#8a3a52;color:#fff;text-decoration:none;border-radius:8px;padding:.45rem 1.1rem;font-size:.86rem;font-weight:600;">+ Create Quote</a>
+</div>`;
+
+  let body = "";
+
+  if (tab === "quotes") {
+    const res = await fetchFn(
+      supabaseUrl(env, `bookings?status=eq.quote_sent&select=id,reference,bride_name,bride_email,wedding_date,town,party_size,total_cents,quote_sent_at&order=wedding_date.asc`),
+      { headers: supabaseHeaders(env) },
+    );
+    const bookings: QuoteSentBooking[] = res.ok ? ((await res.json()) as QuoteSentBooking[]) : [];
+    const now = Date.now();
+    const rows = bookings.length
+      ? bookings.map((b) => {
+          const sentMs = b.quote_sent_at ? new Date(b.quote_sent_at).getTime() : now;
+          const daysLeft = Math.max(0, Math.ceil((sentMs + 7 * 24 * 60 * 60 * 1000 - now) / 86400000));
+          const urgent = daysLeft <= 2;
+          return `<tr>
+            <td><a class="row-link" href="/api/admin/booking/${esc(b.id)}">${esc(b.reference)}</a></td>
+            <td>${esc(b.bride_name)}</td>
+            <td><a href="mailto:${esc(b.bride_email)}" style="color:#8a3a52;">${esc(b.bride_email)}</a></td>
+            <td>${esc(b.wedding_date)}</td>
+            <td>${esc(b.town ?? "—")}</td>
+            <td>${b.party_size}</td>
+            <td>${formatZAR(b.total_cents)}</td>
+            <td>${fmtDate(b.quote_sent_at)}</td>
+            <td style="color:${urgent ? "#c53030" : "#276749"};font-weight:700;">${daysLeft}d left</td>
+          </tr>`;
+        }).join("\n")
+      : `<tr><td colspan="9" class="empty">no quotes awaiting response ✦</td></tr>`;
+    body = `<table><thead><tr>
+      <th>Reference</th><th>Bride</th><th>Email</th><th>Wedding</th><th>Town</th>
+      <th>Party</th><th>Total</th><th>Sent</th><th>Expires</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+
+  } else if (tab === "invoices") {
+    const res = await fetchFn(
+      supabaseUrl(env, `bookings?status=in.(accepted,deposit_paid,settled)&select=id,reference,bride_name,wedding_date,town,party_size,total_cents,status&order=wedding_date.asc`),
+      { headers: supabaseHeaders(env) },
+    );
+    const bookings: InvoiceBooking[] = res.ok ? ((await res.json()) as InvoiceBooking[]) : [];
+    const rows = bookings.length
+      ? bookings.map((b) => `<tr>
           <td><a class="row-link" href="/api/admin/booking/${esc(b.id)}">${esc(b.reference)}</a></td>
           <td>${esc(b.bride_name)}</td>
-          <td><a href="mailto:${esc(b.bride_email)}" style="color:#8a3a52;">${esc(b.bride_email)}</a></td>
           <td>${esc(b.wedding_date)}</td>
           <td>${esc(b.town ?? "—")}</td>
           <td>${b.party_size}</td>
           <td>${formatZAR(b.total_cents)}</td>
-          <td>${fmtDate(b.quote_sent_at)}</td>
-          <td style="color:${urgent ? "#c53030" : "#276749"};font-weight:700;">${daysLeft}d left</td>
-        </tr>`;
-      }).join("\n")
-    : `<tr><td colspan="9" class="empty">no quotes awaiting response ✦</td></tr>`;
+          <td>${statusBadge(b.status)}</td>
+        </tr>`).join("\n")
+      : `<tr><td colspan="7" class="empty">no active invoices ✦</td></tr>`;
+    body = `<table><thead><tr>
+      <th>Reference</th><th>Bride</th><th>Wedding</th><th>Town</th>
+      <th>Party</th><th>Total</th><th>Status</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
 
-  const table = `<table>
-    <thead><tr>
-      <th>Reference</th><th>Bride</th><th>Email</th><th>Wedding</th><th>Town</th>
-      <th>Party</th><th>Total</th><th>Sent</th><th>Expires</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
+  } else {
+    // payments tab — reuse payments query
+    const res = await fetchFn(
+      supabaseUrl(env, `payments?select=id,kind,status,net_cents,payable_cents,yoco_checkout_id,yoco_payment_id,created_at,paid_at,bookings(reference,bride_name,wedding_date)&order=created_at.desc`),
+      { headers: supabaseHeaders(env) },
+    );
+    const payments: PaymentWithBooking[] = res.ok ? ((await res.json()) as PaymentWithBooking[]) : [];
+    const rows = payments.length
+      ? payments.map((p) => {
+          const bk = p.bookings;
+          const method = p.yoco_payment_id ? "Yoco" : p.yoco_checkout_id ? "Yoco pending" : "EFT";
+          return `<tr>
+            <td>${esc(bk?.reference ?? "—")}</td>
+            <td>${esc(bk?.bride_name ?? "—")}</td>
+            <td>${esc(bk?.wedding_date ?? "—")}</td>
+            <td>${esc(p.kind)}</td>
+            <td>${statusBadge(p.status)}</td>
+            <td>${formatZAR(p.net_cents)}</td>
+            <td>${formatZAR(p.payable_cents)}</td>
+            <td>${esc(method)}</td>
+            <td>${fmtDateTime(p.paid_at)}</td>
+          </tr>`;
+        }).join("\n")
+      : `<tr><td colspan="9" class="empty">no payments recorded yet ✦</td></tr>`;
+    body = `<table><thead><tr>
+      <th>Reference</th><th>Bride</th><th>Wedding</th><th>Kind</th><th>Status</th>
+      <th>Net</th><th>Payable</th><th>Method</th><th>Paid at</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  }
 
-  return htmlResponse(adminShell("Sent Quotes", user, table, new URL(req.url).pathname));
+  return htmlResponse(adminShell("Quotes", user, tabBar + body, url.pathname));
 }
 
 // ── handleAdminPayments ───────────────────────────────────────────────────────
@@ -1379,9 +1457,9 @@ export async function handleAdminCalendar(
     const ww = weddingsByDay.get(dateStr) ?? 0;
     const mw = matricByDay.get(dateStr) ?? 0;
     const occasionBadges = [
-      ww > 0 ? `<span style="font-size:.6rem;background:#f7e8ec;color:#8a3a52;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">💍${ww > 1 ? " ×" + ww : ""}</span>` : "",
-      mw > 0 ? `<span style="font-size:.6rem;background:#fef9e7;color:#b7791f;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">🎓${mw > 1 ? " ×" + mw : ""}</span>` : "",
-      tw > 0 ? `<span style="font-size:.6rem;background:#ebf8ff;color:#2b6cb0;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">✂︎${tw > 1 ? " ×" + tw : ""}</span>` : "",
+      ww > 0 ? `<span style="font-size:.6rem;background:#f7e8ec;color:#8a3a52;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">💍${ww > 1 ? " +" + ww : ""}</span>` : "",
+      mw > 0 ? `<span style="font-size:.6rem;background:#fef9e7;color:#b7791f;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">🎓${mw > 1 ? " +" + mw : ""}</span>` : "",
+      tw > 0 ? `<span style="font-size:.6rem;background:#ebf8ff;color:#2b6cb0;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">✂︎${tw > 1 ? " +" + tw : ""}</span>` : "",
     ].filter(Boolean).join(" ");
     const occasionRow = occasionBadges ? `<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;">${occasionBadges}</div>` : "";
 
@@ -1677,4 +1755,277 @@ export async function handleAdminNotificationsRead(
     status: 200,
     headers: { "content-type": "application/json" },
   });
+}
+
+// ── handleAdminWebsite ────────────────────────────────────────────────────────
+
+/** GET /api/admin/website — placeholder: links to live site + Sanity CMS */
+export async function handleAdminWebsite(
+  req: Request,
+  env: DashboardEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAuthEnvUser(req, env, fetchFn);
+  if (!user) return loginRedirect();
+
+  const inner = `<h1>Website</h1>
+<div style="display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:.5rem;">
+  <a href="https://lustiqueco.co.za" target="_blank" rel="noopener" style="display:flex;flex-direction:column;gap:.4rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.4rem 1.6rem;text-decoration:none;color:inherit;">
+    <span style="font-size:1.4rem;">🌐</span>
+    <span style="font-weight:700;color:#2b2b2b;">View live site</span>
+    <span style="font-size:.85rem;color:#8a7d72;">lustiqueco.co.za</span>
+  </a>
+  <a href="https://www.sanity.io/manage" target="_blank" rel="noopener" style="display:flex;flex-direction:column;gap:.4rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.4rem 1.6rem;text-decoration:none;color:inherit;">
+    <span style="font-size:1.4rem;">✍️</span>
+    <span style="font-weight:700;color:#2b2b2b;">Sanity CMS</span>
+    <span style="font-size:.85rem;color:#8a7d72;">Edit content, blog & team</span>
+  </a>
+</div>
+<p style="margin:1.8rem 0 0;font-size:.88rem;color:#8a7d72;">Website settings (SEO, meta, GA4) will be available here once the CMS is seeded.</p>`;
+
+  return htmlResponse(adminShell("Website", user, inner, new URL(req.url).pathname));
+}
+
+// ── handleAdminQuoteComposer ──────────────────────────────────────────────────
+
+const QUOTE_CATALOG = [
+  { label: "Bridal makeup — trial", price: 850 },
+  { label: "Bridal makeup — wedding day", price: 850 },
+  { label: "Bridal hair — trial (Short)", price: 495 },
+  { label: "Bridal hair — trial (Medium)", price: 595 },
+  { label: "Bridal hair — trial (Long)", price: 695 },
+  { label: "Bridal hair — trial (X-Long)", price: 795 },
+  { label: "Bridal hair — wedding day (Short)", price: 495 },
+  { label: "Bridal hair — wedding day (Medium)", price: 595 },
+  { label: "Bridal hair — wedding day (Long)", price: 695 },
+  { label: "Bridal hair — wedding day (X-Long)", price: 795 },
+  { label: "Bridesmaid makeup", price: 550 },
+  { label: "Bridesmaid hair (Short)", price: 395 },
+  { label: "Bridesmaid hair (Medium)", price: 495 },
+  { label: "Bridesmaid hair (Long)", price: 595 },
+  { label: "Bridesmaid hair (X-Long)", price: 695 },
+  { label: "Mother of bride / groom makeup", price: 500 },
+  { label: "Mother of bride / groom hair (Medium)", price: 495 },
+  { label: "Mother of bride / groom hair (Long)", price: 595 },
+  { label: "Flower girl (under 12) makeup", price: 250 },
+  { label: "Flower girl (under 12) hair (Short)", price: 200 },
+  { label: "Flower girl (over 12) makeup", price: 500 },
+  { label: "Matric farewell makeup", price: 750 },
+  { label: "Strip lashes add-on (per person)", price: 75 },
+  { label: "Additional artist (on request)", price: 850 },
+  { label: "Travel (0–30 km)", price: 0 },
+  { label: "Travel (31–60 km)", price: 300 },
+  { label: "Travel (61+ km)", price: 600 },
+];
+
+function quoteComposerForm(error?: string): string {
+  const catalogOptions = QUOTE_CATALOG.map(
+    (s) => `<option value="${esc(s.label)}|${s.price}">${esc(s.label)} — R ${s.price}</option>`,
+  ).join("");
+
+  return `<h1>Create Quote</h1>
+${error ? `<div style="background:#fff5f5;color:#c53030;border:1.5px solid #fed7d7;border-radius:8px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.9rem;">${esc(error)}</div>` : ""}
+<form method="POST" action="/api/admin/quotes/new" id="qform" style="max-width:820px;">
+
+  <h2>Client details</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.8rem;">
+    <div><label style="display:block;font-size:.8rem;font-weight:600;color:#6b5d52;margin-bottom:.3rem;">Client name</label>
+    <input name="client_name" required placeholder="e.g. Anri van Wyk" style="width:100%;font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.45em .75em;"></div>
+    <div><label style="display:block;font-size:.8rem;font-weight:600;color:#6b5d52;margin-bottom:.3rem;">Client email</label>
+    <input name="client_email" type="email" required placeholder="anri@example.com" style="width:100%;font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.45em .75em;"></div>
+    <div><label style="display:block;font-size:.8rem;font-weight:600;color:#6b5d52;margin-bottom:.3rem;">Event date</label>
+    <input name="event_date" type="date" style="width:100%;font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.45em .75em;"></div>
+    <div><label style="display:block;font-size:.8rem;font-weight:600;color:#6b5d52;margin-bottom:.3rem;">Event type</label>
+    <select name="event_type" style="width:100%;font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.45em .75em;">
+      <option value="wedding">Wedding</option>
+      <option value="matric">Matric Farewell</option>
+      <option value="trial">Trial</option>
+      <option value="event">Event</option>
+      <option value="editorial">Editorial / Photoshoot</option>
+    </select></div>
+  </div>
+
+  <h2 style="margin-top:1.4rem;">Line items</h2>
+  <div style="margin-bottom:.7rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+    <select id="catalog" style="font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em .8em;color:#5c3d47;">
+      <option value="">+ Add from catalog...</option>
+      ${catalogOptions}
+    </select>
+    <button type="button" onclick="addFromCatalog()" style="font:inherit;font-size:.86rem;font-weight:600;background:#f7e8ec;color:#8a3a52;border:1.5px solid #e0c8c8;border-radius:8px;padding:.4em 1em;cursor:pointer;">Add</button>
+    <button type="button" onclick="addBlankRow()" style="font:inherit;font-size:.86rem;font-weight:600;background:none;color:#6b5d52;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em 1em;cursor:pointer;">+ Custom item</button>
+  </div>
+
+  <table id="items-table" style="width:100%;border-collapse:collapse;font-size:.9rem;">
+    <thead><tr>
+      <th style="text-align:left;font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;padding:.3rem 0;border-bottom:1.5px solid #ede7e0;width:55%;">Description</th>
+      <th style="text-align:right;font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;padding:.3rem .5rem;border-bottom:1.5px solid #ede7e0;width:8%;">Qty</th>
+      <th style="text-align:right;font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;padding:.3rem .5rem;border-bottom:1.5px solid #ede7e0;width:16%;">Unit (R)</th>
+      <th style="text-align:right;font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;padding:.3rem 0;border-bottom:1.5px solid #ede7e0;width:16%;">Subtotal</th>
+      <th style="border-bottom:1.5px solid #ede7e0;width:5%;"></th>
+    </tr></thead>
+    <tbody id="items-body"></tbody>
+    <tfoot>
+      <tr><td colspan="3" style="text-align:right;font-weight:700;padding:.7rem 0 .3rem;font-size:.95rem;">Total</td>
+      <td style="text-align:right;font-weight:700;padding:.7rem 0 .3rem;font-size:.95rem;color:#8a3a52;" id="grand-total">R 0</td>
+      <td></td></tr>
+    </tfoot>
+  </table>
+
+  <h2 style="margin-top:1.4rem;">Personal note <span style="font-weight:400;color:#8a7d72;font-size:.82rem;">(optional)</span></h2>
+  <textarea name="note" rows="3" placeholder="Add a warm personal note to this quote…" style="width:100%;font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.5em .75em;resize:vertical;"></textarea>
+
+  <div style="margin-top:1.4rem;display:flex;gap:.8rem;">
+    <button type="submit" style="font:inherit;font-size:.9rem;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.55em 1.6em;cursor:pointer;">Send Quote Email</button>
+    <a href="/api/admin/quotes" style="font:inherit;font-size:.9rem;font-weight:500;color:#6b5d52;text-decoration:none;padding:.55em 1em;border:1.5px solid #c9bfb8;border-radius:8px;">Cancel</a>
+  </div>
+</form>
+
+<script>
+let rowCount = 0;
+
+function fmt(n) {
+  return 'R ' + Number(n).toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function recalc() {
+  let total = 0;
+  document.querySelectorAll('.item-row').forEach(function(row) {
+    const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+    const price = parseFloat(row.querySelector('.price-input').value) || 0;
+    const sub = qty * price;
+    total += sub;
+    row.querySelector('.sub-cell').textContent = fmt(sub);
+  });
+  document.getElementById('grand-total').textContent = fmt(total);
+}
+
+function addRow(desc, price) {
+  rowCount++;
+  const n = rowCount;
+  const tbody = document.getElementById('items-body');
+  const tr = document.createElement('tr');
+  tr.className = 'item-row';
+  tr.innerHTML = '<td style="padding:.35rem 0;"><input name="desc[]" value="' + (desc||'').replace(/"/g,'&quot;') + '" placeholder="Service description" style="width:100%;font:inherit;border:1.5px solid #c9bfb8;border-radius:6px;padding:.3em .6em;" oninput="recalc()"></td>'
+    + '<td style="padding:.35rem .5rem;"><input class="qty-input" name="qty[]" type="number" value="1" min="1" style="width:3.5rem;font:inherit;border:1.5px solid #c9bfb8;border-radius:6px;padding:.3em .4em;text-align:right;" oninput="recalc()"></td>'
+    + '<td style="padding:.35rem .5rem;"><input class="price-input" name="price[]" type="number" value="' + (price||0) + '" min="0" style="width:5.5rem;font:inherit;border:1.5px solid #c9bfb8;border-radius:6px;padding:.3em .4em;text-align:right;" oninput="recalc()"></td>'
+    + '<td class="sub-cell" style="text-align:right;padding:.35rem 0;font-variant-numeric:tabular-nums;">' + fmt((price||0)) + '</td>'
+    + '<td style="text-align:right;padding:.35rem 0;"><button type="button" onclick="this.closest(\'tr\').remove();recalc();" style="background:none;border:none;color:#c53030;font-size:1.1rem;cursor:pointer;padding:0 .3rem;">×</button></td>';
+  tbody.appendChild(tr);
+  recalc();
+}
+
+function addFromCatalog() {
+  const sel = document.getElementById('catalog');
+  if (!sel.value) return;
+  const parts = sel.value.split('|');
+  addRow(parts[0], parseFloat(parts[1]) || 0);
+  sel.value = '';
+}
+
+function addBlankRow() { addRow('', 0); }
+</script>`;
+}
+
+/** GET /api/admin/quotes/new — manual quote composer form */
+export async function handleAdminQuoteComposer(
+  req: Request,
+  env: DashboardEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAuthEnvUser(req, env, fetchFn);
+  if (!user) return loginRedirect();
+
+  if (req.method === "POST") {
+    const form = await req.formData().catch(() => null);
+    if (!form) return htmlResponse(adminShell("Create Quote", user, quoteComposerForm("Invalid form submission."), "/api/admin/quotes/new"), 400);
+
+    const clientName = String(form.get("client_name") ?? "").trim();
+    const clientEmail = String(form.get("client_email") ?? "").trim();
+    const eventDate = String(form.get("event_date") ?? "").trim();
+    const eventType = String(form.get("event_type") ?? "wedding").trim();
+    const note = String(form.get("note") ?? "").trim();
+
+    if (!clientName || !clientEmail) {
+      return htmlResponse(adminShell("Create Quote", user, quoteComposerForm("Client name and email are required."), "/api/admin/quotes/new"), 400);
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
+      return htmlResponse(adminShell("Create Quote", user, quoteComposerForm("Please enter a valid email address."), "/api/admin/quotes/new"), 400);
+    }
+
+    const descs = form.getAll("desc[]").map(String);
+    const qtys  = form.getAll("qty[]").map(String);
+    const prices = form.getAll("price[]").map(String);
+
+    type LineItem = { desc: string; qty: number; price: number; subtotal: number };
+    const items: LineItem[] = [];
+    for (let i = 0; i < descs.length; i++) {
+      const desc = (descs[i] ?? "").trim();
+      const qty = Math.max(1, parseInt(qtys[i] ?? "1", 10) || 1);
+      const price = Math.max(0, parseFloat(prices[i] ?? "0") || 0);
+      if (desc) items.push({ desc, qty, price, subtotal: qty * price });
+    }
+    const totalCents = Math.round(items.reduce((s, it) => s + it.subtotal * 100, 0));
+    const totalFormatted = `R ${(totalCents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
+
+    const eventTypeLabel: Record<string, string> = {
+      wedding: "Wedding", matric: "Matric Farewell", trial: "Trial", event: "Event", editorial: "Editorial / Photoshoot",
+    };
+    const eventLabel = eventTypeLabel[eventType] ?? eventType;
+
+    const lineRows = items.map((it) =>
+      `<tr>
+        <td style="padding:10px 12px 10px 0;border-bottom:1px solid #F5EDE5;font-size:13px;color:#3A2E26;">${esc(it.desc)}</td>
+        <td style="padding:10px 6px;border-bottom:1px solid #F5EDE5;font-size:13px;color:#6b5d52;text-align:right;">${it.qty}</td>
+        <td style="padding:10px 6px;border-bottom:1px solid #F5EDE5;font-size:13px;color:#6b5d52;text-align:right;">R ${it.price.toLocaleString("en-ZA")}</td>
+        <td style="padding:10px 0 10px 6px;border-bottom:1px solid #F5EDE5;font-size:13px;font-weight:600;color:#3A2E26;text-align:right;">R ${it.subtotal.toLocaleString("en-ZA")}</td>
+      </tr>`,
+    ).join("");
+
+    const lineTable = items.length
+      ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border-top:1px solid #EEE5DA;">
+          <thead><tr>
+            <th style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#A89080;padding:10px 12px 10px 0;border-bottom:1px solid #F5EDE5;text-align:left;">Service</th>
+            <th style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#A89080;padding:10px 6px;border-bottom:1px solid #F5EDE5;text-align:right;">Qty</th>
+            <th style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#A89080;padding:10px 6px;border-bottom:1px solid #F5EDE5;text-align:right;">Unit</th>
+            <th style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#A89080;padding:10px 0 10px 6px;border-bottom:1px solid #F5EDE5;text-align:right;">Subtotal</th>
+          </tr></thead>
+          <tbody>${lineRows}</tbody>
+          <tfoot><tr>
+            <td colspan="3" style="padding:12px 6px 0 0;font-size:13px;font-weight:700;color:#5C4332;text-align:right;">Total</td>
+            <td style="padding:12px 0 0 6px;font-size:16px;font-weight:700;color:#5C4332;text-align:right;font-family:Georgia,serif;">${esc(totalFormatted)}</td>
+          </tr></tfoot>
+        </table>`
+      : `<p style="margin:12px 0 0;font-size:13px;color:#8A7060;font-style:italic;">No line items listed.</p>`;
+
+    const noteHtml = note ? ep(`<em style="font-style:italic;color:#6b5d52;">"${emailEsc(note)}"</em>`) : "";
+    const eventDateDisplay = eventDate ? emFn(eventDate) : "";  // emFn = em from lib/email (italic serif span)
+
+    const emailHtml = emailShell({
+      heading: `Your Lustique quote, ${esc(clientName.split(" ")[0] ?? clientName)}.`,
+      body: ep(`Thank you for your interest in Lustique. Here is your personalised quote${eventDateDisplay ? ` for your ${esc(eventLabel)} on ${eventDateDisplay}` : ` for your ${esc(eventLabel)}`}.`)
+        + lineTable
+        + (noteHtml ? `<div style="margin-top:24px;">${noteHtml}</div>` : ""),
+      btnZone: `<p style="margin:0 0 12px;font-size:13px;color:#5C4332;font-family:Arial,sans-serif;">Ready to book? Reply to this email and we'll take it from there.</p>`,
+      footerNote: `This quote is valid for 7 days. Questions? Write to us at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>.`,
+    });
+
+    try {
+      await sendEmail(
+        env,
+        { email: clientEmail, name: clientName },
+        `Your Lustique quote${eventDate ? ` — ${eventDate}` : ""}`,
+        emailHtml,
+        fetchFn,
+      );
+    } catch {
+      return htmlResponse(adminShell("Create Quote", user, quoteComposerForm("Failed to send email — please try again."), "/api/admin/quotes/new"), 500);
+    }
+
+    return new Response(null, {
+      status: 302,
+      headers: { location: `/api/admin/quotes?success=quote_sent&to=${encodeURIComponent(clientEmail)}` },
+    });
+  }
+
+  return htmlResponse(adminShell("Create Quote", user, quoteComposerForm(), "/api/admin/quotes/new"));
 }
