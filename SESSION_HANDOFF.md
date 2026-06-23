@@ -1,12 +1,38 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 Plan (Opus) · **Phase:** Booking flow decision · **Updated:** 2026-06-23
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Booking flow build · **Updated:** 2026-06-23
 
-## ▶ NEXT (Opus, fresh session — PLAN MODE)
+## ▶ NEXT (Sonnet, fresh session — BUILD)
 
-**Model:** Opus · **Lane:** Plan · **Branch:** `main`
+**Model:** Sonnet · **Lane:** Build · **Branch:** `main`
 
-**Mission:** Design the new booking flow. Read this entire file, then output a locked spec + Sonnet build plan. End with 🔵 PLAN SET.
+**Mission:** Build the direct deposit-invoice flow. Execute the plan task-by-task (TDD).
+
+- **Plan (ordered task list):** `docs/superpowers/plans/2026-06-23-booking-flow-direct-invoice-plan.md`
+- **Spec (source of truth, every "why"):** `docs/superpowers/specs/2026-06-23-booking-flow-direct-invoice.md`
+
+**One-line summary:** rebrand the existing "quote" flow as a **deposit invoice** — button
+becomes "Send Deposit Invoice", bride gets ONE "Secure your date" link, picks **25% or 50%**
+(rand amounts shown) → Yoco. **No migration, no new enum, no webhook/query changes** — only
+labels, copy, the email template, and `reject.ts` → 410 stub. `forms.ts` send-quote is OUT
+OF SCOPE (it's the enquiry composer).
+
+**Pre-flight (non-blocking):** ask Pieter for `SELECT status, COUNT(*) FROM bookings GROUP BY
+status` — informational only; the change is back-compat.
+
+---
+
+## 🔵 PLAN SET — Opus decision (2026-06-23, booking flow)
+
+**Chosen: Option A (reframe), reusing the existing `quote_sent` / `accepted` states.**
+
+Pieter confirmed the **bride still picks her deposit** (sees 25% & 50% in rands, ticks one →
+that amount feeds the Yoco link). A payment link needs a fixed amount, so the choice page
+*must* survive — and that page already does `quote_sent → accepted → Yoco webhook →
+deposit_paid`. The state machine Pieter described **already exists**; it was only mis-named
+"quote". So we rebrand the label, not the plumbing: no `invoice_sent` enum (it would churn 50
+refs across 12 files for an enum string the bride never sees), no migration, no webhook change.
+Full rationale + file-by-file list in the spec.
 
 ---
 
@@ -191,5 +217,6 @@ The Guides page "Send it to me" button is a dead link (`<a href="#">`). Brevo su
 - `docs/RUNBOOK-go-live.md`
 
 ## ⇄ Umbrella
-**⬆ To umbrella — 🟢 SHIPPED: Full polish wave done (Sonnet, 2026-06-23)**
-Sanity scrapped, dashboard polished, thank-you redesigned. ▶ NEXT: booking flow decision (Opus required).
+**⬆ To umbrella — 🟢 SHIPPED: Booking flow design locked (Opus, 2026-06-23)**
+Booking-flow decision made: Option A reframe (deposit invoice, reuse `quote_sent`/`accepted`,
+no migration). Spec + Sonnet plan written under `docs/superpowers/`. ▶ NEXT: Sonnet builds it.
