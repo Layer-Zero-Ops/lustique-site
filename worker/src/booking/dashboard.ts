@@ -1311,14 +1311,17 @@ export async function handleAdminCalendar(
   const blockedDates: BlockedDate[] = bdRes.ok ? ((await bdRes.json()) as BlockedDate[]) : [];
 
   // Build day-count + occasion maps
-  const countByDay   = new Map<string, number>();
-  const trialsByDay  = new Map<string, number>();
+  const countByDay    = new Map<string, number>();
+  const trialsByDay   = new Map<string, number>();
   const weddingsByDay = new Map<string, number>();
+  const matricByDay   = new Map<string, number>();
   for (const b of bookings) {
     const d = b.wedding_date.slice(0, 10);
     countByDay.set(d, (countByDay.get(d) ?? 0) + 1);
     if (b.occasion === "trial") {
       trialsByDay.set(d, (trialsByDay.get(d) ?? 0) + 1);
+    } else if (b.occasion === "matric") {
+      matricByDay.set(d, (matricByDay.get(d) ?? 0) + 1);
     } else {
       weddingsByDay.set(d, (weddingsByDay.get(d) ?? 0) + 1);
     }
@@ -1374,8 +1377,10 @@ export async function handleAdminCalendar(
 
     const tw = trialsByDay.get(dateStr) ?? 0;
     const ww = weddingsByDay.get(dateStr) ?? 0;
+    const mw = matricByDay.get(dateStr) ?? 0;
     const occasionBadges = [
       ww > 0 ? `<span style="font-size:.6rem;background:#f7e8ec;color:#8a3a52;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">💍${ww > 1 ? " ×" + ww : ""}</span>` : "",
+      mw > 0 ? `<span style="font-size:.6rem;background:#fef9e7;color:#b7791f;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">🎓${mw > 1 ? " ×" + mw : ""}</span>` : "",
       tw > 0 ? `<span style="font-size:.6rem;background:#ebf8ff;color:#2b6cb0;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">✂︎${tw > 1 ? " ×" + tw : ""}</span>` : "",
     ].filter(Boolean).join(" ");
     const occasionRow = occasionBadges ? `<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;">${occasionBadges}</div>` : "";
@@ -1419,7 +1424,8 @@ export async function handleAdminCalendar(
       <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:2px;background:#fde8e8;border:1px solid #f5c6c6;display:inline-block;"></span>Blocked</span>
       <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:2px;border:2px solid #8a3a52;display:inline-block;"></span>Today</span>
       <span style="width:1px;height:14px;background:#ede7e0;display:inline-block;"></span>
-      <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="font-size:.72rem;background:#f7e8ec;color:#8a3a52;border-radius:3px;padding:.05em .35em;font-weight:700;">💍</span>Wedding / Matric</span>
+      <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="font-size:.72rem;background:#f7e8ec;color:#8a3a52;border-radius:3px;padding:.05em .35em;font-weight:700;">💍</span>Wedding</span>
+      <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="font-size:.72rem;background:#fef9e7;color:#b7791f;border-radius:3px;padding:.05em .35em;font-weight:700;">🎓</span>Matric farewell</span>
       <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="font-size:.72rem;background:#ebf8ff;color:#2b6cb0;border-radius:3px;padding:.05em .35em;font-weight:700;">✂︎</span>Trial</span>
     </div>
 
