@@ -284,7 +284,7 @@ describe("handleAdminQuotes", () => {
       .mockResolvedValueOnce(json([]));
     const res = await handleAdminQuotes(getReq("/api/admin/quotes", token), env, f as unknown as typeof fetch);
     const html = await res.text();
-    expect(html).toContain("no quotes");
+    expect(html).toContain("no pending quotes");
   });
 });
 

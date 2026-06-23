@@ -1062,6 +1062,7 @@ interface QuoteSentBooking {
   town: string | null;
   party_size: number;
   total_cents: number;
+  status: string;
   quote_sent_at: string | null;
 }
 
@@ -1106,16 +1107,23 @@ export async function handleAdminQuotes(
 
   if (tab === "quotes") {
     const res = await fetchFn(
-      supabaseUrl(env, `bookings?status=eq.quote_sent&select=id,reference,bride_name,bride_email,wedding_date,town,party_size,total_cents,quote_sent_at&order=wedding_date.asc`),
+      supabaseUrl(env, `bookings?status=in.(requested,quote_sent)&select=id,reference,bride_name,bride_email,wedding_date,town,party_size,total_cents,status,quote_sent_at&order=wedding_date.asc`),
       { headers: supabaseHeaders(env) },
     );
     const bookings: QuoteSentBooking[] = res.ok ? ((await res.json()) as QuoteSentBooking[]) : [];
     const now = Date.now();
     const rows = bookings.length
       ? bookings.map((b) => {
+          const isRequested = b.status === "requested";
           const sentMs = b.quote_sent_at ? new Date(b.quote_sent_at).getTime() : now;
-          const daysLeft = Math.max(0, Math.ceil((sentMs + 7 * 24 * 60 * 60 * 1000 - now) / 86400000));
-          const urgent = daysLeft <= 2;
+          const daysLeft = isRequested ? null : Math.max(0, Math.ceil((sentMs + 7 * 24 * 60 * 60 * 1000 - now) / 86400000));
+          const urgent = daysLeft !== null && daysLeft <= 2;
+          const statusCell = isRequested
+            ? `<span class="badge badge-requested">New request</span>`
+            : `<span class="badge badge-quote_sent">Quote sent</span>`;
+          const expiresCell = daysLeft === null
+            ? `<span style="color:#b7791f;font-weight:600;">Needs quote</span>`
+            : `<span style="color:${urgent ? "#c53030" : "#276749"};font-weight:700;">${daysLeft}d left</span>`;
           return `<tr>
             <td><a class="row-link" href="/api/admin/booking/${esc(b.id)}">${esc(b.reference)}</a></td>
             <td>${esc(b.bride_name)}</td>
@@ -1124,14 +1132,14 @@ export async function handleAdminQuotes(
             <td>${esc(b.town ?? "—")}</td>
             <td>${b.party_size}</td>
             <td>${formatZAR(b.total_cents)}</td>
-            <td>${fmtDate(b.quote_sent_at)}</td>
-            <td style="color:${urgent ? "#c53030" : "#276749"};font-weight:700;">${daysLeft}d left</td>
+            <td>${statusCell}</td>
+            <td>${expiresCell}</td>
           </tr>`;
         }).join("\n")
-      : `<tr><td colspan="9" class="empty">no quotes awaiting response ✦</td></tr>`;
+      : `<tr><td colspan="9" class="empty">no pending quotes ✦</td></tr>`;
     body = `<table><thead><tr>
       <th>Reference</th><th>Bride</th><th>Email</th><th>Wedding</th><th>Town</th>
-      <th>Party</th><th>Total</th><th>Sent</th><th>Expires</th>
+      <th>Party</th><th>Total</th><th>Status</th><th>Expires</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
 
   } else if (tab === "invoices") {

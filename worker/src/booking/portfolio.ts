@@ -53,6 +53,13 @@ interface ArtistOption {
   name: string;
 }
 
+interface PortfolioImageRecord {
+  id: string;
+  storage_path: string;
+  artist_id: string | null;
+  position: number;
+}
+
 // ── Portfolio list ────────────────────────────────────────────────────────────
 
 export async function handleAdminPortfolio(
@@ -124,6 +131,24 @@ export async function handleAdminPortfolio(
       return redirect("/api/admin/portfolio?error=upload-failed");
     }
 
+    // Get next position for this artist
+    const posQs = artistId
+      ? `portfolio_images?artist_id=eq.${encodeURIComponent(artistId)}&select=position&order=position.desc&limit=1`
+      : `portfolio_images?artist_id=is.null&select=position&order=position.desc&limit=1`;
+    const posRes = await f(`${env.SUPABASE_URL}/rest/v1/${posQs}`, { headers: hdr });
+    const posRows: Array<{ position: number }> = posRes.ok ? ((await posRes.json()) as Array<{ position: number }>) : [];
+    const nextPos = posRows.length > 0 ? (posRows[0]?.position ?? 0) + 10 : 10;
+
+    await f(`${env.SUPABASE_URL}/rest/v1/portfolio_images`, {
+      method: "POST",
+      headers: { ...hdr, "content-type": "application/json", prefer: "return=minimal" },
+      body: JSON.stringify({
+        storage_path: uniqueName,
+        artist_id: artistId || null,
+        position: nextPos,
+      }),
+    });
+
     return redirect(`/api/admin/portfolio?saved=1${artistId ? "&artist=" + encodeURIComponent(artistId) : ""}`);
   }
 
@@ -131,22 +156,57 @@ export async function handleAdminPortfolio(
   const filterArtist = url.searchParams.get("artist") ?? "";
   const prefix = filterArtist ? `${filterArtist}/` : "";
 
-  const [artistsRes, listRes] = await Promise.all([
+  const dbFilter = filterArtist
+    ? `portfolio_images?artist_id=eq.${encodeURIComponent(filterArtist)}&select=id,storage_path,artist_id,position&order=position.asc`
+    : `portfolio_images?select=id,storage_path,artist_id,position&order=position.asc&limit=500`;
+
+  const [artistsRes, listRes, dbRes] = await Promise.all([
     f(`${env.SUPABASE_URL}/rest/v1/artists?active=eq.true&select=id,name&order=name.asc`, { headers: hdr }),
     f(
       `${env.SUPABASE_URL}/storage/v1/object/list/${BUCKET}`,
       {
         method: "POST",
         headers: { ...hdr, "content-type": "application/json" },
-        body: JSON.stringify({ prefix, limit: 200, offset: 0, sortBy: { column: "created_at", order: "desc" } }),
+        body: JSON.stringify({ prefix, limit: 200, offset: 0, sortBy: { column: "created_at", order: "asc" } }),
       },
     ),
+    f(`${env.SUPABASE_URL}/rest/v1/${dbFilter}`, { headers: hdr }),
   ]);
 
   const artists: ArtistOption[] = artistsRes.ok ? ((await artistsRes.json()) as ArtistOption[]) : [];
-  // Filter out "folder" pseudo-objects (no metadata) and objects that are sub-prefixes
   const rawObjects: StorageObject[] = listRes.ok ? ((await listRes.json()) as StorageObject[]) : [];
   const objects = rawObjects.filter((o) => o.metadata !== null);
+  const dbRecords: PortfolioImageRecord[] = dbRes.ok ? ((await dbRes.json()) as PortfolioImageRecord[]) : [];
+
+  // Build a position map keyed by storage_path
+  const posMap = new Map<string, { id: string; position: number }>();
+  for (const r of dbRecords) posMap.set(r.storage_path, { id: r.id, position: r.position });
+
+  // Auto-seed Storage objects that have no portfolio_images record yet
+  const unseeded = objects.filter((o) => !posMap.has(o.name));
+  if (unseeded.length > 0) {
+    const maxPos = dbRecords.length > 0 ? Math.max(...dbRecords.map((r) => r.position)) : 0;
+    const toInsert = unseeded
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((obj, i) => {
+        const artistIdForObj = obj.name.includes("/") ? obj.name.split("/")[0] ?? null : null;
+        const pos = maxPos + (i + 1) * 10;
+        posMap.set(obj.name, { id: "", position: pos });
+        return { storage_path: obj.name, artist_id: artistIdForObj, position: pos };
+      });
+    await f(`${env.SUPABASE_URL}/rest/v1/portfolio_images`, {
+      method: "POST",
+      headers: { ...hdr, "content-type": "application/json", prefer: "return=minimal" },
+      body: JSON.stringify(toInsert),
+    });
+  }
+
+  // Sort objects by their assigned position
+  const sortedObjects = [...objects].sort((a, b) => {
+    const posA = posMap.get(a.name)?.position ?? 999999;
+    const posB = posMap.get(b.name)?.position ?? 999999;
+    return posA - posB;
+  });
 
   const saved  = url.searchParams.get("saved")  === "1";
   const errorP = url.searchParams.get("error");
@@ -176,25 +236,49 @@ export async function handleAdminPortfolio(
   // Strip artist-prefix from displayed filename
   const displayName = (name: string) => name.includes("/") ? name.split("/").slice(1).join("/") : name;
 
-  const gallery = objects.length
-    ? `<table style="border-collapse:collapse;width:100%;margin-bottom:2rem;">
+  const orderNote = !filterArtist
+    ? `<p style="font-size:.82rem;color:#8a7d72;margin:-1rem 0 1.2rem;">Select an artist tab to reorder images.</p>`
+    : "";
+
+  const btnStyle = `font:inherit;font-size:.9rem;background:#f7f3ef;color:#5c3d47;border:1px solid #ede7e0;border-radius:5px;padding:.15em .45em;cursor:pointer;line-height:1;`;
+
+  const gallery = sortedObjects.length
+    ? orderNote + `<table style="border-collapse:collapse;width:100%;margin-bottom:2rem;">
         <thead><tr>
+          ${filterArtist ? `<th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .5rem;border-bottom:2px solid #ede7e0;width:56px;"></th>` : ""}
           <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;width:72px;">Preview</th>
           <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Filename</th>
           ${!filterArtist ? `<th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Artist</th>` : ""}
           <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Size</th>
           <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Uploaded</th>
-          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Public URL</th>
           <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;"></th>
         </tr></thead>
         <tbody>
-          ${objects.map((obj) => {
+          ${sortedObjects.map((obj, idx) => {
             const imgUrl = `${publicBase}/${esc(obj.name)}`;
             const kbSize = obj.metadata?.size ? Math.round(obj.metadata.size / 1024) : null;
             const uploadedDate = obj.created_at ? obj.created_at.slice(0, 10) : "—";
-            const artistId = obj.name.includes("/") ? obj.name.split("/")[0] : null;
-            const artistName = artistId ? (artists.find((a) => a.id === artistId)?.name ?? artistId.slice(0, 8) + "…") : "—";
+            const objArtistId = obj.name.includes("/") ? obj.name.split("/")[0] : null;
+            const artistName = objArtistId ? (artists.find((a) => a.id === objArtistId)?.name ?? objArtistId.slice(0, 8) + "…") : "—";
+            const isFirst = idx === 0;
+            const isLast = idx === sortedObjects.length - 1;
+            const reorderBtns = filterArtist ? `
+              <td style="padding:.5rem .5rem;white-space:nowrap;">
+                <form method="POST" action="/api/admin/portfolio/reorder" style="display:inline;">
+                  <input type="hidden" name="path" value="${esc(obj.name)}">
+                  <input type="hidden" name="direction" value="up">
+                  <input type="hidden" name="artist" value="${esc(filterArtist)}">
+                  <button type="submit" ${isFirst ? "disabled" : ""} style="${btnStyle}${isFirst ? "opacity:.3;cursor:default;" : ""}">↑</button>
+                </form>
+                <form method="POST" action="/api/admin/portfolio/reorder" style="display:inline;margin-left:2px;">
+                  <input type="hidden" name="path" value="${esc(obj.name)}">
+                  <input type="hidden" name="direction" value="down">
+                  <input type="hidden" name="artist" value="${esc(filterArtist)}">
+                  <button type="submit" ${isLast ? "disabled" : ""} style="${btnStyle}${isLast ? "opacity:.3;cursor:default;" : ""}">↓</button>
+                </form>
+              </td>` : "";
             return `<tr style="border-bottom:1px solid #f3ede8;">
+              ${reorderBtns}
               <td style="padding:.5rem .75rem;">
                 <a href="${imgUrl}" target="_blank" rel="noopener">
                   <img src="${imgUrl}" alt="${esc(displayName(obj.name))}" loading="lazy"
@@ -205,10 +289,6 @@ export async function handleAdminPortfolio(
               ${!filterArtist ? `<td style="padding:.5rem .75rem;font-size:.82rem;color:#8a7d72;white-space:nowrap;">${esc(artistName)}</td>` : ""}
               <td style="padding:.5rem .75rem;font-size:.82rem;color:#8a7d72;white-space:nowrap;">${kbSize !== null ? `${kbSize} KB` : "—"}</td>
               <td style="padding:.5rem .75rem;font-size:.82rem;color:#8a7d72;white-space:nowrap;">${uploadedDate}</td>
-              <td style="padding:.5rem .75rem;max-width:240px;">
-                <input type="text" value="${imgUrl}" readonly onclick="this.select()"
-                  style="width:100%;font:inherit;font-size:.75rem;font-family:monospace;border:1px solid #ede7e0;border-radius:6px;padding:.3em .5em;background:#f7f3ef;color:#5c3d47;cursor:pointer;" title="Click to select URL">
-              </td>
               <td style="padding:.5rem .75rem;white-space:nowrap;">
                 <form method="POST" action="/api/admin/portfolio/delete" style="display:inline;">
                   <input type="hidden" name="name" value="${esc(obj.name)}">
@@ -263,8 +343,8 @@ export async function handleAdminPortfolio(
   `;
 
   const title = filterArtist && activeArtist
-    ? `Portfolio — ${activeArtist.name} (${objects.length})`
-    : `Portfolio (${objects.length} images)`;
+    ? `Portfolio — ${activeArtist.name} (${sortedObjects.length})`
+    : `Portfolio (${sortedObjects.length} images)`;
   return htmlResponse(shell(title, user, inner, new URL(req.url).pathname));
 }
 
@@ -298,16 +378,92 @@ export async function handleAdminPortfolioDelete(
     return redirect("/api/admin/portfolio");
   }
 
-  await f(`${env.SUPABASE_URL}/storage/v1/object/${BUCKET}`, {
-    method: "DELETE",
-    headers: {
-      apikey: env.SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ prefixes: [name] }),
-  });
+  const dHdr = {
+    apikey: env.SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+    "content-type": "application/json",
+  };
+
+  await Promise.all([
+    f(`${env.SUPABASE_URL}/storage/v1/object/${BUCKET}`, {
+      method: "DELETE",
+      headers: dHdr,
+      body: JSON.stringify({ prefixes: [name] }),
+    }),
+    f(`${env.SUPABASE_URL}/rest/v1/portfolio_images?storage_path=eq.${encodeURIComponent(name)}`, {
+      method: "DELETE",
+      headers: dHdr,
+    }),
+  ]);
 
   const qs = returnArtist && uuidRe.test(returnArtist) ? `?artist=${encodeURIComponent(returnArtist)}` : "";
   return redirect(`/api/admin/portfolio${qs}`);
+}
+
+// ── Reorder ───────────────────────────────────────────────────────────────────
+
+/** POST /api/admin/portfolio/reorder — swap position with adjacent item */
+export async function handleAdminPortfolioReorder(
+  req: Request,
+  env: PortfolioEnv,
+  f: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAdminSession(req, env, f);
+  if (!user) return redirect("/api/admin/login?msg=session-expired");
+
+  const fd = await req.formData().catch(() => null);
+  if (!fd) return redirect("/api/admin/portfolio");
+
+  const path      = String(fd.get("path")      ?? "").trim();
+  const direction = String(fd.get("direction") ?? "").trim();
+  const artist    = String(fd.get("artist")    ?? "").trim();
+
+  if (!path || (direction !== "up" && direction !== "down")) {
+    return redirect("/api/admin/portfolio");
+  }
+
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const hdr = {
+    apikey: env.SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+    "content-type": "application/json",
+    prefer: "return=representation",
+  };
+
+  // Fetch all images for this artist ordered by position
+  const listQs = artist && uuidRe.test(artist)
+    ? `portfolio_images?artist_id=eq.${encodeURIComponent(artist)}&select=id,storage_path,position&order=position.asc`
+    : `portfolio_images?artist_id=is.null&select=id,storage_path,position&order=position.asc`;
+
+  const listRes = await f(`${env.SUPABASE_URL}/rest/v1/${listQs}`, { headers: hdr });
+  const items: Array<{ id: string; storage_path: string; position: number }> = listRes.ok
+    ? ((await listRes.json()) as Array<{ id: string; storage_path: string; position: number }>)
+    : [];
+
+  const idx = items.findIndex((it) => it.storage_path === path);
+  if (idx === -1) return redirect(`/api/admin/portfolio${artist ? `?artist=${encodeURIComponent(artist)}` : ""}`);
+
+  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= items.length) {
+    return redirect(`/api/admin/portfolio${artist ? `?artist=${encodeURIComponent(artist)}` : ""}`);
+  }
+
+  const current = items[idx]!;
+  const adjacent = items[swapIdx]!;
+
+  // Swap their position values
+  await Promise.all([
+    f(`${env.SUPABASE_URL}/rest/v1/portfolio_images?id=eq.${encodeURIComponent(current.id)}`, {
+      method: "PATCH",
+      headers: hdr,
+      body: JSON.stringify({ position: adjacent.position }),
+    }),
+    f(`${env.SUPABASE_URL}/rest/v1/portfolio_images?id=eq.${encodeURIComponent(adjacent.id)}`, {
+      method: "PATCH",
+      headers: hdr,
+      body: JSON.stringify({ position: current.position }),
+    }),
+  ]);
+
+  return redirect(`/api/admin/portfolio${artist ? `?artist=${encodeURIComponent(artist)}` : ""}`);
 }

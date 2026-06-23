@@ -40,9 +40,9 @@ import {
 import { handleCalendarFeed } from "./booking/calendar";
 import { persistEnquiry, insertNotification } from "./booking/db";
 import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry } from "./booking/enquiries";
-import { handleAdminContacts } from "./booking/contacts";
+import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
-import { handleAdminPortfolio, handleAdminPortfolioDelete } from "./booking/portfolio";
+import { handleAdminPortfolio, handleAdminPortfolioDelete, handleAdminPortfolioReorder } from "./booking/portfolio";
 import {
   handleAdminBlog,
   handleAdminBlogNew,
@@ -469,6 +469,10 @@ export default {
       if (req.method === "GET" && url.pathname === "/api/admin/contacts") {
         return handleAdminContacts(req, env as Parameters<typeof handleAdminContacts>[1], adminShell);
       }
+      // POST /api/admin/contacts — add single contact or bulk CSV import
+      if (req.method === "POST" && url.pathname === "/api/admin/contacts") {
+        return handleAdminAddContact(req, env as Parameters<typeof handleAdminAddContact>[1]);
+      }
 
       // ── Portfolio ─────────────────────────────────────────────────────────
       // GET  /api/admin/portfolio — gallery + upload form
@@ -476,9 +480,13 @@ export default {
       if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/admin/portfolio") {
         return handleAdminPortfolio(req, env as Parameters<typeof handleAdminPortfolio>[1], adminShell);
       }
-      // POST /api/admin/portfolio/delete — delete image
+      // POST /api/admin/portfolio/delete — delete image (also removes from portfolio_images)
       if (req.method === "POST" && url.pathname === "/api/admin/portfolio/delete") {
         return handleAdminPortfolioDelete(req, env as Parameters<typeof handleAdminPortfolioDelete>[1]);
+      }
+      // POST /api/admin/portfolio/reorder — swap image positions (↑/↓)
+      if (req.method === "POST" && url.pathname === "/api/admin/portfolio/reorder") {
+        return handleAdminPortfolioReorder(req, env as Parameters<typeof handleAdminPortfolioReorder>[1]);
       }
 
       // ── Blog ──────────────────────────────────────────────────────────────

@@ -288,5 +288,129 @@ export async function handleAdminContacts(
     <tbody>${rows}</tbody>
   </table>`;
 
-  return htmlResponse(shell("Contacts", user, tabs + table, new URL(req.url).pathname));
+  const addForm = `
+<details style="margin-top:2rem;" id="add-contact-details">
+  <summary style="cursor:pointer;font-size:.88rem;font-weight:700;color:#8a3a52;user-select:none;list-style:none;display:inline-flex;align-items:center;gap:.4rem;">
+    <span id="add-toggle-icon">▸</span> Add contact
+  </summary>
+  <div style="background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.4rem 1.6rem;margin-top:.7rem;max-width:820px;">
+
+    <h2 style="margin:0 0 1rem;">Add individual</h2>
+    <form method="POST" action="/api/admin/contacts" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem;align-items:end;">
+      <input type="hidden" name="action" value="add_single">
+      <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.8rem;font-weight:600;color:#6b5d52;">
+        Name *
+        <input name="name" required placeholder="Anri van Wyk"
+          style="font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em .7em;">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.8rem;font-weight:600;color:#6b5d52;">
+        Email *
+        <input name="email" type="email" required placeholder="anri@example.com"
+          style="font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em .7em;">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.8rem;font-weight:600;color:#6b5d52;">
+        Phone
+        <input name="phone" type="tel" placeholder="+27 82 000 0000"
+          style="font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em .7em;">
+      </label>
+      <div style="grid-column:1/-1;">
+        <button type="submit"
+          style="font:inherit;font-size:.86rem;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.45em 1.3em;cursor:pointer;">
+          Add contact
+        </button>
+      </div>
+    </form>
+
+    <hr style="border:none;border-top:1px solid #ede7e0;margin:1.4rem 0;">
+
+    <h2 style="margin:0 0 .5rem;">Bulk import <span style="font-weight:400;font-size:.82rem;color:#8a7d72;">(one per line: Name, Email, Phone)</span></h2>
+    <p style="font-size:.82rem;color:#8a7d72;margin:0 0 .7rem;">Example: <code style="background:#f7f3ef;padding:.1em .4em;border-radius:4px;">Thandi Nkosi, thandi@gmail.com, 082 111 2222</code></p>
+    <form method="POST" action="/api/admin/contacts" style="display:flex;flex-direction:column;gap:.6rem;max-width:500px;">
+      <input type="hidden" name="action" value="add_bulk">
+      <textarea name="csv" rows="6" required placeholder="Jane Smith, jane@example.com, 082 000 1111&#10;Liza Botha, liza@example.com, 071 222 3333"
+        style="font:inherit;font-size:.85rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.5em .75em;resize:vertical;"></textarea>
+      <div>
+        <button type="submit"
+          style="font:inherit;font-size:.86rem;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.45em 1.3em;cursor:pointer;">
+          Import contacts
+        </button>
+      </div>
+    </form>
+  </div>
+</details>
+<script>
+(function(){
+  var d=document.getElementById('add-contact-details');
+  var i=document.getElementById('add-toggle-icon');
+  if(d&&i){d.addEventListener('toggle',function(){i.textContent=d.open?'▾':'▸';});
+  if(window.location.search.includes('added=')){d.open=true;}}
+})();
+</script>`;
+
+  const added = url.searchParams.get("added");
+  const addedMsg = added
+    ? `<div style="background:#f0fff4;border:1px solid #b7dfc8;color:#276749;border-radius:8px;padding:.65em 1em;margin-bottom:1rem;font-size:.88rem;">✓ ${esc(added === "bulk" ? "Contacts imported." : "Contact added.")}</div>`
+    : "";
+
+  return htmlResponse(shell("Contacts", user, addedMsg + tabs + table + addForm, new URL(req.url).pathname));
+}
+
+// ── POST handler ──────────────────────────────────────────────────────────────
+
+/** POST /api/admin/contacts — add single contact or bulk-import from CSV */
+export async function handleAdminAddContact(
+  req: Request,
+  env: ContactsEnv,
+  f: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAdminSession(req, env, f);
+  if (!user) return redirect("/api/admin/login?msg=session-expired");
+
+  const form = await req.formData().catch(() => null);
+  if (!form) return redirect("/api/admin/contacts?error=bad-form");
+
+  const action = String(form.get("action") ?? "add_single");
+  const hdr = {
+    apikey: env.SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+    "content-type": "application/json",
+    prefer: "return=minimal",
+  };
+
+  if (action === "add_single") {
+    const name  = String(form.get("name")  ?? "").trim();
+    const email = String(form.get("email") ?? "").trim().toLowerCase();
+    const phone = String(form.get("phone") ?? "").trim();
+    if (!name || !email) return redirect("/api/admin/contacts?error=missing-fields");
+
+    await f(`${env.SUPABASE_URL}/rest/v1/enquiries`, {
+      method: "POST",
+      headers: hdr,
+      body: JSON.stringify({ name, email, phone: phone || "", message: "" }),
+    });
+    return redirect("/api/admin/contacts?added=1");
+  }
+
+  if (action === "add_bulk") {
+    const csv = String(form.get("csv") ?? "");
+    const rows: Array<{ name: string; email: string; phone: string; message: string }> = [];
+    for (const line of csv.split("\n")) {
+      const parts = line.split(",").map((p) => p.trim());
+      const name  = parts[0] ?? "";
+      const email = (parts[1] ?? "").toLowerCase();
+      const phone = parts[2] ?? "";
+      if (name && email && email.includes("@")) {
+        rows.push({ name, email, phone, message: "" });
+      }
+    }
+    if (rows.length === 0) return redirect("/api/admin/contacts?error=no-valid-rows");
+    await f(`${env.SUPABASE_URL}/rest/v1/enquiries`, {
+      method: "POST",
+      headers: hdr,
+      body: JSON.stringify(rows),
+    });
+    return redirect("/api/admin/contacts?added=bulk");
+  }
+
+  return redirect("/api/admin/contacts");
 }
