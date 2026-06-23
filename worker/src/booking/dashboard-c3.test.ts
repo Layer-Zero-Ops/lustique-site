@@ -108,8 +108,12 @@ describe("handleAdminNotifications", () => {
     const fetchFn = async (url: string) => {
       callCount++;
       if (callCount === 1) {
+        // getAdminSession → /auth/v1/user
+        return json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" });
+      }
+      if (callCount === 2) {
         // getAdminSession → profiles lookup
-        return json([{ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za", name: "Zandeline", role: "admin" }]);
+        return json([{ role: "admin", full_name: "Zandeline" }]);
       }
       // notifications query
       expect(url).toContain("notifications");
@@ -133,7 +137,12 @@ describe("handleAdminNotifications", () => {
     const fetchFn = async () => {
       callCount++;
       if (callCount === 1) {
-        return json([{ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za", name: "Zandeline", role: "admin" }]);
+        // getAdminSession → /auth/v1/user
+        return json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" });
+      }
+      if (callCount === 2) {
+        // getAdminSession → profiles lookup
+        return json([{ role: "admin", full_name: "Zandeline" }]);
       }
       return json([NOTIF_A, NOTIF_B]);
     };
@@ -154,7 +163,12 @@ describe("handleAdminNotifications", () => {
     const fetchFn = async () => {
       callCount++;
       if (callCount === 1) {
-        return json([{ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za", name: "Zandeline", role: "admin" }]);
+        // getAdminSession → /auth/v1/user
+        return json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" });
+      }
+      if (callCount === 2) {
+        // getAdminSession → profiles lookup
+        return json([{ role: "admin", full_name: "Zandeline" }]);
       }
       return new Response("Internal Server Error", { status: 500 });
     };
@@ -193,7 +207,12 @@ describe("handleAdminNotificationsRead", () => {
     const fetchFn = async (url: string, opts?: RequestInit) => {
       callCount++;
       if (callCount === 1) {
-        return json([{ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za", name: "Zandeline", role: "admin" }]);
+        // getAdminSession → /auth/v1/user
+        return json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" });
+      }
+      if (callCount === 2) {
+        // getAdminSession → profiles lookup
+        return json([{ role: "admin", full_name: "Zandeline" }]);
       }
       if (opts?.method === "PATCH") patchedUrls.push(url as string);
       return new Response(null, { status: 204 });
@@ -217,7 +236,12 @@ describe("handleAdminNotificationsRead", () => {
     const fetchFn = async (url: string, opts?: RequestInit) => {
       callCount++;
       if (callCount === 1) {
-        return json([{ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za", name: "Zandeline", role: "admin" }]);
+        // getAdminSession → /auth/v1/user
+        return json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" });
+      }
+      if (callCount === 2) {
+        // getAdminSession → profiles lookup
+        return json([{ role: "admin", full_name: "Zandeline" }]);
       }
       if (opts?.method === "PATCH") patchedUrls.push(url as string);
       return new Response(null, { status: 204 });
@@ -238,7 +262,12 @@ describe("handleAdminNotificationsRead", () => {
     const fetchFn = async (url: string, opts?: RequestInit) => {
       callCount++;
       if (callCount === 1) {
-        return json([{ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za", name: "Zandeline", role: "admin" }]);
+        // getAdminSession → /auth/v1/user
+        return json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" });
+      }
+      if (callCount === 2) {
+        // getAdminSession → profiles lookup
+        return json([{ role: "admin", full_name: "Zandeline" }]);
       }
       if (opts?.method === "PATCH") patchedUrls.push(url as string);
       return new Response(null, { status: 204 });
@@ -267,7 +296,12 @@ describe("handleAdminNotificationsRead", () => {
     const fetchFn = async (url: string, opts?: RequestInit) => {
       callCount++;
       if (callCount === 1) {
-        return json([{ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za", name: "Zandeline", role: "admin" }]);
+        // getAdminSession → /auth/v1/user
+        return json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" });
+      }
+      if (callCount === 2) {
+        // getAdminSession → profiles lookup
+        return json([{ role: "admin", full_name: "Zandeline" }]);
       }
       if (opts?.method === "PATCH") patchedUrls.push(url as string);
       return new Response(null, { status: 204 });

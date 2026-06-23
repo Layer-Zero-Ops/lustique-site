@@ -42,7 +42,9 @@ const shell: ShellFn = (_title, _user, inner) => `<html><body>${inner}</body></h
 const res = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
-// First call for any authenticated handler: getAdminSession → profiles lookup
+// First call for any authenticated handler: getAdminSession → /auth/v1/user
+const authUserRes = () => res({ id: "u1", email: "z@lustique.co.za" });
+// Second call for any authenticated handler: getAdminSession → profiles lookup
 const profileRes = () => res([{ role: "admin", full_name: "Zandeline" }]);
 
 const ENQUIRY = {
@@ -82,7 +84,7 @@ describe("handleAdminEnquiries", () => {
   });
 
   it("renders the enquiries list with a row per enquiry", async () => {
-    const f = vi.fn().mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([ENQUIRY]));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([ENQUIRY]));
     const r = await handleAdminEnquiries(await getReq("/api/admin/enquiries"), env, shell, f as unknown as typeof fetch);
     expect(r.status).toBe(200);
     const body = await r.text();
@@ -93,7 +95,7 @@ describe("handleAdminEnquiries", () => {
   });
 
   it("renders empty state when no enquiries", async () => {
-    const f = vi.fn().mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([]));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([]));
     const r = await handleAdminEnquiries(await getReq("/api/admin/enquiries"), env, shell, f as unknown as typeof fetch);
     expect(r.status).toBe(200);
     const body = await r.text();
@@ -101,14 +103,14 @@ describe("handleAdminEnquiries", () => {
   });
 
   it("passes status filter to query when ?status= provided", async () => {
-    const f = vi.fn().mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([]));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([]));
     await handleAdminEnquiries(await getReq("/api/admin/enquiries?status=contacted"), env, shell, f as unknown as typeof fetch);
-    const url = f.mock.calls[1]![0] as string;
+    const url = f.mock.calls[2]![0] as string;
     expect(url).toContain("status=eq.contacted");
   });
 
   it("shows status filter links", async () => {
-    const f = vi.fn().mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([]));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([]));
     const r = await handleAdminEnquiries(await getReq("/api/admin/enquiries"), env, shell, f as unknown as typeof fetch);
     const body = await r.text();
     expect(body).toContain("/api/admin/enquiries?status=new");
@@ -130,7 +132,7 @@ describe("handleAdminEnquiryDetail", () => {
   });
 
   it("renders enquiry detail with all fields", async () => {
-    const f = vi.fn().mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([ENQUIRY]));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([ENQUIRY]));
     const r = await handleAdminEnquiryDetail(await getReq("/api/admin/enquiries/aaaa-1111"), env, shell, "aaaa-1111", f as unknown as typeof fetch);
     expect(r.status).toBe(200);
     const body = await r.text();
@@ -145,13 +147,13 @@ describe("handleAdminEnquiryDetail", () => {
   });
 
   it("shows 404 when enquiry not found", async () => {
-    const f = vi.fn().mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([]));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([]));
     const r = await handleAdminEnquiryDetail(await getReq("/api/admin/enquiries/missing"), env, shell, "missing", f as unknown as typeof fetch);
     expect(r.status).toBe(404);
   });
 
   it("shows saved banner when ?saved=1", async () => {
-    const f = vi.fn().mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([ENQUIRY]));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([ENQUIRY]));
     const r = await handleAdminEnquiryDetail(await getReq("/api/admin/enquiries/aaaa-1111?saved=1"), env, shell, "aaaa-1111", f as unknown as typeof fetch);
     const body = await r.text();
     expect(body).toContain("Saved.");
@@ -182,7 +184,7 @@ describe("handleAdminUpdateEnquiry", () => {
 
   it("PATCHes status and notes, redirects with ?saved=1", async () => {
     const f = vi.fn()
-      .mockResolvedValueOnce(profileRes())     // getAdminSession → profiles
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes())     // getAdminSession → profiles
       .mockResolvedValueOnce(res([ENQUIRY]))   // getEnquiryById
       .mockResolvedValueOnce(new Response(null, { status: 204 }));  // updateEnquiry PATCH
     const r = await handleAdminUpdateEnquiry(
@@ -191,46 +193,46 @@ describe("handleAdminUpdateEnquiry", () => {
     );
     expect(r.status).toBe(302);
     expect(r.headers.get("Location")).toContain("?saved=1");
-    const patchBody = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    const patchBody = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(patchBody.status).toBe("contacted");
     expect(patchBody.notes).toBe("Called, left voicemail.");
   });
 
   it("sets contacted_at when transitioning from 'new' for the first time", async () => {
     const f = vi.fn()
-      .mockResolvedValueOnce(profileRes())
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes())
       .mockResolvedValueOnce(res([{ ...ENQUIRY, status: "new", contacted_at: null }]))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));  // updateEnquiry PATCH
     await handleAdminUpdateEnquiry(
       await postReq("/api/admin/enquiries/aaaa-1111", { status: "contacted", notes: "" }),
       env, "aaaa-1111", f as unknown as typeof fetch,
     );
-    const patchBody = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    const patchBody = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(patchBody.contacted_at).toBeTruthy();
   });
 
   it("does not overwrite contacted_at when already set", async () => {
     const f = vi.fn()
-      .mockResolvedValueOnce(profileRes())
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes())
       .mockResolvedValueOnce(res([{ ...ENQUIRY, status: "contacted", contacted_at: "2026-06-20T10:00:00Z" }]))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));  // updateEnquiry PATCH
     await handleAdminUpdateEnquiry(
       await postReq("/api/admin/enquiries/aaaa-1111", { status: "converted", notes: "Booked!" }),
       env, "aaaa-1111", f as unknown as typeof fetch,
     );
-    const patchBody = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
+    const patchBody = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(patchBody.contacted_at).toBeUndefined();
   });
 
   it("rejects invalid status values and redirects without PATCH", async () => {
     const f = vi.fn()
-      .mockResolvedValueOnce(profileRes())
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes())
       .mockResolvedValueOnce(res([ENQUIRY]));
     const r = await handleAdminUpdateEnquiry(
       await postReq("/api/admin/enquiries/aaaa-1111", { status: "hacked", notes: "" }),
       env, "aaaa-1111", f as unknown as typeof fetch,
     );
     expect(r.status).toBe(302);
-    expect(f).toHaveBeenCalledTimes(2); // profiles + getEnquiryById, no PATCH
+    expect(f).toHaveBeenCalledTimes(3); // authUser + profiles + getEnquiryById, no PATCH
   });
 });

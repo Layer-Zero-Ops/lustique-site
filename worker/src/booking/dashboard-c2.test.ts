@@ -78,6 +78,8 @@ const postReq = (path: string, body: Record<string, string>, cookie?: string) =>
 
 // Profile mock returned by getAdminSession's profiles query
 const adminProfile = [{ role: "admin", full_name: "Zandeline" }];
+// Auth user mock returned by getAdminSession's /auth/v1/user call (prepended before adminProfile)
+const authUserRes = () => json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" });
 
 const sampleBooking = {
   id: "bb-0001",
@@ -124,7 +126,7 @@ describe("handleAdminBookingDetail — GET", () => {
   it("renders booking detail with bride info and quote lines", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))       // getAdminSession profiles
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))       // getAdminSession profiles
       .mockResolvedValueOnce(json([sampleBooking]))    // booking fetch
       .mockResolvedValueOnce(json([]))                 // payments
       .mockResolvedValueOnce(json([]))                 // quote_revisions
@@ -148,7 +150,7 @@ describe("handleAdminBookingDetail — GET", () => {
   it("shows edit form for a requested booking", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([sampleBooking]))
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json([]))
@@ -168,7 +170,7 @@ describe("handleAdminBookingDetail — GET", () => {
     const token = await validAdminJwt();
     const revisions = [{ id: "r1", old_total_cents: 300000, new_total_cents: 360000, revised_by: "zandeline@lustiqueco.co.za", created_at: "2026-06-02T09:00:00Z" }];
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([sampleBooking]))
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json(revisions))
@@ -188,7 +190,7 @@ describe("handleAdminBookingDetail — GET", () => {
   it("returns 404 when booking id not found", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([]));   // empty = not found
     const res = await handleAdminBookingDetail(
       getReq("/api/admin/booking/unknown-id", token),
@@ -204,7 +206,7 @@ describe("handleAdminBookingDetail — POST (quote edit)", () => {
   it("patches booking total and records revision, then redirects", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))          // getAdminSession
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))          // getAdminSession
       .mockResolvedValueOnce(json([{                      // fetch current totals
         total_cents: 360000, deposit_pct: 50,
         deposit_net_cents: 180000, balance_net_cents: 180000,
@@ -221,7 +223,7 @@ describe("handleAdminBookingDetail — POST (quote edit)", () => {
     expect(res.headers.get("Location")).toContain("/api/admin/booking/bb-0001");
 
     // Verify PATCH was called with new total
-    const patchCall = (f as ReturnType<typeof vi.fn>).mock.calls[2] as [string, RequestInit];
+    const patchCall = (f as ReturnType<typeof vi.fn>).mock.calls[3] as [string, RequestInit];
     const patchBody = JSON.parse(patchCall[1]!.body as string);
     expect(patchBody.total_cents).toBe(400000);
     expect(patchBody.deposit_net_cents).toBe(200000); // 50% of 400000
@@ -230,7 +232,7 @@ describe("handleAdminBookingDetail — POST (quote edit)", () => {
 
   it("returns 400 for an invalid amount", async () => {
     const token = await validAdminJwt();
-    const f = vi.fn().mockResolvedValueOnce(json(adminProfile));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile));
     const res = await handleAdminBookingDetail(
       postReq("/api/admin/quote/bb-0001", { total_zar: "0" }, token),
       env,
@@ -255,7 +257,7 @@ describe("handleAdminQuotes", () => {
     const token = await validAdminJwt();
     const quoteSentAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(); // 2 days ago → 5d left
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([{
         id: "bb-q1", reference: "LUS-2026-002",
         bride_name: "Liesl van Wyk", bride_email: "liesl@example.com",
@@ -278,7 +280,7 @@ describe("handleAdminQuotes", () => {
   it("shows empty state when no quotes are pending", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([]));
     const res = await handleAdminQuotes(getReq("/api/admin/quotes", token), env, f as unknown as typeof fetch);
     const html = await res.text();
@@ -298,7 +300,7 @@ describe("handleAdminPayments", () => {
   it("renders payments table with Yoco vs EFT indicator", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([
         {
           id: "pay-1", kind: "deposit", status: "paid",
@@ -327,7 +329,7 @@ describe("handleAdminPayments", () => {
   it("shows empty state when no payments exist", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([]));
     const res = await handleAdminPayments(getReq("/api/admin/payments", token), env, f as unknown as typeof fetch);
     const html = await res.text();
@@ -347,7 +349,7 @@ describe("handleAdminRejections", () => {
   it("renders rejections table with reason codes and booking links", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([
         {
           id: "rej-1", rejected_by: "bride", reason_code: "price",
@@ -368,7 +370,7 @@ describe("handleAdminRejections", () => {
   it("shows empty state when no rejections exist", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([]));
     const res = await handleAdminRejections(getReq("/api/admin/rejections", token), env, f as unknown as typeof fetch);
     const html = await res.text();
@@ -388,7 +390,7 @@ describe("handleAdminCalendar — GET", () => {
   it("renders a month grid with day numbers and booking counts", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([{ wedding_date: "2027-03-14", status: "requested" }]))  // bookings
       .mockResolvedValueOnce(json([]));  // blocked_dates
     const res = await handleAdminCalendar(
@@ -407,7 +409,7 @@ describe("handleAdminCalendar — GET", () => {
   it("shows hard-blocked indicator for slots=0 dates", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json([{ date: "2027-03-15", slots: 0 }]));
     const res = await handleAdminCalendar(
@@ -422,7 +424,7 @@ describe("handleAdminCalendar — GET", () => {
   it("renders the slots editor form", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json([]));
     const res = await handleAdminCalendar(getReq("/api/admin/calendar", token), env, f as unknown as typeof fetch);
@@ -437,7 +439,7 @@ describe("handleAdminCalendar — POST (set slots)", () => {
   it("upserts slots for a date and redirects to the same month", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(new Response(null, { status: 201 })); // upsert
     const res = await handleAdminCalendar(
       postReq("/api/admin/calendar", { date: "2027-03-15", slots: "3" }, token),
@@ -446,7 +448,7 @@ describe("handleAdminCalendar — POST (set slots)", () => {
     );
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toContain("month=2027-03");
-    const upsertCall = (f as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit];
+    const upsertCall = (f as ReturnType<typeof vi.fn>).mock.calls[2] as [string, RequestInit];
     const body = JSON.parse(upsertCall[1]!.body as string);
     expect(body.date).toBe("2027-03-15");
     expect(body.slots).toBe(3);
@@ -454,7 +456,7 @@ describe("handleAdminCalendar — POST (set slots)", () => {
 
   it("returns 400 for an invalid date format", async () => {
     const token = await validAdminJwt();
-    const f = vi.fn().mockResolvedValueOnce(json(adminProfile));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile));
     const res = await handleAdminCalendar(
       postReq("/api/admin/calendar", { date: "not-a-date", slots: "2" }, token),
       env,
@@ -486,7 +488,7 @@ describe("handleAdminTemplates — list", () => {
   it("renders the templates list with key, name, subject, enabled", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([sampleTemplate]));
     const res = await handleAdminTemplates(
       getReq("/api/admin/templates", token),
@@ -507,7 +509,7 @@ describe("handleAdminTemplates — GET edit", () => {
   it("renders the edit form with subject and body_html fields", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([sampleTemplate]));
     const res = await handleAdminTemplates(
       getReq("/api/admin/templates/invoice_sent", token),
@@ -527,7 +529,7 @@ describe("handleAdminTemplates — GET edit", () => {
   it("returns 404 for an unknown template key", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(json([]));
     const res = await handleAdminTemplates(
       getReq("/api/admin/templates/nonexistent", token),
@@ -543,7 +545,7 @@ describe("handleAdminTemplates — POST (save)", () => {
   it("patches the template and redirects back with saved=1", async () => {
     const token = await validAdminJwt();
     const f = vi.fn()
-      .mockResolvedValueOnce(json(adminProfile))
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile))
       .mockResolvedValueOnce(new Response(null, { status: 204 })); // PATCH
     const res = await handleAdminTemplates(
       postReq("/api/admin/templates/invoice_sent", {
@@ -559,7 +561,7 @@ describe("handleAdminTemplates — POST (save)", () => {
     expect(res.headers.get("Location")).toContain("/api/admin/templates/invoice_sent");
     expect(res.headers.get("Location")).toContain("saved=1");
 
-    const patchCall = (f as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit];
+    const patchCall = (f as ReturnType<typeof vi.fn>).mock.calls[2] as [string, RequestInit];
     const body = JSON.parse(patchCall[1]!.body as string);
     expect(body.subject).toBe("Updated subject");
     expect(body.enabled).toBe(true);
@@ -567,7 +569,7 @@ describe("handleAdminTemplates — POST (save)", () => {
 
   it("returns 400 when subject is empty", async () => {
     const token = await validAdminJwt();
-    const f = vi.fn().mockResolvedValueOnce(json(adminProfile));
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(json(adminProfile));
     const res = await handleAdminTemplates(
       postReq("/api/admin/templates/invoice_sent", { subject: "", body_html: "<p>Hi</p>", enabled: "1" }, token),
       env,

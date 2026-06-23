@@ -13,7 +13,7 @@ ALLOWED_ORIGIN = "https://lustiqueco.co.za"
 # Yoco card fee rate — for margin/reporting only; NOT added to what the bride is charged
 # (Lustique absorbs the fee — locked 2026-06-18). Verify the real rate in the Yoco Business
 # Portal → Settings → Pricing and update this value before going live.
-YOCO_FEE_PCT = "3.5"
+YOCO_FEE_PCT = "2.95"
 
 # Secrets — set directly on the Worker (CF dashboard → lustique-form-handler → Settings → Variables & Secrets).
 # Source of truth for values: CF Secrets Store (ff54a0a001304d07beaa3c45d205cb52).

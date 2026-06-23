@@ -95,6 +95,10 @@ export function getCookieValue(req: Request, name: string): string | null {
  * Verify the session cookie and confirm the user's profile role is 'admin'.
  * Returns AdminUser on success, null otherwise.
  * Pass a custom `fetchFn` for testing.
+ *
+ * Validates the token via Supabase's /auth/v1/user endpoint rather than
+ * verifying the JWT signature locally — this removes the SUPABASE_JWT_SECRET
+ * dependency and delegates token validity to Supabase (which owns the signing key).
  */
 export async function getAdminSession(
   req: Request,
@@ -104,11 +108,18 @@ export async function getAdminSession(
   const token = getCookieValue(req, AUTH_COOKIE);
   if (!token) return null;
 
-  const payload = await verifySupabaseJwt(token, env.SUPABASE_JWT_SECRET);
-  if (!payload) return null;
+  const userRes = await fetchFn(`${env.SUPABASE_URL}/auth/v1/user`, {
+    headers: {
+      apikey: env.SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!userRes.ok) return null;
+  const authUser = (await userRes.json()) as { id: string; email: string };
+  if (!authUser.id) return null;
 
   const res = await fetchFn(
-    `${env.SUPABASE_URL}/rest/v1/profiles?select=role,full_name&id=eq.${payload.sub}&limit=1`,
+    `${env.SUPABASE_URL}/rest/v1/profiles?select=role,full_name&id=eq.${authUser.id}&limit=1`,
     {
       headers: {
         apikey: env.SUPABASE_SERVICE_KEY,
@@ -121,7 +132,7 @@ export async function getAdminSession(
   const rows = (await res.json()) as Array<{ role: string; full_name: string | null }>;
   if (!rows.length || rows[0]!.role !== "admin") return null;
 
-  return { sub: payload.sub, email: payload.email, name: rows[0]!.full_name ?? "Admin" };
+  return { sub: authUser.id, email: authUser.email, name: rows[0]!.full_name ?? "Admin" };
 }
 
 /** Session cookie attributes for Set-Cookie. */

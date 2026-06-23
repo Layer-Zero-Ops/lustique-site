@@ -156,50 +156,56 @@ describe("getAdminSession", () => {
   });
 
   it("returns null when the JWT is invalid (bad signature)", async () => {
-    const f = vi.fn();
+    const f = vi.fn().mockResolvedValueOnce(new Response(null, { status: 401 }));
     const result = await getAdminSession(
       reqWithSession("bad.jwt.token"),
       baseEnv,
       f as unknown as typeof fetch,
     );
     expect(result).toBeNull();
-    expect(f).not.toHaveBeenCalled();
+    expect(f).toHaveBeenCalledOnce();
   });
 
   it("returns null when the profiles lookup returns an error", async () => {
     const token = await mintJwt(VALID_PAYLOAD);
-    const f = vi.fn().mockResolvedValueOnce(supaRes([], 500));
+    const f = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: VALID_PAYLOAD.sub, email: VALID_PAYLOAD.email }), { status: 200, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(supaRes([], 500));
     const result = await getAdminSession(reqWithSession(token), baseEnv, f as unknown as typeof fetch);
     expect(result).toBeNull();
   });
 
   it("returns null when the user has no profiles row", async () => {
     const token = await mintJwt(VALID_PAYLOAD);
-    const f = vi.fn().mockResolvedValueOnce(supaRes([]));
+    const f = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: VALID_PAYLOAD.sub, email: VALID_PAYLOAD.email }), { status: 200, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(supaRes([]));
     const result = await getAdminSession(reqWithSession(token), baseEnv, f as unknown as typeof fetch);
     expect(result).toBeNull();
   });
 
   it("returns null when the user's role is 'artist', not 'admin'", async () => {
     const token = await mintJwt(VALID_PAYLOAD);
-    const f = vi.fn().mockResolvedValueOnce(supaRes([{ role: "artist", full_name: "Leanie" }]));
+    const f = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: VALID_PAYLOAD.sub, email: VALID_PAYLOAD.email }), { status: 200, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(supaRes([{ role: "artist", full_name: "Leanie" }]));
     const result = await getAdminSession(reqWithSession(token), baseEnv, f as unknown as typeof fetch);
     expect(result).toBeNull();
   });
 
   it("returns the AdminUser when JWT is valid and profile role is admin", async () => {
     const token = await mintJwt(VALID_PAYLOAD);
-    const f = vi.fn().mockResolvedValueOnce(
-      supaRes([{ role: "admin", full_name: "Zandeline" }]),
-    );
+    const f = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: VALID_PAYLOAD.sub, email: VALID_PAYLOAD.email }), { status: 200, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(supaRes([{ role: "admin", full_name: "Zandeline" }]));
     const result = await getAdminSession(reqWithSession(token), baseEnv, f as unknown as typeof fetch);
     expect(result).not.toBeNull();
     const user = result as AdminUser;
     expect(user.sub).toBe(VALID_PAYLOAD.sub);
     expect(user.email).toBe(VALID_PAYLOAD.email);
     expect(user.name).toBe("Zandeline");
-    expect(f).toHaveBeenCalledOnce();
-    const [url, opts] = (f as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    expect(f).toHaveBeenCalledTimes(2);
+    const [url, opts] = (f as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit];
     expect(url).toContain("/rest/v1/profiles");
     expect(url).toContain(VALID_PAYLOAD.sub);
     expect((opts as { headers: Record<string, string> }).headers["Authorization"]).toContain("svc-key");
@@ -207,7 +213,9 @@ describe("getAdminSession", () => {
 
   it("falls back to 'Admin' when full_name is null in the profiles row", async () => {
     const token = await mintJwt(VALID_PAYLOAD);
-    const f = vi.fn().mockResolvedValueOnce(supaRes([{ role: "admin", full_name: null }]));
+    const f = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: VALID_PAYLOAD.sub, email: VALID_PAYLOAD.email }), { status: 200, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(supaRes([{ role: "admin", full_name: null }]));
     const result = await getAdminSession(reqWithSession(token), baseEnv, f as unknown as typeof fetch);
     expect((result as AdminUser).name).toBe("Admin");
   });

@@ -1,25 +1,36 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Wave D+E building · **Updated:** 2026-06-23 (D2 replaced by iCal; enquiry CRM + notifications built; all deployed)
+**Lane:** 🔵 PLAN SET (Opus → Sonnet) · **Phase:** Post Wave D+E · **Updated:** 2026-06-23 (dashboard auth debugging; Yoco fee confirmed; site build fixed)
 
 ## ▶ NEXT (Sonnet, Build lane) — 🔵 PLAN SET
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main` · **Repo:** `github.com/Layer-Zero-Ops/lustique-site` (private)
 
-**Status:** Wave D complete (D2 replaced with iCal feed). Wave E (enquiry CRM + notification bell) built and deployed. Migrations 0013–0015 applied to live DB. Worker deployed (`a82f841b`). ICAL_KEY set as Worker secret.
+**Status:** Wave D+E complete. YOCO_FEE_PCT = 2.95% confirmed + deployed. lustique-site build fixed (Sanity env vars added to CF Pages). Admin auth partially working — password accepted by Supabase (step 1 ✅) but JWT local verification fails (step 3 ❌). Root cause: `SUPABASE_JWT_SECRET` in Worker doesn't match signing key despite updates. Worker deployed (`564e2ce3`).
 
 **▶ NEXT — do in order:**
 
-**1. E2E smoke test (most important — validate everything is live):**
-- `lustiqueco.co.za/quote` → fill form → submit
-  - Check: `/api/admin/enquiries` has the new lead
-  - Check: admin notification bell shows 1 unread within 60s
-- Admin login: `lustiqueco.co.za/api/admin/login` → `info@lustiqueco.co.za` / `Lustique2024`
-  - Check: dashboard inbox loads
-  - Check: "Enquiries" link appears in sidebar nav
-- Submit a booking via `/book` → check Supabase `bookings` table has a `requested` row
-- Open a `quote_sent` booking in dashboard → confirm artist assign widget appears
-- iCal: open `https://lustiqueco.co.za/api/calendar.ics?key=<ICAL_KEY>` in browser → should download a `.ics` file (key is in CF Worker secrets)
+**1. 🔴 FIX ADMIN LOGIN (blocking — Sonnet code fix, no Pieter action needed)**
+
+The root cause is confirmed: Supabase password auth works (step 1 ✅) but `verifySupabaseJwt` fails (step 3 ❌). The fix is to **replace local JWT verification with a Supabase API call** — this removes the `SUPABASE_JWT_SECRET` dependency entirely for the password login path and is actually more correct:
+
+In `worker/src/booking/dashboard.ts` → `handleAdminPasswordLogin`, replace the `verifySupabaseJwt` call with:
+```typescript
+// Instead of verifySupabaseJwt, validate token via Supabase API
+const userRes = await fetchFn(`${env.SUPABASE_URL}/auth/v1/user`, {
+  headers: {
+    apikey: env.SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${accessToken}`,
+  },
+});
+if (!userRes.ok) return loginRedirect("invalid-credentials");
+const user = (await userRes.json()) as { id: string; email: string };
+```
+Then use `user.id` and `user.email` in place of `payload.sub` and `payload.email` for the profiles check.
+
+Also fix `getAdminSession` in `worker/src/booking/auth.ts` the same way — replace `verifySupabaseJwt` with a `/auth/v1/user` API call so session cookie validation also doesn't need the secret.
+
+Write/update tests, deploy, test login with `autom8iq@gmail.com` / `LustiqueAdmin2024!`.
 
 **2. iCal subscriptions (Pieter action — one-time):**
 - Share subscribe URL with Zandeline + all 9 artists:
@@ -29,14 +40,11 @@
 **3. D1 Sanity CMS Task 7 (Pieter must seed content first):**
 - Pieter seeds Sanity: 9 team members, 3 blog posts (copy from old `.astro` files), 3 testimonials, site settings
 - Tell Sonnet to delete 3 old `blog-*.astro` pages + verify `npx astro build` → `dist/blog/` contains 3 HTML files
-- Full list: D1 plan §Pieter (P1–P13)
 
 **4. Collect real artist emails from Zandeline:**
 - Replace placeholder `firstname@lustiqueco.co.za` emails in `artists` table
-- Run SQL: `UPDATE artists SET email = '<real>' WHERE name = '<name>';` per artist
 
-**5. Yoco portal — confirm online fee rate:**
-- Yoco Business Portal → Settings → Pricing → Online Payments → record rate → update `YOCO_FEE_PCT` in `wrangler.toml` + `PRICING.md §9`
+**5. Yoco portal — ✅ DONE** (2.95% confirmed, wrangler.toml + PRICING.md updated, deployed)
 
 ---
 

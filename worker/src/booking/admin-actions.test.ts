@@ -110,6 +110,7 @@ describe("handleAdminSendQuote", () => {
   it("redirects with error when booking not found", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([])); // getBookingById → not found
       return Promise.resolve(json([]));
@@ -123,6 +124,7 @@ describe("handleAdminSendQuote", () => {
   it("redirects with error when status is not 'requested'", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([{ ...requestedBooking, status: "quote_sent" }]));
       return Promise.resolve(json([]));
@@ -136,6 +138,7 @@ describe("handleAdminSendQuote", () => {
   it("redirects with error when transition returns null (already handled)", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([requestedBooking]));
       // transitionRequestedBooking PATCH → empty array = 0 rows matched
@@ -150,6 +153,7 @@ describe("handleAdminSendQuote", () => {
   it("sends emails and redirects to saved on success", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([requestedBooking]));
       if (url.includes("&status=eq.requested")) return Promise.resolve(json([{ ...requestedBooking, status: "quote_sent" }]));
@@ -181,6 +185,7 @@ describe("handleAdminDeclineBooking", () => {
   it("redirects with error when status is not 'requested'", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([acceptedBooking]));
       return Promise.resolve(json([]));
@@ -194,6 +199,7 @@ describe("handleAdminDeclineBooking", () => {
   it("sends decline email and redirects to saved on success", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([requestedBooking]));
       if (url.includes("&status=eq.requested")) return Promise.resolve(json([{ ...requestedBooking, status: "declined" }]));
@@ -224,6 +230,7 @@ describe("handleAdminMarkDepositPaid", () => {
   it("redirects with error when status is not 'accepted' or 'confirmed'", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([requestedBooking]));
       return Promise.resolve(json([]));
@@ -237,6 +244,7 @@ describe("handleAdminMarkDepositPaid", () => {
   it("transitions accepted → deposit_paid and emails bride", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([acceptedBooking]));
       if (url.includes("&status=eq.accepted")) return Promise.resolve(json([{ ...acceptedBooking, status: "deposit_paid" }]));
@@ -267,6 +275,7 @@ describe("handleAdminMarkBalancePaid", () => {
   it("redirects with error when status is not 'deposit_paid'", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([acceptedBooking]));
       return Promise.resolve(json([]));
@@ -280,6 +289,7 @@ describe("handleAdminMarkBalancePaid", () => {
   it("transitions deposit_paid → settled and emails bride", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("&select=")) return Promise.resolve(json([depositPaidBooking]));
       if (url.includes("&status=eq.deposit_paid")) return Promise.resolve(json([{ ...depositPaidBooking, status: "settled" }]));

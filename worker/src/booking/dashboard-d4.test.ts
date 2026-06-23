@@ -136,6 +136,7 @@ describe("handleAssignArtist", () => {
   it("rejects when booking status is 'requested' (guard)", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("/bookings?id=eq.bk1")) return Promise.resolve(json([{ id: "bk1", status: "requested" }]));
       return Promise.resolve(json([]));
@@ -153,6 +154,7 @@ describe("handleAssignArtist", () => {
   it("inserts booking_artists row and redirects to booking detail on quote_sent booking", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("/bookings?id=eq.bk1")) return Promise.resolve(json([{ id: "bk1", status: "quote_sent" }]));
       if (url.includes("/booking_artists")) return Promise.resolve(json([], 201));
@@ -172,6 +174,7 @@ describe("handleAssignArtist", () => {
   it("inserts booking_artists row on accepted booking", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("/bookings?id=eq.bk2")) return Promise.resolve(json([{ id: "bk2", status: "accepted" }]));
       if (url.includes("/booking_artists")) return Promise.resolve(json([], 201));
@@ -191,6 +194,7 @@ describe("handleAssignArtist", () => {
   it("rejects missing artist_id with error redirect", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       return Promise.resolve(json([]));
     });
@@ -223,6 +227,7 @@ describe("handleRemoveArtist", () => {
   it("deletes booking_artists row and redirects to booking detail", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("/bookings?id=eq.bk1")) return Promise.resolve(json([{ id: "bk1", status: "quote_sent" }]));
       if (url.includes("/booking_artists?")) return Promise.resolve(new Response(null, { status: 204 }));
@@ -242,6 +247,7 @@ describe("handleRemoveArtist", () => {
   it("rejects missing artist_id with error redirect", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       return Promise.resolve(json([]));
     });
@@ -306,6 +312,7 @@ describe("handleAdminBookingDetail — artist widget", () => {
   it("renders assigned artists section with lead badge", async () => {
     const token = await validAdminJwt();
     const f = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("/bookings?id=eq.bk-detail-01&select=id,reference")) return Promise.resolve(json([sampleBooking]));
       if (url.includes("/payments?")) return Promise.resolve(json([]));
@@ -331,6 +338,7 @@ describe("handleAdminBookingDetail — artist widget", () => {
   it("renders assign form showing only unassigned artists", async () => {
     const token = await validAdminJwt();
     const f = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("/bookings?id=eq.bk-detail-01&select=id,reference")) return Promise.resolve(json([sampleBooking]));
       if (url.includes("/payments?")) return Promise.resolve(json([]));
@@ -357,6 +365,7 @@ describe("handleAdminBookingDetail — artist widget", () => {
     const token = await validAdminJwt();
     const depositBooking = { ...sampleBooking, status: "deposit_paid" };
     const f = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
       if (url.includes("/bookings?id=eq.bk-detail-01&select=id,reference")) return Promise.resolve(json([depositBooking]));
       if (url.includes("/payments?")) return Promise.resolve(json([]));

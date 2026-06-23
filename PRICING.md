@@ -234,16 +234,17 @@ Zandeline wants paid workshops but they're not yet defined. **Do not build a wor
 | Plus | 2.10% | 1.25% | 2.20% | 2.20% |
 | Pro  | 1.95% | 1.20% | 2.15% | 2.15% |
 
-> **⚠️ Important distinction:** These are **in-person / card-machine** rates. Lustique uses Yoco's **online checkout** (payment links via the API), which has a **separate blended online rate**. The `YOCO_FEE_PCT` Worker var (currently `3.5` as a placeholder) must be set to the correct **online checkout** rate from the Yoco Business Portal (Settings → Pricing → Online Payments). Verify which plan Lustique is on, then record the confirmed online rate below.
+> **Note:** These are **in-person / card-machine** rates for reference. Lustique uses Yoco's **online checkout** (payment links via the API). Online rate confirmed from portal 2026-06-23 — see below.
 
-### Confirmed rate (update when verified from Yoco portal)
+### Confirmed rate
 
 | Field | Value |
 |---|---|
-| Plan | — (confirm: Core / Plus / Pro) |
-| Online checkout rate | — % (blended; confirm from portal) |
-| Verified date | — |
-| `YOCO_FEE_PCT` wrangler.toml | — (update from 3.5 once confirmed) |
+| Plan | Core (< R50k/month) |
+| Online checkout rate — local debit/credit | **2.95%** |
+| Online checkout rate — international / Amex | 3.40% |
+| Verified date | 2026-06-23 |
+| `YOCO_FEE_PCT` wrangler.toml | **2.95** (local cards; margin-reporting only — bride pays quoted amount) |
 
 ---
 

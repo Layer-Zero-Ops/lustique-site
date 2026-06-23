@@ -241,7 +241,7 @@ describe("handleAdminDashboard", () => {
   });
 
   it("redirects to login when JWT is invalid", async () => {
-    const f = vi.fn();
+    const f = vi.fn().mockResolvedValueOnce(new Response(null, { status: 401 }));
     const res = await handleAdminDashboard(
       getReq("/api/admin/dashboard", "not.a.valid.jwt"),
       env,
@@ -249,16 +249,17 @@ describe("handleAdminDashboard", () => {
     );
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toContain("/api/admin/login");
-    expect(f).not.toHaveBeenCalled();
   });
 
   it("renders the inbox with bookings when session is valid", async () => {
     const token = await validAdminJwt();
     const f = vi
       .fn()
-      // 1st call: profiles check from getAdminSession
+      // 1st call: /auth/v1/user validation
+      .mockResolvedValueOnce(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }))
+      // 2nd call: profiles check from getAdminSession
       .mockResolvedValueOnce(json([{ role: "admin", full_name: "Zandeline" }]))
-      // 2nd call: bookings query
+      // 3rd call: bookings query
       .mockResolvedValueOnce(json([
         {
           id: "bb-1111", reference: "LUS-2026-111111",
@@ -282,6 +283,7 @@ describe("handleAdminDashboard", () => {
     const token = await validAdminJwt();
     const f = vi
       .fn()
+      .mockResolvedValueOnce(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }))
       .mockResolvedValueOnce(json([{ role: "admin", full_name: "Zandeline" }]))
       .mockResolvedValueOnce(json([]));
     const res = await handleAdminDashboard(getReq("/api/admin/dashboard", token), env, f as unknown as typeof fetch);
@@ -294,6 +296,7 @@ describe("handleAdminDashboard", () => {
     const token = await validAdminJwt();
     const f = vi
       .fn()
+      .mockResolvedValueOnce(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }))
       .mockResolvedValueOnce(json([{ role: "admin", full_name: "Zandeline" }]))
       .mockResolvedValueOnce(json([]));
     const res = await handleAdminDashboard(getReq("/api/admin/dashboard", token), env, f as unknown as typeof fetch);

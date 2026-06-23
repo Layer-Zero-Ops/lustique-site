@@ -4,7 +4,6 @@
 
 import {
   getAdminSession,
-  verifySupabaseJwt,
   sessionCookieHeader,
   clearSessionCookieHeader,
   loginRedirect,
@@ -308,7 +307,11 @@ export async function handleAdminLogin(
         apikey: env.SUPABASE_SERVICE_KEY,
         Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
       },
-      body: JSON.stringify({ email, create_user: false }),
+      body: JSON.stringify({
+        email,
+        create_user: false,
+        redirect_to: `${new URL(req.url).origin}/api/admin/auth/callback`,
+      }),
     });
   } catch { /* network error — still show the check-email page */ }
 
@@ -390,12 +393,24 @@ export async function handleAdminPasswordLogin(
     return loginRedirect("error");
   }
 
-  // Verify it's a valid admin JWT before trusting it.
-  const payload = await verifySupabaseJwt(accessToken, env.SUPABASE_JWT_SECRET);
-  if (!payload) return loginRedirect("invalid-credentials");
+  // Validate the token via Supabase API (avoids local JWT secret dependency).
+  let authUser: { id: string; email: string };
+  try {
+    const userRes = await fetchFn(`${env.SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        apikey: env.SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    if (!userRes.ok) return loginRedirect("invalid-credentials");
+    authUser = (await userRes.json()) as { id: string; email: string };
+    if (!authUser.id) return loginRedirect("invalid-credentials");
+  } catch {
+    return loginRedirect("error");
+  }
 
   const profileRes = await fetchFn(
-    `${env.SUPABASE_URL}/rest/v1/profiles?select=role&id=eq.${payload.sub}&limit=1`,
+    `${env.SUPABASE_URL}/rest/v1/profiles?select=role&id=eq.${authUser.id}&limit=1`,
     {
       headers: {
         apikey: env.SUPABASE_SERVICE_KEY,
@@ -469,8 +484,13 @@ export async function handleAdminAuthCallback(
 
   // Flow 2: access_token query param — extracted from fragment by the JS page below
   if (accessTokenParam) {
-    const payload = await verifySupabaseJwt(accessTokenParam, env.SUPABASE_JWT_SECRET);
-    if (!payload) return loginRedirect("expired-link");
+    const userRes = await fetchFn(`${env.SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        apikey: env.SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${accessTokenParam}`,
+      },
+    });
+    if (!userRes.ok) return loginRedirect("expired-link");
     return new Response(null, {
       status: 302,
       headers: { Location: "/api/admin/dashboard", "Set-Cookie": sessionCookieHeader(accessTokenParam) },
