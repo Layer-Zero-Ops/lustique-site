@@ -75,6 +75,37 @@ type FormItem =
   | { kind: "enquiry"; data: EnquiryCrmRow }
   | { kind: "booking"; data: BookingRow };
 
+// ── Filter/sort helpers ────────────────────────────────────────────────────────
+
+function filterUrl(base: URL, overrides: Record<string, string>): string {
+  const p = new URLSearchParams(base.searchParams);
+  // Strip saved/error noise from filter links
+  p.delete("saved"); p.delete("error");
+  for (const [k, v] of Object.entries(overrides)) {
+    if (v) p.set(k, v); else p.delete(k);
+  }
+  return `/api/admin/forms${p.size ? `?${p.toString()}` : ""}`;
+}
+
+function pillLink(label: string, href: string, active: boolean): string {
+  const style = active
+    ? "display:inline-block;padding:.25em .75em;border-radius:20px;font-size:.76rem;font-weight:700;text-decoration:none;background:#8a3a52;color:#fff;"
+    : "display:inline-block;padding:.25em .75em;border-radius:20px;font-size:.76rem;font-weight:600;text-decoration:none;background:#f0e9e7;color:#5c3d47;";
+  return `<a href="${href}" style="${style}">${label}</a>`;
+}
+
+function sortHeader(
+  label: string,
+  field: string,
+  currentSort: string,
+  currentDir: string,
+  url: URL,
+): string {
+  const nextDir = currentSort === field && currentDir === "asc" ? "desc" : "asc";
+  const arrow = currentSort !== field ? '<span style="opacity:.3;">↕</span>' : currentDir === "asc" ? "↑" : "↓";
+  return `<th><a href="${filterUrl(url, { sort: field, dir: nextDir })}" style="text-decoration:none;color:inherit;white-space:nowrap;">${label} ${arrow}</a></th>`;
+}
+
 // ── Forms list ─────────────────────────────────────────────────────────────────
 
 export async function handleAdminForms(
@@ -90,6 +121,11 @@ export async function handleAdminForms(
   const saved  = url.searchParams.get("saved")  === "1";
   const errMsg = url.searchParams.get("error") ?? "";
 
+  const filterStatus   = url.searchParams.get("status")   ?? "";
+  const filterOccasion = url.searchParams.get("occasion") ?? "";
+  const sortField      = url.searchParams.get("sort")     ?? "date";
+  const sortDir        = url.searchParams.get("dir")      ?? "desc";
+
   const [enquiries, bookingsRes] = await Promise.all([
     listEnquiries(env, null, f),
     f(
@@ -100,10 +136,59 @@ export async function handleAdminForms(
 
   const bookings: BookingRow[] = bookingsRes.ok ? (await bookingsRes.json()) as BookingRow[] : [];
 
-  const items: FormItem[] = [
+  let items: FormItem[] = [
     ...enquiries.map((e): FormItem => ({ kind: "enquiry", data: e })),
     ...bookings.map((b): FormItem => ({ kind: "booking", data: b })),
-  ].sort((a, b) => b.data.created_at.localeCompare(a.data.created_at));
+  ];
+
+  // Status filter applies to enquiries only (bookings use their own status system)
+  if (filterStatus) {
+    items = items.filter(item => item.kind === "enquiry" && item.data.status === filterStatus);
+  }
+
+  // Occasion filter applies to both
+  if (filterOccasion) {
+    items = items.filter(item => {
+      if (item.kind === "booking") return filterOccasion === "wedding";
+      const occ = (item.data.occasion ?? "").toLowerCase();
+      return filterOccasion === "wedding" ? occ === "wedding" : occ.startsWith("matric");
+    });
+  }
+
+  // Sort
+  const asc = sortDir === "asc" ? 1 : -1;
+  items.sort((a, b) => {
+    if (sortField === "name") {
+      const na = a.kind === "enquiry" ? a.data.name : a.data.bride_name;
+      const nb = b.kind === "enquiry" ? b.data.name : b.data.bride_name;
+      return na.localeCompare(nb) * asc;
+    }
+    if (sortField === "estimate") {
+      const toNum = (item: FormItem) =>
+        item.kind === "booking"
+          ? item.data.total_cents
+          : parseInt((item.data.estimate ?? "0").replace(/\D/g, ""), 10) * 100;
+      return (toNum(a) - toNum(b)) * asc;
+    }
+    // date (default)
+    return a.data.created_at.localeCompare(b.data.created_at) * -asc;
+  });
+
+  // Filter bar
+  const filterBar = `
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
+      <span style="font-size:.72rem;font-weight:700;color:#8a7d72;text-transform:uppercase;letter-spacing:.06em;margin-right:.2rem;">Status</span>
+      ${pillLink("All",       filterUrl(url, { status: "" }),          !filterStatus)}
+      ${pillLink("New",       filterUrl(url, { status: "new" }),       filterStatus === "new")}
+      ${pillLink("Contacted", filterUrl(url, { status: "contacted" }), filterStatus === "contacted")}
+      ${pillLink("Converted", filterUrl(url, { status: "converted" }), filterStatus === "converted")}
+      ${pillLink("Closed",    filterUrl(url, { status: "closed" }),    filterStatus === "closed")}
+      <span style="width:1px;height:1.2em;background:#d0c5bc;display:inline-block;margin:0 .3rem;"></span>
+      <span style="font-size:.72rem;font-weight:700;color:#8a7d72;text-transform:uppercase;letter-spacing:.06em;margin-right:.2rem;">Occasion</span>
+      ${pillLink("All",     filterUrl(url, { occasion: "" }),         !filterOccasion)}
+      ${pillLink("Wedding", filterUrl(url, { occasion: "wedding" }),  filterOccasion === "wedding")}
+      ${pillLink("Matric",  filterUrl(url, { occasion: "matric" }),   filterOccasion === "matric")}
+    </div>`;
 
   const rows = items.map((item) => {
     if (item.kind === "enquiry") {
@@ -147,12 +232,19 @@ export async function handleAdminForms(
   const inner = `
     ${saved  ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;border:1px solid #b7dfc8;color:#276749;font-size:.88rem;">✓ Quote sent successfully.</div>` : ""}
     ${errMsg ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#fff5f5;border:1px solid #f5c6c6;color:#c53030;font-size:.88rem;">⚠ ${esc(decodeURIComponent(errMsg))}</div>` : ""}
+    ${filterBar}
     ${!items.length
-      ? `<p style="color:#8a7d72;font-style:italic;">No form submissions yet.</p>`
+      ? `<p style="color:#8a7d72;font-style:italic;">No submissions match your filter.</p>`
       : `<table>
           <thead><tr>
-            <th>Type</th><th>Name</th><th>Email</th><th>Occasion</th>
-            <th>Date</th><th>Estimate</th><th>Status</th><th>Received</th><th>Actions</th>
+            <th>Type</th>
+            ${sortHeader("Name",     "name",     sortField, sortDir, url)}
+            <th>Email</th><th>Occasion</th>
+            ${sortHeader("Date",     "date",     sortField, sortDir, url)}
+            ${sortHeader("Estimate", "estimate", sortField, sortDir, url)}
+            <th>Status</th>
+            ${sortHeader("Received", "date",     sortField, sortDir, url)}
+            <th>Actions</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>`

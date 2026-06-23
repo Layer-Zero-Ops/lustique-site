@@ -246,8 +246,8 @@ function formatZAR(cents: number): string {
 const STATUS_LABELS: Record<string, string> = {
   requested: "New request",
   quote_sent: "Invoice sent",
-  accepted: "Awaiting deposit",
-  deposit_paid: "Deposit paid",
+  accepted: "Awaiting booking fee",
+  deposit_paid: "Booking fee paid",
   settled: "Settled",
   declined: "Declined",
   rejected: "Declined",
@@ -979,7 +979,7 @@ export async function handleAdminBookingDetail(
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
           <form method="POST" action="/api/admin/booking/${esc(id)}/send-quote">
             <button type="submit" style="font:inherit;font-weight:700;background:#276749;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
-              onclick="return confirm('Send the deposit invoice to ${esc(b.bride_name.replace(/'/g, "\\'"))}? This emails her a link to choose her deposit and secure the date.')">
+              onclick="return confirm('Send the deposit invoice to ${esc(b.bride_name.replace(/'/g, "\\'"))}? This emails her a link to choose her booking fee and secure the date.')">
               Send Deposit Invoice →
             </button>
           </form>
@@ -996,8 +996,8 @@ export async function handleAdminBookingDetail(
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
           <form method="POST" action="/api/admin/booking/${esc(id)}/mark-deposit">
             <button type="submit" style="font:inherit;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
-              onclick="return confirm('Mark EFT deposit as received? This emails ${esc(b.bride_name.replace(/'/g, "\\'"))} her date-secured confirmation.')">
-              Mark EFT Deposit Paid
+              onclick="return confirm('Mark EFT booking fee as received? This emails ${esc(b.bride_name.replace(/'/g, "\\'"))} her date-secured confirmation.')">
+              Mark EFT Booking Fee Paid
             </button>
           </form>
         </div>`;
@@ -1043,10 +1043,10 @@ export async function handleAdminBookingDetail(
           <tr><td style="color:#8a7d72;">Status</td><td>${statusBadge(b.status)}${conflictFlag(b.availability_conflict)}</td></tr>
           <tr><td style="color:#8a7d72;">Requested</td><td>${fmtDateTime(b.created_at)}</td></tr>
           <tr><td style="color:#8a7d72;">Invoice sent</td><td>${fmtDateTime(b.quote_sent_at)}</td></tr>
-          <tr><td style="color:#8a7d72;">Deposit chosen</td><td>${fmtDateTime(b.accepted_at)}</td></tr>
-          <tr><td style="color:#8a7d72;">Deposit %</td><td>${b.deposit_pct != null ? `${b.deposit_pct}%` : "—"}</td></tr>
+          <tr><td style="color:#8a7d72;">Booking fee chosen</td><td>${fmtDateTime(b.accepted_at)}</td></tr>
+          <tr><td style="color:#8a7d72;">Booking fee %</td><td>${b.deposit_pct != null ? `${b.deposit_pct}%` : "—"}</td></tr>
           <tr><td style="color:#8a7d72;">Total</td><td><strong>${formatZAR(b.total_cents)}</strong></td></tr>
-          <tr><td style="color:#8a7d72;">Deposit</td><td>${formatZAR(b.deposit_net_cents)}</td></tr>
+          <tr><td style="color:#8a7d72;">Booking fee</td><td>${formatZAR(b.deposit_net_cents)}</td></tr>
           <tr><td style="color:#8a7d72;">Balance</td><td>${formatZAR(b.balance_net_cents)}</td></tr>
         </tbody></table>
       </div>

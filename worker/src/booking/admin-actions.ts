@@ -85,12 +85,12 @@ function depositInvoiceEmailHtml(
         { key: "Date", val: fmtDate(b.wedding_date) },
         { key: "Bridal party", val: `${b.party_size} look${b.party_size !== 1 ? "s" : ""}` },
         { key: "Total", val: fmtZAR(b.total_cents), bold: true },
-        { key: "Deposit options", val: `25% · ${dep25}  ·  50% · ${dep50}  ·  Full · ${depFull}` },
+        { key: "Booking fee options", val: `25% · ${dep25}  ·  50% · ${dep50}  ·  Full · ${depFull}` },
         { key: "Your reference", val: b.reference, ref: true },
       ]),
     btnZone:
       emailBtn(secureUrl, "Secure your date →") +
-      emailBtnLink(invoiceUrl, "View &amp; print your deposit invoice"),
+      emailBtnLink(invoiceUrl, "View &amp; print your invoice"),
     footerNote: `This link is valid for 14 days. Questions? Write to us at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>.`,
   });
 }
@@ -112,11 +112,11 @@ function depositSecuredEmailHtml(b: ConfirmBookingRow): string {
     heading: `Your date is secured, ${firstN(b.bride_name)}.`,
     body:
       ep(
-        `Your deposit is in &#8212; ${em(fmtDate(b.wedding_date))} is officially yours. We can&#8217;t wait to be part of your day.`,
+        `Your booking fee is in &#8212; ${em(fmtDate(b.wedding_date))} is officially yours. We can&#8217;t wait to be part of your day.`,
       ) +
       emailTable([
         { key: "Date", val: fmtDate(b.wedding_date) },
-        { key: "Deposit received", val: fmtZAR(b.deposit_net_cents), bold: true },
+        { key: "Booking fee received", val: fmtZAR(b.deposit_net_cents), bold: true },
         { key: "Balance remaining", val: fmtZAR(b.balance_net_cents) },
         { key: "Your reference", val: b.reference, ref: true },
       ]),

@@ -117,18 +117,18 @@ function acceptPageBody(b: ConfirmBookingRow, token: string): string {
   const dep50 = Math.round(total * 50 / 100);
 
   return `<h1>Secure your date</h1>
-<p class="sub">We&#8217;re so excited to be part of your day! Choose your deposit to secure <strong>${esc(b.wedding_date)}</strong>.</p>
+<p class="sub">We&#8217;re so excited to be part of your day! Choose your non-refundable booking fee to secure <strong>${esc(b.wedding_date)}</strong>.</p>
 <p class="total">Your total: ${zar(total)}</p>
 <form method="POST" action="/api/booking/accept">
 <input type="hidden" name="token" value="${esc(token)}">
 <div class="deposit-options">
   <label class="deposit-opt">
     <input type="radio" name="depositPct" value="25" required>
-    <div><div class="opt-label">25% deposit — ${zar(dep25)}</div><div class="opt-amt">Balance of ${zar(total - dep25)} payable closer to your day</div></div>
+    <div><div class="opt-label">25% booking fee — ${zar(dep25)}</div><div class="opt-amt">Balance of ${zar(total - dep25)} payable closer to your day</div></div>
   </label>
   <label class="deposit-opt">
     <input type="radio" name="depositPct" value="50">
-    <div><div class="opt-label">50% deposit — ${zar(dep50)}</div><div class="opt-amt">Balance of ${zar(total - dep50)} payable closer to your day</div></div>
+    <div><div class="opt-label">50% booking fee — ${zar(dep50)}</div><div class="opt-amt">Balance of ${zar(total - dep50)} payable closer to your day</div></div>
   </label>
   <label class="deposit-opt">
     <input type="radio" name="depositPct" value="100">
@@ -170,7 +170,7 @@ export async function handleAccept(
 
   if (!token) return htmlResponse(invalidHtml(), 400);
   if (![25, 50, 100].includes(depositPctRaw)) {
-    return htmlResponse(pageShell("Choose a deposit", "<h1>Please choose a deposit</h1><p>Go back and select 25%, 50%, or 100%.</p>"), 400);
+    return htmlResponse(pageShell("Choose a booking fee", "<h1>Please choose a booking fee</h1><p>Go back and select 25%, 50%, or pay in full.</p>"), 400);
   }
 
   const depositPct = depositPctRaw as 25 | 50 | 100;
@@ -237,8 +237,8 @@ export async function handleAccept(
     await brevoEmail(
       env,
       { email: env.NOTIFY_EMAIL, name: "Lustique" },
-      `Bride accepted — awaiting deposit · ${b.bride_name} · ${b.wedding_date}`,
-      `<p><strong>${esc(b.bride_name)}</strong> chose her deposit — awaiting payment for <strong>${esc(b.wedding_date)}</strong>.</p>
+      `Bride chose booking fee — awaiting payment · ${b.bride_name} · ${b.wedding_date}`,
+      `<p><strong>${esc(b.bride_name)}</strong> chose her booking fee — awaiting payment for <strong>${esc(b.wedding_date)}</strong>.</p>
 <p>Deposit: <strong>${zar(depositNetCents)}</strong> (${depositPct}%) · Ref: <strong>${esc(b.reference)}</strong>${yocoRedirectUrl ? " · Card payment link sent." : " · No card link — EFT only."}</p>
 <p style="margin:1.2rem 0;"><a href="${esc(markPaidUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">When the EFT lands — mark deposit received</a></p>
 <p style="font-size:.88rem;color:#8a7d72;">Only click once the deposit reflects. Link valid 90 days.</p>`,
@@ -256,8 +256,8 @@ export async function handleAccept(
   // Yoco failed: show EFT details inline.
   try {
     const eft = await getEftSettings(env, fetchImpl);
-    return htmlResponse(pageShell("Pay by EFT", `<h1>Pay your deposit by EFT</h1>
-<p>Card payment is temporarily unavailable. Please pay by EFT — your date will be secured once we confirm receipt.</p>
+    return htmlResponse(pageShell("Pay by EFT", `<h1>Pay your booking fee by EFT</h1>
+<p>Card payment is temporarily unavailable. Please pay your booking fee by EFT — your date will be secured once we confirm receipt.</p>
 <table style="border-collapse:collapse;margin:1.2rem 0;font-size:.95rem;">
 <tr><td style="color:#8a7d72;padding:3px 16px 3px 0;white-space:nowrap;">Amount</td><td><strong>${zar(depositNetCents)}</strong></td></tr>
 <tr><td style="color:#8a7d72;padding:3px 16px 3px 0;white-space:nowrap;">Bank</td><td>${esc(eft.bankName)}</td></tr>
@@ -267,7 +267,7 @@ export async function handleAccept(
 <tr><td style="color:#8a7d72;padding:3px 16px 3px 0;white-space:nowrap;">Reference</td><td><strong>${esc(b.reference)}</strong></td></tr>
 </table>
 <p>Email proof of payment to <a href="mailto:info@lustiqueco.co.za" style="color:#8a3a52;">info@lustiqueco.co.za</a> and we'll confirm your date within 24 hours.</p>
-<p>Blessings,<br/>The Lustique Cosmetology Team</p>`));
+<p>Blessings,<br/>The Lustique Co. team</p>`));
   } catch {
     return htmlResponse(pageShell("Contact us", `<h1>One more step</h1><p>Your booking (ref <strong>${esc(b.reference)}</strong>) is reserved. Please email <a href="mailto:info@lustiqueco.co.za" style="color:#8a3a52;">info@lustiqueco.co.za</a> to arrange your deposit payment.</p>`));
   }
