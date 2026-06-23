@@ -121,7 +121,7 @@ export async function handleAdminForms(
           <a href="/api/admin/forms/${esc(e.id)}/send-quote"
             style="display:inline-block;font-size:.78rem;font-weight:700;padding:.3em .8em;background:#8a3a52;color:#fff;border-radius:6px;text-decoration:none;">Send Quote</a>
           <a href="/api/admin/enquiries/${esc(e.id)}"
-            style="display:inline-block;margin-left:.4rem;font-size:.78rem;font-weight:600;padding:.3em .8em;background:#f7e8ec;color:#8a3a52;border-radius:6px;text-decoration:none;">CRM →</a>
+            style="display:inline-block;margin-left:.4rem;font-size:.78rem;font-weight:600;padding:.3em .8em;background:#f7e8ec;color:#8a3a52;border-radius:6px;text-decoration:none;">View →</a>
         </td>
       </tr>`;
     } else {

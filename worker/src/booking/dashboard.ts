@@ -101,7 +101,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     navGroup("Clients", [
       navLink("/api/admin/forms",     "Forms", "enq-badge"),
       navLink("/api/admin/contacts",  "Contacts"),
-      navLink("/api/admin/enquiries", "Enquiries"),
+      navLink("/api/admin/enquiries", "CRM"),
     ].join("\n")),
     navGroup("Content", [
       navLink("/api/admin/portfolio", "Portfolio"),
@@ -1784,13 +1784,18 @@ export async function handleAdminWebsite(
     <span style="font-weight:700;color:#2b2b2b;">View live site</span>
     <span style="font-size:.85rem;color:#8a7d72;">lustiqueco.co.za</span>
   </a>
-  <a href="https://www.sanity.io/manage" target="_blank" rel="noopener" style="display:flex;flex-direction:column;gap:.4rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.4rem 1.6rem;text-decoration:none;color:inherit;">
+  <a href="/api/admin/blog" style="display:flex;flex-direction:column;gap:.4rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.4rem 1.6rem;text-decoration:none;color:inherit;">
     <span style="font-size:1.4rem;">✍️</span>
-    <span style="font-weight:700;color:#2b2b2b;">Sanity CMS</span>
-    <span style="font-size:.85rem;color:#8a7d72;">Edit content, blog & team</span>
+    <span style="font-weight:700;color:#2b2b2b;">Blog</span>
+    <span style="font-size:.85rem;color:#8a7d72;">Write & publish journal articles</span>
+  </a>
+  <a href="/api/admin/portfolio" style="display:flex;flex-direction:column;gap:.4rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.4rem 1.6rem;text-decoration:none;color:inherit;">
+    <span style="font-size:1.4rem;">🖼️</span>
+    <span style="font-weight:700;color:#2b2b2b;">Portfolio</span>
+    <span style="font-size:.85rem;color:#8a7d72;">Upload & order gallery images</span>
   </a>
 </div>
-<p style="margin:1.8rem 0 0;font-size:.88rem;color:#8a7d72;">Website settings (SEO, meta, GA4) will be available here once the CMS is seeded.</p>`;
+<p style="margin:1.8rem 0 0;font-size:.88rem;color:#8a7d72;">Site content — blog, portfolio — is managed directly from this dashboard. SEO and GA4 settings coming soon.</p>`;
 
   return htmlResponse(adminShell("Website", user, inner, new URL(req.url).pathname));
 }
