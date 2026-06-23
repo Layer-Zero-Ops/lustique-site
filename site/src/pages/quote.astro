@@ -22,8 +22,8 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
     </div>
     <form id="quoteForm">
       <input type="text" name="company" id="hp_company" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
-      <div class="form-step reveal"><h3>Your occasion</h3><p class="step-sub">The estimator is tuned for weddings — choose another occasion and the pricing switches.</p>
-        <div class="field"><label for="occasion">What are we creating for?</label><select id="occasion"><option value="wedding">Wedding</option><option value="matric">Matric farewell</option><option value="editorial">Editorial / photoshoot</option><option value="engagement">Engagement / maternity shoot</option><option value="corporate">Corporate / event</option><option value="pageant">Pageant / stage</option><option value="lessons">Group lesson (6+)</option></select></div>
+      <div class="form-step reveal"><h3>Your occasion</h3><p class="step-sub">Choose your occasion and we'll tailor the estimator and quote to you.</p>
+        <div class="field"><label for="occasion">What are we creating for?</label><select id="occasion"><option value="wedding">Wedding</option><option value="matric">Matric farewell</option></select></div>
       </div>
       <div class="form-step reveal"><h3>About you</h3><p class="step-sub">Let’s start with the star of the show.</p>
         <div class="field-row"><div class="field"><label for="fName">First name</label><input id="fName" placeholder="Your name"></div><div class="field"><label for="lName">Last name</label><input id="lName" placeholder="Surname"></div></div>
@@ -67,13 +67,9 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
       </div>
       </div>
       <div class="form-step reveal" id="eventFields" style="display:none;"><h3>Who needs makeup &amp; hair?</h3><p class="step-sub">Tell us how many people need each — only pay for what you book.</p>
-        <div class="field"><label for="eventDate">Date of your event</label><input type="date" id="eventDate"></div>
+        <div class="field"><label for="eventDate">Date of your matric farewell</label><input type="date" id="eventDate"></div>
         <div class="field-row"><div class="field"><label for="evMakeup">Need makeup</label><select id="evMakeup"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div><div class="field"><label for="evHair">Need hair</label><select id="evHair"><option selected>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div></div>
         <div class="field"><label for="evHairLen">Hair length <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(for any hair styling)</span></label><select id="evHairLen"><option value="short">Short (chin)</option><option value="medium" selected>Medium (shoulder)</option><option value="long">Long (mid-back)</option><option value="xlong">X-Long (pantyline)</option></select></div>
-      </div>
-      <div class="form-step reveal" id="lessonsFields" style="display:none;"><h3>Your group lesson</h3><p class="step-sub">Learn to do your own makeup with us — groups of 6 or more, at Bez Ranch or on location.</p>
-        <div class="field"><label for="lessonsDate">Preferred date</label><input type="date" id="lessonsDate"></div>
-        <div class="field"><label for="lessonsAttending">How many attending? <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(6 minimum · R700pp, R600pp for 10+)</span></label><select id="lessonsAttending"><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>12</option><option>15</option><option>20</option></select></div>
       </div>
       <div class="form-step reveal"><h3>Your vision</h3><p class="step-sub">The more you share, the more we can tailor your day.</p>
         <div class="field"><label for="style">Style</label><select id="style"><option>Natural &amp; soft</option><option>Soft glam</option><option>Full glam</option><option>Editorial</option><option>Boho</option><option>Not sure yet — guide me</option></select></div>

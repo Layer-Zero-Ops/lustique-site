@@ -254,6 +254,12 @@ export default {
       });
     }
 
+    // POST /api/newsletter — add email to Brevo contact list
+    if (url.pathname === "/api/newsletter") {
+      const { handleNewsletter } = await import("./booking/newsletter");
+      return handleNewsletter(req, env);
+    }
+
     // GET /api/calendar.ics — iCal feed of active bookings (key-protected)
     if (req.method === "GET" && url.pathname === "/api/calendar.ics") {
       return handleCalendarFeed(req, env);
