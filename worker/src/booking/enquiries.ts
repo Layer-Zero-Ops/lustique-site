@@ -36,7 +36,7 @@ function redirect(location: string): Response {
 
 // Import the shell from dashboard at runtime — avoids circular imports by using a callback pattern.
 // Handlers receive a `shell` function injected from the caller (index.ts wires it up).
-export type ShellFn = (title: string, user: AdminUser, inner: string) => string;
+export type ShellFn = (title: string, user: AdminUser, inner: string, currentPath?: string) => string;
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ export async function handleAdminEnquiries(
     const inner = `
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.4rem;">${filterLinks}</div>
       <p style="color:#8a7d72;font-style:italic;">No enquiries${statusFilter ? ` with status "${statusFilter}"` : ""} yet.</p>`;
-    return htmlResponse(shell("Enquiries", user, inner));
+    return htmlResponse(shell("Enquiries", user, inner, url.pathname));
   }
 
   const rows = enquiries.map((e) => `
@@ -116,7 +116,7 @@ export async function handleAdminEnquiries(
       <tbody>${rows}</tbody>
     </table>`;
 
-  return htmlResponse(shell(`Enquiries (${enquiries.length})`, user, inner));
+  return htmlResponse(shell(`Enquiries (${enquiries.length})`, user, inner, url.pathname));
 }
 
 // ── Detail / edit view ────────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ export async function handleAdminEnquiryDetail(
   if (!user) return redirect("/api/admin/login?msg=session-expired");
 
   const e = await getEnquiryById(env, id, f);
-  if (!e) return htmlResponse(shell("Enquiry not found", user, `<p>Not found. <a href="/api/admin/enquiries">Back to enquiries</a></p>`), 404);
+  if (!e) return htmlResponse(shell("Enquiry not found", user, `<p>Not found. <a href="/api/admin/enquiries">Back to enquiries</a></p>`, new URL(req.url).pathname), 404);
 
   const url = new URL(req.url);
   const saved = url.searchParams.get("saved") === "1";
@@ -189,7 +189,7 @@ export async function handleAdminEnquiryDetail(
       </div>
     </div>`;
 
-  return htmlResponse(shell(`${e.name} — Enquiry`, user, inner));
+  return htmlResponse(shell(`${e.name} — Enquiry`, user, inner, url.pathname));
 }
 
 // ── Update (POST handler — PRG pattern) ──────────────────────────────────────

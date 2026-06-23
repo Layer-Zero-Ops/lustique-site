@@ -57,21 +57,33 @@ function htmlResponse(html: string, status = 200): Response {
   });
 }
 
-/** Shared admin nav shell. Active link is highlighted. */
-export function adminShell(title: string, user: AdminUser, inner: string): string {
+/**
+ * Shared admin nav shell.
+ * currentPath — the request's pathname, used to highlight the active nav item.
+ */
+export function adminShell(title: string, user: AdminUser, inner: string, currentPath = ""): string {
+  function isActive(href: string): boolean {
+    if (href === "/api/admin/dashboard") return currentPath === href || currentPath.startsWith("/api/admin/booking/");
+    if (href === "/api/admin/enquiries") return currentPath.startsWith("/api/admin/enquiries");
+    return currentPath.startsWith(href);
+  }
+
   const nav = [
     { href: "/api/admin/dashboard",  label: "Inbox" },
-    { href: "/api/admin/enquiries",  label: "Enquiries" },
+    { href: "/api/admin/enquiries",  label: "Enquiries", badgeId: "enq-badge" },
     { href: "/api/admin/quotes",     label: "Sent Quotes" },
     { href: "/api/admin/payments",   label: "Payments" },
     { href: "/api/admin/rejections", label: "Rejections" },
     { href: "/api/admin/calendar",   label: "Calendar" },
     { href: "/api/admin/templates",  label: "Templates" },
   ]
-    .map(
-      ({ href, label }) =>
-        `<a href="${href}" style="display:block;padding:.45rem .9rem;border-radius:8px;text-decoration:none;color:#5c3d47;font-weight:600;font-size:.85rem;">${esc(label)}</a>`,
-    )
+    .map(({ href, label, badgeId }) => {
+      const active = isActive(href);
+      const badgeHtml = badgeId
+        ? `<span id="${badgeId}" style="display:none;background:#8a3a52;color:#fff;border-radius:20px;font-size:.7rem;font-weight:700;padding:.1em .5em;min-width:1.3em;text-align:center;margin-left:auto;line-height:1.5;"></span>`
+        : "";
+      return `<a href="${href}" style="display:flex;align-items:center;gap:.3rem;padding:.45rem .9rem;border-radius:8px;text-decoration:none;color:${active ? "#8a3a52" : "#5c3d47"};font-weight:${active ? "700" : "600"};font-size:.85rem;${active ? "background:#f7e8ec;" : ""}">${esc(label)}${badgeHtml}</a>`;
+    })
     .join("\n");
 
   return `<!doctype html><html lang="en"><head>
@@ -81,7 +93,7 @@ export function adminShell(title: string, user: AdminUser, inner: string): strin
   *,*::before,*::after{box-sizing:border-box;}
   body{margin:0;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;color:#2b2b2b;background:#f7f3ef;display:flex;min-height:100vh;}
   .sidebar{width:220px;min-height:100vh;background:#fff;border-right:1px solid #ede7e0;padding:1.5rem 1rem;display:flex;flex-direction:column;gap:.3rem;flex-shrink:0;}
-  .logo{font-size:1.05rem;font-weight:700;color:#8a3a52;letter-spacing:.03em;margin-bottom:1.2rem;padding:.1rem .9rem;}
+  .sidebar-logo{display:block;width:80px;margin:0 auto 1.4rem;opacity:.92;}
   .main{flex:1;padding:2rem 2.5rem;overflow-x:auto;}
   h1{font-size:1.35rem;margin:0 0 1.5rem;color:#2b2b2b;}
   h2{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a7d72;margin:1.6rem 0 .7rem;}
@@ -111,7 +123,7 @@ export function adminShell(title: string, user: AdminUser, inner: string): strin
   .notif-count{display:none;background:#8a3a52;color:#fff;border-radius:20px;font-size:.7rem;font-weight:700;padding:.1em .5em;min-width:1.3em;text-align:center;}
 </style></head><body>
 <nav class="sidebar">
-  <div class="logo">Lustique ✦</div>
+  <img src="https://lustiqueco.co.za/assets/logo.png" alt="Lustique Co." class="sidebar-logo">
   ${nav}
   <div style="position:relative;margin-top:.4rem;" id="notif-wrap">
     <button class="notif-bell" id="notif-bell" aria-label="Notifications" aria-haspopup="true">
@@ -138,6 +150,7 @@ export function adminShell(title: string, user: AdminUser, inner: string): strin
 (function(){
   var bell=document.getElementById('notif-bell');
   var badge=document.getElementById('notif-badge');
+  var enqBadge=document.getElementById('enq-badge');
   var dropdown=document.getElementById('notif-dropdown');
   var list=document.getElementById('notif-list');
   function poll(){
@@ -147,6 +160,11 @@ export function adminShell(title: string, user: AdminUser, inner: string): strin
         if(!d)return;
         if(d.count>0){badge.textContent=d.count;badge.style.display='inline-block';}
         else{badge.style.display='none';}
+        if(enqBadge){
+          var ec=d.items.filter(function(n){return n.type==='enquiry_received';}).length;
+          if(ec>0){enqBadge.textContent=ec;enqBadge.style.display='inline-block';}
+          else{enqBadge.style.display='none';}
+        }
         renderItems(d.items);
       }).catch(function(){});
   }
@@ -596,7 +614,7 @@ export async function handleAdminDashboard(
 <tbody>${rows}</tbody>
 </table>`;
 
-  return htmlResponse(adminShell("Inbox", user, table));
+  return htmlResponse(adminShell("Inbox", user, table, new URL(req.url).pathname));
 }
 
 // ── Wave C.3 — Notifications types ───────────────────────────────────────────
@@ -816,7 +834,7 @@ export async function handleAdminBookingDetail(
 
   if (!bRes.ok) return htmlResponse(`<p>Fetch error. <a href="/api/admin/dashboard">Back</a></p>`, 502);
   const bookings = (await bRes.json()) as BookingDetail[];
-  if (!bookings.length) return htmlResponse(adminShell("Not found", user, `<p>Booking not found.</p>`), 404);
+  if (!bookings.length) return htmlResponse(adminShell("Not found", user, `<p>Booking not found.</p>`, new URL(req.url).pathname), 404);
   const b = bookings[0]!;
   const payments: PaymentRow[] = pRes.ok ? ((await pRes.json()) as PaymentRow[]) : [];
   const revisions: QuoteRevision[] = qrRes.ok ? ((await qrRes.json()) as QuoteRevision[]) : [];
@@ -999,7 +1017,7 @@ export async function handleAdminBookingDetail(
     ${b.notes ? `<h2>Notes</h2><p style="white-space:pre-wrap;">${esc(b.notes)}</p>` : ""}
   `;
 
-  return htmlResponse(adminShell(`${b.reference} — Detail`, user, inner));
+  return htmlResponse(adminShell(`${b.reference} — Detail`, user, inner, new URL(req.url).pathname));
 }
 
 // ── handleAdminQuotes ─────────────────────────────────────────────────────────
@@ -1063,7 +1081,7 @@ export async function handleAdminQuotes(
     <tbody>${rows}</tbody>
   </table>`;
 
-  return htmlResponse(adminShell("Sent Quotes", user, table));
+  return htmlResponse(adminShell("Sent Quotes", user, table, new URL(req.url).pathname));
 }
 
 // ── handleAdminPayments ───────────────────────────────────────────────────────
@@ -1125,7 +1143,7 @@ export async function handleAdminPayments(
     <tbody>${rows}</tbody>
   </table>`;
 
-  return htmlResponse(adminShell("Payments", user, table));
+  return htmlResponse(adminShell("Payments", user, table, new URL(req.url).pathname));
 }
 
 // ── handleAdminRejections ─────────────────────────────────────────────────────
@@ -1181,7 +1199,7 @@ export async function handleAdminRejections(
     <tbody>${rows}</tbody>
   </table>`;
 
-  return htmlResponse(adminShell("Rejections", user, table));
+  return htmlResponse(adminShell("Rejections", user, table, new URL(req.url).pathname));
 }
 
 // ── handleAdminCalendar ───────────────────────────────────────────────────────
@@ -1345,7 +1363,7 @@ export async function handleAdminCalendar(
     </form>
   `;
 
-  return htmlResponse(adminShell(`Calendar — ${esc(monthLabel)}`, user, inner));
+  return htmlResponse(adminShell(`Calendar — ${esc(monthLabel)}`, user, inner, new URL(req.url).pathname));
 }
 
 // ── handleAdminTemplates ──────────────────────────────────────────────────────
@@ -1408,7 +1426,7 @@ export async function handleAdminTemplates(
       { headers: hdr },
     );
     const rows: MessageTemplate[] = res.ok ? ((await res.json()) as MessageTemplate[]) : [];
-    if (!rows.length) return htmlResponse(adminShell("Template not found", user, `<p>Template <code>${esc(templateKey)}</code> not found. <a href="/api/admin/templates">Back</a></p>`), 404);
+    if (!rows.length) return htmlResponse(adminShell("Template not found", user, `<p>Template <code>${esc(templateKey)}</code> not found. <a href="/api/admin/templates">Back</a></p>`, url.pathname), 404);
     const t = rows[0]!;
     const saved = url.searchParams.get("saved") === "1";
 
@@ -1442,7 +1460,7 @@ export async function handleAdminTemplates(
         <iframe srcdoc="${esc(t.body_html)}" sandbox="" style="width:100%;min-height:200px;border:none;"></iframe>
       </div>
     `;
-    return htmlResponse(adminShell(`Template: ${esc(t.name)}`, user, inner));
+    return htmlResponse(adminShell(`Template: ${esc(t.name)}`, user, inner, url.pathname));
   }
 
   // GET /api/admin/templates — list all
@@ -1470,7 +1488,7 @@ export async function handleAdminTemplates(
     <tbody>${rows2}</tbody>
   </table>`;
 
-  return htmlResponse(adminShell("Email Templates", user, table));
+  return htmlResponse(adminShell("Email Templates", user, table, url.pathname));
 }
 
 // ── handleAdminNotifications (Wave C.3) ──────────────────────────────────────
