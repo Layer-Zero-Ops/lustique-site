@@ -39,6 +39,7 @@ import { handleCalendarFeed } from "./booking/calendar";
 import { persistEnquiry, insertNotification } from "./booking/db";
 import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry } from "./booking/enquiries";
 import { handleAdminContacts } from "./booking/contacts";
+import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
 import { handleAdminPortfolio, handleAdminPortfolioDelete } from "./booking/portfolio";
 import {
   handleAdminBlog,
@@ -437,6 +438,20 @@ export default {
       // POST /api/admin/notifications/read — mark one or all as read
       if (req.method === "POST" && url.pathname === "/api/admin/notifications/read") {
         return await handleAdminNotificationsRead(req, dashEnv);
+      }
+
+      // ── Forms ─────────────────────────────────────────────────────────────
+      // GET /api/admin/forms — unified inbox (enquiries + booking requests)
+      if (req.method === "GET" && url.pathname === "/api/admin/forms") {
+        return handleAdminForms(req, env as Parameters<typeof handleAdminForms>[1], adminShell);
+      }
+      // GET + POST /api/admin/forms/:id/send-quote — compose & send quote email
+      if (
+        (req.method === "GET" || req.method === "POST") &&
+        url.pathname.match(/^\/api\/admin\/forms\/[^/]+\/send-quote$/)
+      ) {
+        const id = url.pathname.slice("/api/admin/forms/".length, -"/send-quote".length);
+        if (id) return handleAdminFormsSendQuote(req, env as Parameters<typeof handleAdminFormsSendQuote>[1], adminShell, id);
       }
 
       // ── Contacts ──────────────────────────────────────────────────────────

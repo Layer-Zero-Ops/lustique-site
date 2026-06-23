@@ -125,9 +125,11 @@ export async function handleBookingRequest(
   const problem = validate(body);
   if (problem === "spam") return json({ ok: true }, 200);
 
-  // 2. Turnstile bot check
-  const tsOk = await verifyTurnstile(body.cfTurnstileToken ?? "", env.TURNSTILE_SECRET, fetchImpl);
-  if (!tsOk) return json({ ok: false, error: "Bot check failed — please refresh and try again." }, 422);
+  // 2. Turnstile bot check (skipped if TURNSTILE_SECRET not configured — mirrors enquiry handler)
+  if (env.TURNSTILE_SECRET) {
+    const tsOk = await verifyTurnstile(body.cfTurnstileToken ?? "", env.TURNSTILE_SECRET, fetchImpl);
+    if (!tsOk) return json({ ok: false, error: "Bot check failed — please refresh and try again." }, 422);
+  }
 
   // 3. Field validation
   if (problem) return json({ ok: false, error: problem }, 422);

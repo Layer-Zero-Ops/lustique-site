@@ -64,6 +64,7 @@ function htmlResponse(html: string, status = 200): Response {
 export function adminShell(title: string, user: AdminUser, inner: string, currentPath = ""): string {
   function isActive(href: string): boolean {
     if (href === "/api/admin/dashboard") return currentPath === href || currentPath.startsWith("/api/admin/booking/");
+    if (href === "/api/admin/forms")     return currentPath.startsWith("/api/admin/forms");
     if (href === "/api/admin/enquiries") return currentPath.startsWith("/api/admin/enquiries");
     if (href === "/api/admin/contacts")  return currentPath.startsWith("/api/admin/contacts");
     if (href === "/api/admin/portfolio") return currentPath.startsWith("/api/admin/portfolio");
@@ -94,8 +95,9 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
       navLink("/api/admin/rejections", "Declined"),
     ].join("\n")),
     navGroup("Clients", [
+      navLink("/api/admin/forms",     "Forms", "enq-badge"),
       navLink("/api/admin/contacts",  "Contacts"),
-      navLink("/api/admin/enquiries", "Enquiries", "enq-badge"),
+      navLink("/api/admin/enquiries", "Enquiries"),
     ].join("\n")),
     navGroup("Content", [
       navLink("/api/admin/portfolio", "Portfolio"),
