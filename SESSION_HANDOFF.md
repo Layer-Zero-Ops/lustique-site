@@ -1,6 +1,6 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Post Wave D+E polish · **Updated:** 2026-06-23
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Sanity scrap complete · **Updated:** 2026-06-23
 
 ## ▶ NEXT (Sonnet, fresh session)
 
@@ -10,52 +10,27 @@
 
 ---
 
-### TASK 1 — Scrap Sanity (replace with Supabase queries)
+### TASK 1 — Scrap Sanity + UI polish ✅ DONE (2026-06-23, commits `dd43743`–`e94d744`)
 
-Sanity was never seeded. Every page that queries Sanity currently renders empty. Replace all Sanity data sources with direct Supabase/Storage queries, then remove the packages.
+All Sanity code replaced with Supabase REST queries. Build clean (27 pages, 0 errors).
 
-**Files to replace (Sanity → Supabase):**
+**What was done:**
+- `site/src/lib/supabase.ts` — new thin REST client (native fetch, no new npm packages)
+- `supabase/migrations/0018_public_read_policies.sql` — **Pieter must apply this** (public read for `artists` + `portfolio_images`)
+- blog/team/portfolio/sitemap → Supabase queries; services/index → fully static
+- `Photo.astro` simplified to `src`-only (local assets)
+- All Sanity libs, queries, PortableText components deleted
+- `@sanity/client`, `@sanity/image-url`, `astro-portabletext` removed from `package.json`
+- Quote page: removed "Secure your date" section at bottom
+- Dashboard nav: renamed "Enquiries" → "CRM"; Forms "CRM →" button → "View →"
+- Website tab: replaced Sanity card with Blog + Portfolio quicklinks
+- Thank-you page: redesigned with step cards + centred tiles, no emojis (`e94d744`)
 
-| Page | Current Sanity source | New Supabase source |
-|---|---|---|
-| `site/src/pages/blog.astro` | GROQ blog posts | `GET /rest/v1/blog_posts?published=eq.true&order=published_at.desc` |
-| `site/src/pages/blog/[slug].astro` | GROQ blog post by slug | `GET /rest/v1/blog_posts?slug=eq.{slug}&published=eq.true` |
-| `site/src/pages/team.astro` | GROQ team members | `GET /rest/v1/artists?active=eq.true&order=name.asc` |
-| `site/src/pages/portfolio.astro` | GROQ portfolio images | Supabase Storage list + `portfolio_images` table for ordering |
-| `site/src/pages/services.astro` | GROQ services | Static content (services don't change — hardcode or keep static) |
-| `site/src/pages/index.astro` | GROQ testimonials | Static for now (no testimonials table yet) |
-| `site/src/pages/sitemap.xml.ts` | GROQ for blog slugs | Supabase `blog_posts` query |
-
-**Delete these files entirely:**
-- `site/src/lib/sanity.ts`
-- `site/src/lib/imageUrl.ts`
-- `site/src/lib/sanity.test.ts`
-- `site/src/queries/portfolio.ts`
-- `site/src/queries/team.ts`
-- `site/src/queries/services.ts`
-- `site/src/components/Photo.astro` (replace with plain `<img>` tags)
-
-**Remove from `site/package.json`:**
-- `@sanity/client`
-- `@sanity/image-url`
-
-Check for any `astro-portabletext` usage too (`astro-portabletext-0.13.0.tgz` in root).
-
-**Public blog body rendering:** `blog_posts.body` is stored as plain text (not portable text). Render as `<pre>` or markdown if the blog.ts admin form writes markdown; check what's in the DB first.
-
-**`blog_posts` table schema (migration 0016):**
-```
-id, title, slug, excerpt, body (text), published (bool), published_at (timestamptz), created_at
-```
-
-**`artists` table schema (migration 0013):**
-```
-id, name, email, active (bool), created_at
-```
-
-**Portfolio public page:** Fetch from Supabase Storage `portfolio` bucket. Use `portfolio_images` table for ordering (`ORDER BY position ASC`). Filter by artist when `?artist=name` param. Public URL pattern: `${SUPABASE_URL}/storage/v1/object/public/portfolio/{storage_path}`.
-
-After replacing all pages: run `npx astro build` in `site/` and confirm `dist/` builds cleanly. Then `npm remove @sanity/client @sanity/image-url` in `site/`.
+**Pieter actions required before site pages work in production:**
+1. Apply migration 0018: `supabase db push` or run SQL in Supabase dashboard
+2. Add `SUPABASE_URL` + `SUPABASE_ANON_KEY` as CF Pages build env vars (Settings → Environment variables)
+3. Run `npm install` in `site/` to prune Sanity from node_modules
+4. Delete stray `astro-portabletext-0.13.0.tgz` from repo root (untracked)
 
 ---
 
@@ -96,7 +71,7 @@ INTENDED: requested → Zandeline reviews → Yoco invoice sent → deposit_paid
 
 ## Current state (as-built, 2026-06-23)
 
-### Worker (lustique-form-handler) — version `d39c267e`
+### Worker (lustique-form-handler) — version `6d7db05` (deployed 2026-06-23)
 - All booking flows live ✅
 - Admin dashboard: Bookings / Clients / Content / Admin nav ✅
 - Calendar with occasion badges (💍 wedding, 🎓 matric, ✂︎ trial), slot editor ✅
@@ -117,7 +92,8 @@ INTENDED: requested → Zandeline reviews → Yoco invoice sent → deposit_paid
 ### Site (Cloudflare Pages — auto-deploys from `main`)
 - Public site live at `lustiqueco.co.za` ✅
 - Favicon: updated to logo.png ✅
-- ⚠ All dynamic pages (blog, team, portfolio, services) currently render **empty** — they query Sanity which was never seeded. **TASK 1 above fixes this.**
+- Sanity scrapped — all pages now use Supabase or static content ✅ (commit `dd43743`)
+- ⚠ Pages will render with real data once migration 0018 is applied + CF Pages env vars are set
 
 ### Known backlog (not blocking go-live)
 - **Email Inbox** — migration 0018, CF Email Routing "Send to Worker", `email` event handler, `/api/admin/email` tab. Parked until Sanity scrap + flow decision are done.
