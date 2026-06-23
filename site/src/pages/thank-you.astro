@@ -7,7 +7,7 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
 
   <section class="page-hero">
     <span class="eyebrow">Thank you</span>
-    <h1>Your enquiry is on its way<br class="rwd-br"> to us.</h1>
+    <h1>Your enquiry is on its<br class="rwd-br"> way to us.</h1>
     <p style="max-width:44ch;margin-inline:auto;">
       We're honoured you're considering us for your day. We'll reply within
       24&nbsp;hours — often much sooner.
@@ -49,26 +49,19 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
           A few things worth exploring before your quote arrives.
         </p>
       </div>
-      <div style="display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">
-
+      <div class="ty-grid">
         <a href="portfolio.html" class="ty-tile reveal">
-          <span class="ty-tile-icon">🖼️</span>
           <strong>Browse the portfolio</strong>
           <span>See our real bride work — never stock, never AI.</span>
         </a>
-
         <a href="guide-skin-prep.html" class="ty-tile reveal d1">
-          <span class="ty-tile-icon">✨</span>
           <strong>30-day skin-prep guide</strong>
           <span>Free from us — a calm, simple routine for the month before your wedding.</span>
         </a>
-
         <a href="guide-timeline.html" class="ty-tile reveal d2">
-          <span class="ty-tile-icon">🕐</span>
           <strong>Wedding morning timeline</strong>
           <span>How to plan your morning so everyone is ready, relaxed and on time.</span>
         </a>
-
       </div>
     </div>
   </section>
@@ -99,14 +92,27 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
   .rwd-br { display: none; }
   @media (max-width: 540px) { .rwd-br { display: block; } }
 
+  .ty-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(3, 1fr);
+    max-width: 900px;
+    margin-inline: auto;
+  }
+  @media (max-width: 720px) {
+    .ty-grid { grid-template-columns: 1fr; max-width: 480px; }
+  }
+
   .ty-tile {
     display: flex;
     flex-direction: column;
-    gap: .5rem;
+    align-items: center;
+    text-align: center;
+    gap: .6rem;
     background: #fff;
     border: 1.5px solid rgba(92,67,50,.12);
     border-radius: 14px;
-    padding: 1.6rem 1.5rem;
+    padding: 1.8rem 1.5rem;
     text-decoration: none;
     color: var(--charcoal);
     transition: box-shadow .35s, transform .35s;
@@ -115,7 +121,6 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
     box-shadow: 0 8px 28px -10px rgba(92,67,50,.18);
     transform: translateY(-3px);
   }
-  .ty-tile-icon { font-size: 1.5rem; }
   .ty-tile strong {
     font-family: var(--serif);
     font-size: 1.2rem;
@@ -123,5 +128,5 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
     font-weight: 400;
     line-height: 1.2;
   }
-  .ty-tile span { font-size: .9rem; color: #7a6257; line-height: 1.5; }
+  .ty-tile span { font-size: .88rem; color: #7a6257; line-height: 1.55; }
 </style>
