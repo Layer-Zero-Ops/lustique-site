@@ -109,7 +109,8 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
       navLink("/api/admin/blog",      "Blog"),
     ].join("\n")),
     navGroup("Admin", [
-      navLink("/api/admin/templates", "Templates"),
+      navLink("/api/admin/dashboard",  "Inbox"),
+      navLink("/api/admin/templates",  "Templates"),
     ].join("\n")),
   ].join("\n");
 
