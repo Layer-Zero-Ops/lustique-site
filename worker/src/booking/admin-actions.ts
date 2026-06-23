@@ -67,29 +67,31 @@ async function authedSession(
 
 // ── Email templates ───────────────────────────────────────────────────────────
 
-function quoteEmailHtml(
+function depositInvoiceEmailHtml(
   b: ConfirmBookingRow,
-  acceptUrl: string,
-  rejectUrl: string,
+  secureUrl: string,
   invoiceUrl: string,
 ): string {
+  const dep25 = fmtZAR(Math.round(b.total_cents * 0.25));
+  const dep50 = fmtZAR(Math.round(b.total_cents * 0.50));
+  const depFull = fmtZAR(b.total_cents);
   return emailShell({
-    heading: `Your quote is ready, ${firstN(b.bride_name)}.`,
+    heading: `You&#8217;re all set to secure your date, ${firstN(b.bride_name)}.`,
     body:
       ep(
-        `Good news &#8212; we&#8217;ve reviewed your request and we&#8217;re delighted to hold ${em(fmtDate(b.wedding_date))} for you.`,
+        `We&#8217;ve reviewed your request and we&#8217;re delighted to hold ${em(fmtDate(b.wedding_date))} for you. Choose your deposit on the next step to lock it in.`,
       ) +
       emailTable([
         { key: "Date", val: fmtDate(b.wedding_date) },
-        { key: "Bridal party", val: `${b.party_size} looks` },
-        { key: "Quote total", val: fmtZAR(b.total_cents), bold: true },
+        { key: "Bridal party", val: `${b.party_size} look${b.party_size !== 1 ? "s" : ""}` },
+        { key: "Total", val: fmtZAR(b.total_cents), bold: true },
+        { key: "Deposit options", val: `25% · ${dep25}  ·  50% · ${dep50}  ·  Full · ${depFull}` },
         { key: "Your reference", val: b.reference, ref: true },
       ]),
     btnZone:
-      emailBtn(acceptUrl, "Accept quote") +
-      emailBtnLink(invoiceUrl, "View &amp; print your quote") +
-      emailBtnLink(rejectUrl, "I&#8217;d like to decline this booking"),
-    footerNote: `This quote is valid for 7 days. Questions? Write to us at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>.`,
+      emailBtn(secureUrl, "Secure your date →") +
+      emailBtnLink(invoiceUrl, "View &amp; print your deposit invoice"),
+    footerNote: `This link is valid for 14 days. Questions? Write to us at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>.`,
   });
 }
 
@@ -140,7 +142,7 @@ function fullyPaidEmailHtml(b: ConfirmBookingRow): string {
 
 // ── Handler constants ─────────────────────────────────────────────────────────
 
-const QUOTE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const QUOTE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days — bumped from 7 (no quote-urgency pressure)
 const INVOICE_TTL_MS = 2 * 365 * 24 * 60 * 60 * 1000;
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -182,12 +184,6 @@ export async function handleAdminSendQuote(
     env.SIGNING_SECRET,
     "accept",
   );
-  const rejectToken = await signActionToken(
-    booking.id,
-    new Date(Date.now() + QUOTE_TTL_MS),
-    env.SIGNING_SECRET,
-    "reject",
-  );
   const invoiceToken = await signActionToken(
     booking.id,
     new Date(Date.now() + INVOICE_TTL_MS),
@@ -195,23 +191,22 @@ export async function handleAdminSendQuote(
     "invoice",
   );
   const acceptUrl = `${origin}/api/booking/accept?token=${encodeURIComponent(acceptToken)}`;
-  const rejectUrl = `${origin}/api/booking/reject?token=${encodeURIComponent(rejectToken)}`;
   const invoiceUrl = `${origin}/api/booking/invoice?token=${encodeURIComponent(invoiceToken)}`;
 
   try {
     await sendEmail(
       env,
       { email: booking.bride_email, name: booking.bride_name },
-      `Your Lustique quote is ready — ${fmtDate(booking.wedding_date)}`,
-      quoteEmailHtml(booking, acceptUrl, rejectUrl, invoiceUrl),
+      `Secure your date — ${fmtDate(booking.wedding_date)} · Lustique Co.`,
+      depositInvoiceEmailHtml(booking, acceptUrl, invoiceUrl),
       fetchFn,
     );
     await sendEmail(
       env,
       { email: env.NOTIFY_EMAIL, name: "Lustique" },
-      `Quote sent — ${booking.bride_name} · ${booking.wedding_date}`,
-      `<p style="font:14px/1.6 system-ui,sans-serif;margin:0 0 .5rem;"><strong>${esc(booking.bride_name)}</strong> — ${esc(booking.wedding_date)} — quote sent via admin dashboard (${fmtZAR(booking.total_cents)}, ref <strong>${esc(booking.reference)}</strong>).</p>
-<p><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View quote →</a></p>`,
+      `Deposit invoice sent — ${booking.bride_name} · ${booking.wedding_date}`,
+      `<p style="font:14px/1.6 system-ui,sans-serif;margin:0 0 .5rem;"><strong>${esc(booking.bride_name)}</strong> — ${esc(booking.wedding_date)} — deposit invoice sent via admin dashboard (${fmtZAR(booking.total_cents)}, ref <strong>${esc(booking.reference)}</strong>).</p>
+<p><a href="${esc(invoiceUrl)}" style="color:#8a3a52;">View invoice →</a></p>`,
       fetchFn,
     );
     await writeAudit(

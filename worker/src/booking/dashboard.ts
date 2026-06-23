@@ -95,7 +95,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   const nav = [
     navGroup("Bookings", [
       navLink("/api/admin/calendar",   "Calendar"),
-      navLink("/api/admin/quotes",     "Quotes"),
+      navLink("/api/admin/quotes",     "Invoices"),
       navLink("/api/admin/rejections", "Declined"),
     ].join("\n")),
     navGroup("Clients", [
@@ -243,8 +243,22 @@ function formatZAR(cents: number): string {
   return `R ${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  requested: "New request",
+  quote_sent: "Invoice sent",
+  accepted: "Awaiting deposit",
+  deposit_paid: "Deposit paid",
+  settled: "Settled",
+  declined: "Declined",
+  rejected: "Declined",
+  cancelled: "Cancelled",
+  expired: "Expired",
+  invoice_expired: "Invoice expired",
+};
+
 function statusBadge(status: string): string {
-  return `<span class="badge badge-${esc(status)}">${esc(status.replace(/_/g, " "))}</span>`;
+  const label = STATUS_LABELS[status] ?? status.replace(/_/g, " ");
+  return `<span class="badge badge-${esc(status)}">${esc(label)}</span>`;
 }
 
 function conflictFlag(conflict: boolean): string {
@@ -913,7 +927,7 @@ export async function handleAdminBookingDetail(
           style="width:140px;font:inherit;border:1.5px solid #c9bfb8;border-radius:8px;padding:.4em .6em;" required>
         <button type="submit" style="font:inherit;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.4em 1em;cursor:pointer;">Save revision</button>
       </form>`
-    : `<p style="font-size:.82rem;color:#8a7d72;margin-top:.5rem;">Quote editing locked — status is <strong>${esc(b.status)}</strong>.</p>`;
+    : `<p style="font-size:.82rem;color:#8a7d72;margin-top:.5rem;">Editing locked — status is <strong>${esc(STATUS_LABELS[b.status] ?? b.status)}</strong>.</p>`;
 
   // ── Artist assignment widget ────────────────────────────────────────────────
   const canAssign = ARTIST_ASSIGNABLE_STATUSES.includes(b.status);
@@ -965,8 +979,8 @@ export async function handleAdminBookingDetail(
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
           <form method="POST" action="/api/admin/booking/${esc(id)}/send-quote">
             <button type="submit" style="font:inherit;font-weight:700;background:#276749;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
-              onclick="return confirm('Send the quote to ${esc(b.bride_name.replace(/'/g, "\\'"))}? This emails her the Accept / Decline link.')">
-              Send Quote →
+              onclick="return confirm('Send the deposit invoice to ${esc(b.bride_name.replace(/'/g, "\\'"))}? This emails her a link to choose her deposit and secure the date.')">
+              Send Deposit Invoice →
             </button>
           </form>
           <form method="POST" action="/api/admin/booking/${esc(id)}/decline-booking">
@@ -1028,8 +1042,8 @@ export async function handleAdminBookingDetail(
           <tr><td style="color:#8a7d72;padding-right:1rem;">Reference</td><td>${esc(b.reference)}</td></tr>
           <tr><td style="color:#8a7d72;">Status</td><td>${statusBadge(b.status)}${conflictFlag(b.availability_conflict)}</td></tr>
           <tr><td style="color:#8a7d72;">Requested</td><td>${fmtDateTime(b.created_at)}</td></tr>
-          <tr><td style="color:#8a7d72;">Quote sent</td><td>${fmtDateTime(b.quote_sent_at)}</td></tr>
-          <tr><td style="color:#8a7d72;">Accepted</td><td>${fmtDateTime(b.accepted_at)}</td></tr>
+          <tr><td style="color:#8a7d72;">Invoice sent</td><td>${fmtDateTime(b.quote_sent_at)}</td></tr>
+          <tr><td style="color:#8a7d72;">Deposit chosen</td><td>${fmtDateTime(b.accepted_at)}</td></tr>
           <tr><td style="color:#8a7d72;">Deposit %</td><td>${b.deposit_pct != null ? `${b.deposit_pct}%` : "—"}</td></tr>
           <tr><td style="color:#8a7d72;">Total</td><td><strong>${formatZAR(b.total_cents)}</strong></td></tr>
           <tr><td style="color:#8a7d72;">Deposit</td><td>${formatZAR(b.deposit_net_cents)}</td></tr>
@@ -1037,7 +1051,7 @@ export async function handleAdminBookingDetail(
         </tbody></table>
       </div>
     </div>
-    <h2>Quote lines</h2>
+    <h2>Invoice lines</h2>
     <table><thead><tr><th>Service</th><th style="text-align:right;">Amount</th></tr></thead><tbody>${quoteLines || `<tr><td colspan="2" class="empty">—</td></tr>`}</tbody></table>
     <h2>Edit total</h2>
     ${editForm}
@@ -1096,8 +1110,8 @@ export async function handleAdminQuotes(
 
   const tabBar = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.4rem;">
   <div style="display:flex;gap:.3rem;background:#f7f3ef;border-radius:10px;padding:.3rem;">
-    ${tabLink("quotes", "Quotes")}
-    ${tabLink("invoices", "Invoices")}
+    ${tabLink("quotes", "Invoices")}
+    ${tabLink("invoices", "Bookings")}
     ${tabLink("payments", "Payments")}
   </div>
   <a href="/api/admin/quotes/new" style="display:inline-flex;align-items:center;gap:.4rem;background:#8a3a52;color:#fff;text-decoration:none;border-radius:8px;padding:.45rem 1.1rem;font-size:.86rem;font-weight:600;">+ Create Quote</a>
@@ -1116,13 +1130,13 @@ export async function handleAdminQuotes(
       ? bookings.map((b) => {
           const isRequested = b.status === "requested";
           const sentMs = b.quote_sent_at ? new Date(b.quote_sent_at).getTime() : now;
-          const daysLeft = isRequested ? null : Math.max(0, Math.ceil((sentMs + 7 * 24 * 60 * 60 * 1000 - now) / 86400000));
+          const daysLeft = isRequested ? null : Math.max(0, Math.ceil((sentMs + 14 * 24 * 60 * 60 * 1000 - now) / 86400000));
           const urgent = daysLeft !== null && daysLeft <= 2;
           const statusCell = isRequested
             ? `<span class="badge badge-requested">New request</span>`
-            : `<span class="badge badge-quote_sent">Quote sent</span>`;
+            : `<span class="badge badge-quote_sent">Invoice sent</span>`;
           const expiresCell = daysLeft === null
-            ? `<span style="color:#b7791f;font-weight:600;">Needs quote</span>`
+            ? `<span style="color:#b7791f;font-weight:600;">Needs invoice</span>`
             : `<span style="color:${urgent ? "#c53030" : "#276749"};font-weight:700;">${daysLeft}d left</span>`;
           return `<tr>
             <td><a class="row-link" href="/api/admin/booking/${esc(b.id)}">${esc(b.reference)}</a></td>

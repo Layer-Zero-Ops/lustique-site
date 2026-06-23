@@ -170,6 +170,28 @@ describe("handleAdminSendQuote", () => {
     );
     expect(brevoCalls.length).toBe(2);
   });
+
+  it("bride email contains secure URL + invoice URL and no reject URL", async () => {
+    const token = await validAdminJwt();
+    let capturedBrideHtml = "";
+    const f = vi.fn((url: string, opts?: RequestInit) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
+      if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
+      if (url.includes("&select=")) return Promise.resolve(json([requestedBooking]));
+      if (url.includes("&status=eq.requested")) return Promise.resolve(json([{ ...requestedBooking, status: "quote_sent" }]));
+      if (url.includes("brevo.com")) {
+        const body = JSON.parse((opts as RequestInit).body as string);
+        if (body.to[0].email === "sophie@example.com") capturedBrideHtml = body.htmlContent as string;
+        return Promise.resolve(json({ messageId: "x" }));
+      }
+      if (url.includes("/audit_log")) return Promise.resolve(json({}));
+      return Promise.resolve(json([]));
+    });
+    await handleAdminSendQuote(postReq("/api/admin/booking/bk1/send-quote", token), env, "bk1", f as unknown as typeof fetch);
+    expect(capturedBrideHtml).toContain("/api/booking/accept");
+    expect(capturedBrideHtml).toContain("/api/booking/invoice");
+    expect(capturedBrideHtml).not.toContain("/api/booking/reject");
+  });
 });
 
 // ── handleAdminDeclineBooking ─────────────────────────────────────────────────

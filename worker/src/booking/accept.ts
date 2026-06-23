@@ -105,9 +105,9 @@ h1{font-size:1.5rem;margin:0 0 .4rem;color:#8a3a52;}
 }
 
 const invalidHtml = () =>
-  pageShell("Link not valid", "<h1>This link isn't valid</h1><p>Please use the link from your quote email, or contact info@lustiqueco.co.za.</p>");
+  pageShell("Link not valid", "<h1>This link isn't valid</h1><p>Please use the link from your deposit invoice email, or contact info@lustiqueco.co.za.</p>");
 const expiredHtml = () =>
-  pageShell("Quote expired", "<h1>This quote has expired</h1><p>Quote links are valid for 7 days. Please contact info@lustiqueco.co.za and we'll send a fresh one.</p>");
+  pageShell("Link expired", "<h1>This link has expired</h1><p>Secure-date links are valid for 14 days. Please contact info@lustiqueco.co.za and we'll send a fresh one.</p>");
 const handledHtml = () =>
   pageShell("Already accepted", "<h1>This booking has already been accepted</h1><p>Nothing more to do — we'll be in touch soon!</p>");
 
@@ -116,8 +116,8 @@ function acceptPageBody(b: ConfirmBookingRow, token: string): string {
   const dep25 = Math.round(total * 25 / 100);
   const dep50 = Math.round(total * 50 / 100);
 
-  return `<h1>Confirm your booking ✨</h1>
-<p class="sub">So excited to be part of your day! Choose your deposit to officially secure <strong>${esc(b.wedding_date)}</strong>.</p>
+  return `<h1>Secure your date</h1>
+<p class="sub">We&#8217;re so excited to be part of your day! Choose your deposit to secure <strong>${esc(b.wedding_date)}</strong>.</p>
 <p class="total">Your total: ${zar(total)}</p>
 <form method="POST" action="/api/booking/accept">
 <input type="hidden" name="token" value="${esc(token)}">
@@ -238,7 +238,7 @@ export async function handleAccept(
       env,
       { email: env.NOTIFY_EMAIL, name: "Lustique" },
       `Bride accepted — awaiting deposit · ${b.bride_name} · ${b.wedding_date}`,
-      `<p><strong>${esc(b.bride_name)}</strong> accepted the quote for <strong>${esc(b.wedding_date)}</strong>.</p>
+      `<p><strong>${esc(b.bride_name)}</strong> chose her deposit — awaiting payment for <strong>${esc(b.wedding_date)}</strong>.</p>
 <p>Deposit: <strong>${zar(depositNetCents)}</strong> (${depositPct}%) · Ref: <strong>${esc(b.reference)}</strong>${yocoRedirectUrl ? " · Card payment link sent." : " · No card link — EFT only."}</p>
 <p style="margin:1.2rem 0;"><a href="${esc(markPaidUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">When the EFT lands — mark deposit received</a></p>
 <p style="font-size:.88rem;color:#8a7d72;">Only click once the deposit reflects. Link valid 90 days.</p>`,
