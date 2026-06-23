@@ -1233,6 +1233,7 @@ export async function handleAdminRejections(
 interface CalendarBooking {
   wedding_date: string;
   status: string;
+  occasion: string;
 }
 
 interface BlockedDate {
@@ -1296,7 +1297,7 @@ export async function handleAdminCalendar(
     fetchFn(
       supabaseUrl(
         env,
-        `bookings?wedding_date=gte.${monthStart}&wedding_date=lte.${monthEnd}&status=in.(requested,quote_sent,accepted,deposit_paid)&select=wedding_date,status`,
+        `bookings?wedding_date=gte.${monthStart}&wedding_date=lte.${monthEnd}&status=in.(requested,quote_sent,accepted,deposit_paid)&select=wedding_date,status,occasion`,
       ),
       { headers: hdr },
     ),
@@ -1309,11 +1310,18 @@ export async function handleAdminCalendar(
   const bookings: CalendarBooking[] = bRes.ok ? ((await bRes.json()) as CalendarBooking[]) : [];
   const blockedDates: BlockedDate[] = bdRes.ok ? ((await bdRes.json()) as BlockedDate[]) : [];
 
-  // Build day-count map
-  const countByDay = new Map<string, number>();
+  // Build day-count + occasion maps
+  const countByDay   = new Map<string, number>();
+  const trialsByDay  = new Map<string, number>();
+  const weddingsByDay = new Map<string, number>();
   for (const b of bookings) {
     const d = b.wedding_date.slice(0, 10);
     countByDay.set(d, (countByDay.get(d) ?? 0) + 1);
+    if (b.occasion === "trial") {
+      trialsByDay.set(d, (trialsByDay.get(d) ?? 0) + 1);
+    } else {
+      weddingsByDay.set(d, (weddingsByDay.get(d) ?? 0) + 1);
+    }
   }
   const slotsByDay = new Map<string, number>();
   for (const bd of blockedDates) {
@@ -1364,9 +1372,17 @@ export async function handleAdminCalendar(
       ? `<div style="font-size:.65rem;color:#8a7d72;margin-top:2px;">${count}/${slots} slots</div>`
       : "";
 
+    const tw = trialsByDay.get(dateStr) ?? 0;
+    const ww = weddingsByDay.get(dateStr) ?? 0;
+    const occasionBadges = [
+      ww > 0 ? `<span style="font-size:.6rem;background:#f7e8ec;color:#8a3a52;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">💍${ww > 1 ? " ×" + ww : ""}</span>` : "",
+      tw > 0 ? `<span style="font-size:.6rem;background:#ebf8ff;color:#2b6cb0;border-radius:3px;padding:.05em .3em;font-weight:700;white-space:nowrap;">✂︎${tw > 1 ? " ×" + tw : ""}</span>` : "",
+    ].filter(Boolean).join(" ");
+    const occasionRow = occasionBadges ? `<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;">${occasionBadges}</div>` : "";
+
     cells += `<td style="${cellStyle}background:${bg};${todayRing}" onclick="fillDate('${dateStr}',${slots !== null ? slots : ''})" title="Click to set capacity for ${dateStr}">
       <div style="font-weight:700;font-size:.95rem;color:${isToday ? "#8a3a52" : "#2b2b2b"};">${d}${isToday ? `<span style="font-size:.62rem;font-weight:600;color:#8a3a52;margin-left:4px;">today</span>` : ""}</div>
-      ${dots}${blockedTag}${slotsTag}
+      ${dots}${occasionRow}${blockedTag}${slotsTag}
     </td>`;
   }
   const total = startDow + daysInMonth;
@@ -1397,11 +1413,14 @@ export async function handleAdminCalendar(
       <tbody>${rows}</tbody>
     </table>
 
-    <div style="display:flex;gap:1.2rem;margin-top:1rem;flex-wrap:wrap;">
+    <div style="display:flex;gap:1.2rem;margin-top:1rem;flex-wrap:wrap;align-items:center;">
       <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:50%;background:#276749;display:inline-block;"></span>Booked</span>
       <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:50%;background:#c53030;display:inline-block;"></span>Over capacity</span>
       <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:2px;background:#fde8e8;border:1px solid #f5c6c6;display:inline-block;"></span>Blocked</span>
       <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:2px;border:2px solid #8a3a52;display:inline-block;"></span>Today</span>
+      <span style="width:1px;height:14px;background:#ede7e0;display:inline-block;"></span>
+      <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="font-size:.72rem;background:#f7e8ec;color:#8a3a52;border-radius:3px;padding:.05em .35em;font-weight:700;">💍</span>Wedding / Matric</span>
+      <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="font-size:.72rem;background:#ebf8ff;color:#2b6cb0;border-radius:3px;padding:.05em .35em;font-weight:700;">✂︎</span>Trial</span>
     </div>
 
     <div id="cap-form" style="margin-top:1.8rem;background:#fff;border:1px solid #ede7e0;border-radius:10px;padding:1.2rem 1.4rem;">
