@@ -6,19 +6,10 @@
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main`
 
-**Mission:** Build the direct deposit-invoice flow. Execute the plan task-by-task (TDD).
+**Mission:** ✅ TASK 2 DONE — booking flow reframed as deposit invoice (commit `eab4263`).
 
-- **Plan (ordered task list):** `docs/superpowers/plans/2026-06-23-booking-flow-direct-invoice-plan.md`
-- **Spec (source of truth, every "why"):** `docs/superpowers/specs/2026-06-23-booking-flow-direct-invoice.md`
-
-**One-line summary:** rebrand the existing "quote" flow as a **deposit invoice** — button
-becomes "Send Deposit Invoice", bride gets ONE "Secure your date" link, picks **25% / 50% /
-100%** (rand amounts shown) → Yoco. **No migration, no new enum, no webhook/query changes** —
-only labels, copy, the email template, and `reject.ts` → 410 stub. `accept.ts` keeps all three
-deposit options (copy-only change). `forms.ts` send-quote is OUT OF SCOPE (enquiry composer).
-
-**Pre-flight (non-blocking):** ask Pieter for `SELECT status, COUNT(*) FROM bookings GROUP BY
-status` — informational only; the change is back-compat.
+▶ NEXT: **Newsletter lead magnet** (TASK 3 below). Needs Pieter's Brevo list ID first.
+Also: deploy worker (`cd worker && npm run deploy`) so live site gets the new email + dashboard labels.
 
 ---
 
@@ -33,6 +24,12 @@ deposit_paid`. The state machine Pieter described **already exists**; it was onl
 "quote". So we rebrand the label, not the plumbing: no `invoice_sent` enum (it would churn 50
 refs across 12 files for an enum string the bride never sees), no migration, no webhook change.
 Full rationale + file-by-file list in the spec.
+
+---
+
+### TASK 2 — Booking Flow Simplification ✅ DONE (2026-06-23, commit `eab4263`)
+
+Option A reframe executed. reject.ts → 410 stub. accept.ts → "Secure your date" copy. admin-actions.ts → deposit invoice email (heading, deposit options table, single CTA, 14d TTL). dashboard.ts → STATUS_LABELS map, "Send Deposit Invoice →" button, "Invoices" nav/tab, timeline labels. 401/401 tests green.
 
 ---
 
