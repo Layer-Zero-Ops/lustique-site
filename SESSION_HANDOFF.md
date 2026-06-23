@@ -12,10 +12,10 @@
 - **Spec (source of truth, every "why"):** `docs/superpowers/specs/2026-06-23-booking-flow-direct-invoice.md`
 
 **One-line summary:** rebrand the existing "quote" flow as a **deposit invoice** — button
-becomes "Send Deposit Invoice", bride gets ONE "Secure your date" link, picks **25% or 50%**
-(rand amounts shown) → Yoco. **No migration, no new enum, no webhook/query changes** — only
-labels, copy, the email template, and `reject.ts` → 410 stub. `forms.ts` send-quote is OUT
-OF SCOPE (it's the enquiry composer).
+becomes "Send Deposit Invoice", bride gets ONE "Secure your date" link, picks **25% / 50% /
+100%** (rand amounts shown) → Yoco. **No migration, no new enum, no webhook/query changes** —
+only labels, copy, the email template, and `reject.ts` → 410 stub. `accept.ts` keeps all three
+deposit options (copy-only change). `forms.ts` send-quote is OUT OF SCOPE (enquiry composer).
 
 **Pre-flight (non-blocking):** ask Pieter for `SELECT status, COUNT(*) FROM bookings GROUP BY
 status` — informational only; the change is back-compat.

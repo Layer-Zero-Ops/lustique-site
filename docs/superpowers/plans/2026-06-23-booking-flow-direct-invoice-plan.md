@@ -4,7 +4,7 @@
 **Branch:** `main` · **Method:** TDD (booking logic = money truth) · **No migration. No new packages.**
 
 Goal: rebrand the "quote" booking flow as a **deposit invoice** — Zandeline clicks
-**Send Deposit Invoice**, the bride gets ONE "Secure your date" link, picks **25% or 50%**
+**Send Deposit Invoice**, the bride gets ONE "Secure your date" link, picks **25% / 50% / 100%**
 (rand amounts shown), and pays via Yoco. No bride-facing accept/reject. **State machine and
 all status queries are unchanged** — only labels, copy, the email, and the reject route change.
 
@@ -26,12 +26,12 @@ all status queries are unchanged** — only labels, copy, the email, and the rej
   Keep the route registered in `index.ts` (no route change).
 - Green.
 
-## Task 2 — `accept.ts` → "Secure your date", 25/50 only
-- TDD: update `accept.test.ts` — page shows 25% + 50% (not 100%); `depositPct=100` → 400;
-  copy no longer says "quote". Watch fail.
-- Change: page title/intro copy (spec §8); remove the 100% radio; per-option show rand amount
-  + remaining balance; POST validation `[25, 50]`; Zandeline notify copy → "chose her
-  deposit — awaiting payment". **Keep** the `quote_sent → accepted` transition + Yoco checkout.
+## Task 2 — `accept.ts` → "Secure your date" (copy only)
+- TDD: update `accept.test.ts` only where it asserts old "quote" copy → new "Secure your
+  date" copy. **Options stay 25/50/100** — no option/validation changes. Watch fail.
+- Change: page title/intro copy (spec §8); Zandeline notify copy → "chose her deposit —
+  awaiting payment". **Keep** the 25/50/100 radios, `[25,50,100]` validation, the
+  `quote_sent → accepted` transition, and the Yoco checkout — all unchanged.
 - Green.
 
 ## Task 3 — `admin-actions.ts` → deposit-invoice email

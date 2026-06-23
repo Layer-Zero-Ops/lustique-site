@@ -18,9 +18,12 @@ And, on the deposit (Pieter, 2026-06-23):
 > chooses which one by ticking next to her choice, which will then feed into Yoco to add
 > the correct amount to the link."
 
+> Follow-up (Pieter, 2026-06-23): "Show all three options: **25%, 50% and 100%** for
+> brides/customers to choose from before being asked to pay via the Yoco link."
+
 So: the bride sees the cost up front (estimator), submits the booking, Zandeline confirms
 availability and sends **one deposit invoice**. The bride lands on a page showing her
-**25% and 50% amounts in rands**, ticks one, and pays via Yoco. No "accept/reject quote".
+**25%, 50% and 100% amounts in rands**, ticks one, and pays via Yoco. No "accept/reject quote".
 
 ---
 
@@ -95,18 +98,19 @@ the "invoice sent at" timestamp (documented; column not renamed).
 
 ---
 
-## 5. Deposit options — 25% and 50% only
+## 5. Deposit options — 25%, 50% and 100% (all three)
 
 PRICING.md §5 (locked): **50% to secure** is standard; **25% now** is the flexible concession.
-Pay-in-full (100%) is **not** in PRICING and Pieter named only 25%/50%.
+Pieter (2026-06-23): **show all three** — 25%, 50% and 100% (pay in full).
 
-- **Remove the 100% "Pay in full" option** from the bride's choice page.
-- Validation accepts only `[25, 50]`.
-- To re-add 100% later: restore the radio + add `100` to the allow-list (one line each).
+- **Keep all three options** on the bride's choice page — this is exactly the as-built page.
+- Validation accepts `[25, 50, 100]` — **no change** to `accept.ts` options or validation.
+- Only the surrounding *copy* changes (§8): "quote" → "secure your date".
 
 The page shows, per option, the **rand amount** and the **remaining balance**, e.g.:
 - ☐ 25% deposit — R 2 500 · *Balance of R 7 500 payable closer to your day*
 - ☐ 50% deposit — R 5 000 · *Balance of R 5 000 payable closer to your day*
+- ☐ Pay in full — R 10 000 · *Nothing more to pay — all done ✓*
 
 ---
 
@@ -156,8 +160,8 @@ Keep the route (`/api/booking/accept`) and the `quote_sent → accepted` transit
 
 1. **Copy:** title "Confirm your booking ✨" → "Secure your date"; remove "quote" wording;
    intro: "Choose your deposit to secure **{date}**." Keep the brand styling.
-2. **Options:** 25% and 50% only (remove 100% radio). Show rand amount + remaining balance.
-3. **POST validation:** `[25, 50]` (was `[25, 50, 100]`).
+2. **Options:** keep **25% / 50% / 100%** (no change). Show rand amount + remaining balance.
+3. **POST validation:** `[25, 50, 100]` — **no change**.
 4. **Token TTL:** the *send* handler signs the accept + invoice tokens; bump the accept-link
    TTL constant `QUOTE_TTL_MS` from 7 → **14 days** (rename to `INVOICE_TTL_MS` is optional).
    Note: the expiry **cron sweep** (`invoiceExpirySweep`, 7-day `quote_sent` cutoff) is left
@@ -184,7 +188,7 @@ info@lustiqueco.co.za." Delete the transition/notify logic. Keep `pageShell` for
 | File | Change | Risk |
 |---|---|---|
 | `worker/src/booking/admin-actions.ts` | Rewrite `quoteEmailHtml` → deposit-invoice email (§6); drop reject token (keep accept + invoice tokens); bump TTL 7→14d; update Zandeline copy email subject/body. Transition stays `requested → quote_sent`. Optional: rename `handleAdminSendQuote` → `handleAdminSendDepositInvoice`. | Med |
-| `worker/src/booking/accept.ts` | Copy → "Secure your date"; 25/50 only (remove 100); validation `[25,50]`; notify copy "chose her deposit". Keep transition + Yoco. | Med |
+| `worker/src/booking/accept.ts` | **Copy only** → "Secure your date" (remove "quote" wording); notify copy "chose her deposit". Options 25/50/100 + validation + transition + Yoco all **unchanged**. | Low |
 | `worker/src/booking/reject.ts` | Convert GET+POST to 410 stub (§9). | Low |
 | `worker/src/booking/dashboard.ts` | Button label + confirm copy; badge label map (§3); "Quotes"→"Invoices" headings/nav/pills; timeline labels. **No query changes.** | Med |
 | `worker/src/index.ts` | Only if the handler/route is renamed (optional): update import + route match `/send-quote` → `/send-invoice` + the dashboard form `action`. Else **no change**. | Low |
@@ -218,7 +222,8 @@ info@lustiqueco.co.za." Delete the transition/notify logic. Keep `pageShell` for
 **Will break (must update):**
 - `admin-actions.test.ts` — asserts accept **and reject** links in the quote email →
   update to assert the single "Secure your date" CTA + invoice link, and **no** reject link.
-- `accept.test.ts` — asserts 25/50/**100** options → update to 25/50; assert 100 rejected.
+- `accept.test.ts` — only if it asserts the old "quote" copy strings → update to the new
+  "Secure your date" copy. **Options stay 25/50/100** (no option/validation test changes).
 - `reject.test.ts` — asserts `quote_sent → rejected` transition + email → update to assert
   **410** for GET and POST, and that **no** transition/email occurs.
 - `dashboard*.test.ts` — any assertion on the literal "Send Quote" / "Quote sent" strings →
@@ -226,7 +231,6 @@ info@lustiqueco.co.za." Delete the transition/notify logic. Keep `pageShell` for
 
 **New tests:**
 - `reject.test.ts`: 410 status + body for a still-valid token (no side effects).
-- `accept.test.ts`: posting `depositPct=100` is rejected (400).
 - `admin-actions.test.ts`: deposit-invoice email contains the secure URL + invoice URL and
   does **not** contain `/api/booking/reject`.
 
