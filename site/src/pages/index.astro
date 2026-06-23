@@ -1,47 +1,35 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Photo from "../components/Photo.astro";
-import { sanityClient } from "../lib/sanity";
-import { HOME_SETTINGS_QUERY, type SanityHomeSettingsQuery } from "../queries/home";
 
 const title = "Lustique Co. — Bridal Hair & Makeup Artistry | Pretoria & Beyond";
 const desc =
   "Bridal hair and makeup for the bride who wants to feel most like herself. Nine artists, 40+ years combined, serving Pretoria, Gauteng and beyond since 2018.";
 
-const homeData = await sanityClient.fetch<SanityHomeSettingsQuery>(HOME_SETTINGS_QUERY);
-
-// Access via homeData.settings?.heroHeadline — the query projection wraps settings in a nested key.
-const heroHeadline = homeData?.settings?.heroHeadline ?? "Feel most like yourself.";
+const heroHeadline = "Feel most like yourself.";
 const heroSub =
-  homeData?.settings?.heroSubheadline ??
   "For the bride who wants to look softly, unmistakably, unforgettably like herself — on the morning that matters most.";
 
-const testimonials =
-  homeData?.testimonials?.length > 0
-    ? homeData.testimonials
-    : [
-        {
-          _id: "fallback-1",
-          quote:
-            "They felt less like a vendor and more like the calmest people in the room. I looked like me — just the version I always hoped to be on my wedding day.",
-          attribution: "A Lustique Bride",
-          rating: 5,
-        },
-        {
-          _id: "fallback-2",
-          quote:
-            "My whole bridal party was ready, relaxed and glowing. Not one moment of stress all morning.",
-          attribution: "A Lustique Bride",
-          rating: 5,
-        },
-        {
-          _id: "fallback-3",
-          quote:
-            "The trial sold me. They listened, adjusted, and on the day my makeup lasted from the first photo to the last dance.",
-          attribution: "A Lustique Bride",
-          rating: 5,
-        },
-      ];
+const testimonials = [
+  {
+    id: "t1",
+    quote:
+      "They felt less like a vendor and more like the calmest people in the room. I looked like me — just the version I always hoped to be on my wedding day.",
+    attribution: "A Lustique Bride",
+  },
+  {
+    id: "t2",
+    quote:
+      "My whole bridal party was ready, relaxed and glowing. Not one moment of stress all morning.",
+    attribution: "A Lustique Bride",
+  },
+  {
+    id: "t3",
+    quote:
+      "The trial sold me. They listened, adjusted, and on the day my makeup lasted from the first photo to the last dance.",
+    attribution: "A Lustique Bride",
+  },
+];
 ---
 <BaseLayout slug="index.html" title={title} desc={desc}>
 
@@ -139,12 +127,12 @@ const testimonials =
         {testimonials.map((t, i) => (
           <div class={`testi-slide${i === 0 ? " active" : ""}`}>
             <p class="lead">"{t.quote}"</p>
-            <cite>{t.attribution ?? "A Lustique Bride"}</cite>
+            <cite>{t.attribution}</cite>
           </div>
         ))}
       </div>
       <div class="testi-dots"></div>
-      <div class="sub reveal d2">— real bride testimonials · manage in Sanity Studio</div>
+      <div class="sub reveal d2">— real bride testimonials</div>
     </div>
   </section>
 

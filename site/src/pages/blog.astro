@@ -1,12 +1,22 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { sanityClient } from "../lib/sanity";
-import { BLOG_INDEX_QUERY, type SanityBlogPost } from "../queries/blog";
+import { supabaseGet } from "../lib/supabase";
 
 const title = "Journal — Bridal Beauty Advice | Lustique Co.";
 const desc = "Honest, practical bridal hair and makeup advice from a Pretoria team.";
 
-const posts = await sanityClient.fetch<SanityBlogPost[]>(BLOG_INDEX_QUERY);
+type BlogPost = {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  tags: string[];
+  published_at: string | null;
+};
+
+const posts = await supabaseGet<BlogPost>(
+  "blog_posts?select=id,title,slug,excerpt,tags,published_at&published=eq.true&order=published_at.desc"
+);
 ---
 <BaseLayout slug="blog.html" title={title} desc={desc}>
 
@@ -21,7 +31,7 @@ const posts = await sanityClient.fetch<SanityBlogPost[]>(BLOG_INDEX_QUERY);
       {posts.length > 0
         ? posts.map((post, i) => (
             <article class={`card reveal${i === 1 ? " d1" : i === 2 ? " d2" : ""}`} style="padding:2rem 1.9rem;">
-              <span class="eyebrow">{post.category}</span>
+              <span class="eyebrow">{post.tags?.[0] ?? "Journal"}</span>
               <h3 style="margin:.6rem 0 .7rem;">{post.title}</h3>
               <p style="font-size:.96rem;color:#5c5048;margin-bottom:1.2rem;">{post.excerpt}</p>
               <a class="card-link" href={`blog/${post.slug}.html`}>Read <span>→</span></a>

@@ -1,13 +1,27 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Photo from "../components/Photo.astro";
-import { sanityClient } from "../lib/sanity";
-import { TEAM_QUERY, type SanityTeamMember } from "../queries/team";
+import { supabaseGet } from "../lib/supabase";
 
 const title = "The Team — Lustique Co.";
 const desc = "Meet the nine bridal artists of Lustique Co. — 40+ years of combined experience.";
 
-const artists = await sanityClient.fetch<SanityTeamMember[]>(TEAM_QUERY);
+type Artist = {
+  id: string;
+  name: string;
+  specialisms: string[];
+};
+
+const artists = await supabaseGet<Artist>(
+  "artists?select=id,name,specialisms&active=eq.true&order=name.asc"
+);
+
+function specialismLabel(specialisms: string[]): string {
+  const has = (s: string) => specialisms?.includes(s);
+  if (has("bridal-hair") && has("bridal-makeup")) return "Bridal Hair & Makeup";
+  if (has("bridal-makeup")) return "Bridal Makeup";
+  if (has("bridal-hair")) return "Bridal Hair";
+  return "Bridal Artistry";
+}
 ---
 <BaseLayout slug="team.html" title={title} desc={desc} breadcrumb={[{ name: "The Team" }]}>
 
@@ -24,13 +38,9 @@ const artists = await sanityClient.fetch<SanityTeamMember[]>(TEAM_QUERY);
     <div class="artist-grid">
       {artists.map((a, i) => (
         <div class={`artist reveal${["", " d1", " d2"][i % 3]}`}>
-          {a.photo
-            ? <Photo sanityImage={a.photo} alt={`${a.name} — Lustique Co. bridal artist`} width={400} height={400} />
-            : <div class="ph"></div>
-          }
+          <div class="ph"></div>
           <h3>{a.name}</h3>
-          <div class="role">{a.role}</div>
-          <p>{a.bio}</p>
+          <div class="role">{specialismLabel(a.specialisms)}</div>
         </div>
       ))}
     </div>

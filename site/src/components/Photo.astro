@@ -1,16 +1,6 @@
 ---
-/* Photo.astro — responsive image wrapper.
-   Accepts either:
-     src (string): legacy path under /assets/ (existing site images)
-     sanityImage (SanityImageObject): Sanity CDN image reference
-   Backward-compatible — no existing page that passes only `src` needs to change.
-*/
-import { resolvePhotoSrc } from "../lib/imageUrl";
-import type { SanityImageObject } from "@sanity/image-url/lib/types/types";
-
 interface Props {
-  src?: string;
-  sanityImage?: SanityImageObject;
+  src: string;
   alt: string;
   cls?: string;
   eager?: boolean;
@@ -18,22 +8,12 @@ interface Props {
   height?: number;
 }
 
-const {
-  src,
-  sanityImage,
-  alt,
-  cls = "",
-  eager = false,
-  width = 800,
-  height = 800,
-} = Astro.props as Props;
-
-const imgSrc = resolvePhotoSrc(src, sanityImage, width, height);
+const { src, alt, cls = "", eager = false, width = 800, height = 800 } = Astro.props as Props;
 ---
 <div class={`ph img ${cls}`}>
   <img
     class="ph-img"
-    src={imgSrc}
+    src={`assets/${src}`}
     alt={alt}
     loading={eager ? "eager" : "lazy"}
     decoding="async"

@@ -11,10 +11,7 @@
   },
   "dependencies": {
     "@lustique/pricing": "*",
-    "@sanity/client": "^6.29.1",
-    "@sanity/image-url": "^1.2.0",
-    "astro": "^4.16.0",
-    "astro-portabletext": "^0.13.0"
+    "astro": "^4.16.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^1.6.1",

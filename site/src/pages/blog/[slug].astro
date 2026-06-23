@@ -1,53 +1,63 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import PortableText from "../../components/PortableText.astro";
-import { sanityClient } from "../../lib/sanity";
-import {
-  BLOG_SLUGS_QUERY,
-  BLOG_POST_QUERY,
-  type SanityBlogPostFull,
-} from "../../queries/blog";
+import { supabaseGet } from "../../lib/supabase";
+
+type BlogPost = {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  body: string;
+  published_at: string | null;
+  updated_at: string;
+};
 
 export async function getStaticPaths() {
-  const posts = await sanityClient.fetch<{ slug: string }[]>(BLOG_SLUGS_QUERY);
+  const posts = await supabaseGet<{ slug: string }>(
+    "blog_posts?select=slug&published=eq.true"
+  );
   return posts.map((p) => ({ params: { slug: p.slug } }));
 }
 
 const { slug } = Astro.params;
-const post = await sanityClient.fetch<SanityBlogPostFull>(BLOG_POST_QUERY, { slug });
+const results = await supabaseGet<BlogPost>(
+  `blog_posts?select=id,title,slug,excerpt,body,published_at,updated_at&slug=eq.${encodeURIComponent(slug!)}&published=eq.true&limit=1`
+);
+const post = results[0];
 
 if (!post) {
-  // Guard required by TypeScript; should not occur in a static build where
-  // getStaticPaths controls the full set of params.
   return Astro.redirect("/blog.html", 302);
 }
 
-const eyebrow = `Journal · ${post.category ?? "Guide"}`;
-const pubDate = post.publishedAt
-  ? new Date(post.publishedAt).toLocaleDateString("en-ZA", {
+const pubDate = post.published_at
+  ? new Date(post.published_at).toLocaleDateString("en-ZA", {
       year: "numeric",
       month: "long",
       day: "numeric",
     })
   : null;
+
+const paragraphs = post.body
+  ? post.body.split(/\n\n+/).filter((p) => p.trim())
+  : [];
 ---
 <BaseLayout
   slug={`blog/${slug}.html`}
   title={`${post.title} | Lustique Co.`}
-  desc={post.excerpt}
+  desc={post.excerpt ?? ""}
   breadcrumb={[{ name: "Journal", item: "https://lustiqueco.co.za/blog.html" }, { name: post.title }]}
 >
 
   <section class="page-hero">
-    <span class="eyebrow">{eyebrow}</span>
+    <span class="eyebrow">Journal</span>
     <h1>{post.title}</h1>
-    <p>{post.excerpt}</p>
+    {post.excerpt && <p>{post.excerpt}</p>}
     {pubDate && <p class="note" style="margin-top:.5rem;">{pubDate}</p>}
   </section>
 
   <section class="section"><div class="wrap prose">
-    {Array.isArray(post.body) && post.body.length > 0
-      ? <PortableText value={post.body} />
+    {paragraphs.length > 0
+      ? paragraphs.map((para) => <p>{para}</p>)
       : <p>This article is coming soon.</p>
     }
   </div></section>

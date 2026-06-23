@@ -1,24 +1,28 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { sanityClient, urlFor } from "../lib/sanity";
-import { PORTFOLIO_QUERY, type SanityPortfolioImage } from "../queries/portfolio";
-import { TEAM_QUERY, type SanityTeamMember } from "../queries/team";
+import { supabaseGet, storageUrl } from "../lib/supabase";
 
 const title = "Portfolio — Lustique Co.";
 const desc =
   "Real brides, real mornings — a gallery of recent bridal hair and makeup work, filterable by artist.";
 
-const [images, artists] = await Promise.all([
-  sanityClient.fetch<SanityPortfolioImage[]>(PORTFOLIO_QUERY),
-  sanityClient.fetch<SanityTeamMember[]>(TEAM_QUERY),
-]);
+type PortfolioImage = {
+  id: string;
+  storage_path: string;
+  position: number;
+  artist_id: string;
+  artists: { id: string; name: string } | null;
+};
 
-const imageCountByArtist: Record<string, number> = {};
-for (const artist of artists) {
-  imageCountByArtist[artist.slug] = images.filter(
-    (img) => img.artistId === artist.slug
-  ).length;
+const images = await supabaseGet<PortfolioImage>(
+  "portfolio_images?select=id,storage_path,position,artist_id,artists(id,name)&order=position.asc"
+);
+
+const artistsMap = new Map<string, string>();
+for (const img of images) {
+  if (img.artists) artistsMap.set(img.artists.id, img.artists.name);
 }
+const artists = Array.from(artistsMap.entries()).map(([id, name]) => ({ id, name }));
 ---
 <BaseLayout slug="portfolio.html" title={title} desc={desc} breadcrumb={[{ name: "Portfolio" }]}>
 
@@ -36,28 +40,24 @@ for (const artist of artists) {
     <div class="filters" id="artistFilters" role="group" aria-label="Filter portfolio by artist">
       <button type="button" class="active" data-filter="all">All artists</button>
       {artists.map((a) => (
-        <button type="button" data-filter={a.slug} data-count={imageCountByArtist[a.slug]}>
+        <button type="button" data-filter={a.id}>
           {a.name}
         </button>
       ))}
     </div>
 
     <div class="gallery" id="gallery">
-      {images.map((img) => {
-        const src = urlFor(img.image).width(900).auto("format").quality(85).url();
-        return (
-          <img
-            class="gitem"
-            src={src}
-            alt={img.alt}
-            data-cat={img.category}
-            data-artist={img.artistId}
-            loading="lazy"
-            decoding="async"
-            width="900"
-          />
-        );
-      })}
+      {images.map((img) => (
+        <img
+          class="gitem"
+          src={storageUrl(img.storage_path)}
+          alt={`Portfolio image — Lustique Co. bridal artistry`}
+          data-artist={img.artist_id}
+          loading="lazy"
+          decoding="async"
+          width="900"
+        />
+      ))}
     </div>
 
     <div class="gallery-empty" id="galleryEmpty" hidden>
@@ -65,6 +65,12 @@ for (const artist of artists) {
       <p class="note">We add each artist's work as she shares it. In the meantime, browse our full gallery.</p>
       <button type="button" class="btn btn-ghost" data-reset>View all work</button>
     </div>
+
+    {images.length === 0 && (
+      <p class="note center" style="margin-top:2rem;">
+        Our portfolio gallery is coming soon — follow us on Instagram for the latest work.
+      </p>
+    )}
 
     <p class="note center" style="margin-top:2rem;">
       Every photograph here is our own real work — never stock, never AI. Per-artist galleries

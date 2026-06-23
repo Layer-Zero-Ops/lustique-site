@@ -1,6 +1,5 @@
 import type { APIRoute } from "astro";
-import { sanityClient } from "../lib/sanity";
-import { BLOG_SLUGS_QUERY } from "../queries/blog";
+import { supabaseGet } from "../lib/supabase";
 
 const SITE = "https://lustiqueco.co.za";
 
@@ -14,12 +13,15 @@ const staticSlugs = [
 const STATIC_LASTMOD = "2026-06-21";
 
 export const GET: APIRoute = async () => {
+  type BlogSlug = { slug: string; updated_at: string };
   let blogEntries: { slug: string; lastmod: string }[] = [];
   try {
-    const posts = await sanityClient.fetch<{ slug: string; _updatedAt?: string }[]>(BLOG_SLUGS_QUERY);
+    const posts = await supabaseGet<BlogSlug>(
+      "blog_posts?select=slug,updated_at&published=eq.true"
+    );
     blogEntries = posts.map((p) => ({
       slug: `blog/${p.slug}.html`,
-      lastmod: p._updatedAt ? p._updatedAt.slice(0, 10) : STATIC_LASTMOD,
+      lastmod: p.updated_at ? p.updated_at.slice(0, 10) : STATIC_LASTMOD,
     }));
   } catch {
     blogEntries = [];
