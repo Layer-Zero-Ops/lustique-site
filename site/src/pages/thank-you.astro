@@ -5,23 +5,123 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
 ---
 <BaseLayout slug="thank-you.html" title={title} desc={desc}>
 
-  
   <section class="page-hero">
     <span class="eyebrow">Thank you</span>
-    <h1>Your enquiry is on its way to us.</h1>
-    <p>We’ll reply within 24 hours — often sooner.</p>
+    <h1>Your enquiry is on its way<br class="rwd-br"> to us.</h1>
+    <p style="max-width:44ch;margin-inline:auto;">
+      We're honoured you're considering us for your day. We'll reply within
+      24&nbsp;hours — often much sooner.
+    </p>
   </section>
-  <section class="section"><div class="wrap prose">
-    <p style="text-align:center;font-size:1.12rem;">We’re honoured you’re considering us for your day. Here’s what happens next:</p>
-    <ol style="max-width:46ch;margin:1.5rem auto;line-height:2;">
-      <li>We review your details and check artist availability for your date.</li>
-      <li>We send your personalised quote — with clear, itemised pricing.</li>
-      <li>You approve it, and we reserve your date with a booking fee.</li>
-    </ol>
-    <div class="center" style="margin-top:2rem;">
-      <p class="note" style="margin-bottom:1rem;">While you wait — a little gift:</p>
-      <a class="btn btn-primary" href="guide-skin-prep.html">Download our 30-day skin-prep guide</a>
+
+  <!-- What happens next -->
+  <section class="section" style="background:var(--ivory);padding-top:0;">
+    <div class="wrap">
+      <div class="center" style="margin-bottom:2.4rem;">
+        <span class="eyebrow reveal">What happens next</span>
+      </div>
+      <div class="cards">
+        <article class="card reveal" style="padding:2rem 1.9rem;">
+          <span class="eyebrow">01</span>
+          <h3 style="margin:.6rem 0 .6rem;">We review your details</h3>
+          <p>We check artist availability for your date and party size, and confirm your estimate is accurate.</p>
+        </article>
+        <article class="card reveal d1" style="padding:2rem 1.9rem;">
+          <span class="eyebrow">02</span>
+          <h3 style="margin:.6rem 0 .6rem;">We send your quote</h3>
+          <p>A personalised, itemised quote lands in your inbox — with clear pricing, no hidden fees.</p>
+        </article>
+        <article class="card reveal d2" style="padding:2rem 1.9rem;">
+          <span class="eyebrow">03</span>
+          <h3 style="margin:.6rem 0 .6rem;">You secure your date</h3>
+          <p>Approve the quote and pay your deposit to reserve your date. We take it from there.</p>
+        </article>
+      </div>
     </div>
-    <p class="note center" style="margin-top:2.4rem;">Blessings,<br>The Lustique Cosmetology Team</p>
-  </div></section>
+  </section>
+
+  <!-- While you wait -->
+  <section class="section" style="padding-top:0;">
+    <div class="wrap">
+      <div class="center" style="margin-bottom:2.4rem;">
+        <span class="eyebrow reveal">While you wait</span>
+        <p class="reveal d1" style="margin-top:.6rem;color:#5c5048;max-width:44ch;margin-inline:auto;">
+          A few things worth exploring before your quote arrives.
+        </p>
+      </div>
+      <div style="display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">
+
+        <a href="portfolio.html" class="ty-tile reveal">
+          <span class="ty-tile-icon">🖼️</span>
+          <strong>Browse the portfolio</strong>
+          <span>See our real bride work — never stock, never AI.</span>
+        </a>
+
+        <a href="guide-skin-prep.html" class="ty-tile reveal d1">
+          <span class="ty-tile-icon">✨</span>
+          <strong>30-day skin-prep guide</strong>
+          <span>Free from us — a calm, simple routine for the month before your wedding.</span>
+        </a>
+
+        <a href="guide-timeline.html" class="ty-tile reveal d2">
+          <span class="ty-tile-icon">🕐</span>
+          <strong>Wedding morning timeline</strong>
+          <span>How to plan your morning so everyone is ready, relaxed and on time.</span>
+        </a>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Direct contact -->
+  <section class="section cta-band" style="padding-block:clamp(3rem,7vw,5.5rem);">
+    <div class="wrap center">
+      <span class="eyebrow reveal">Any questions?</span>
+      <h2 class="reveal d1" style="margin-top:1rem;font-size:clamp(1.6rem,3.5vw,2.6rem);">
+        Reach us directly.
+      </h2>
+      <p class="reveal d2" style="max-width:44ch;margin-inline:auto;margin-top:.9rem;">
+        You're welcome to call or message us — we're a real team and we love a quick chat.
+      </p>
+      <div class="reveal d2" style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-top:1.8rem;">
+        <a class="btn btn-primary" href="tel:+27679253894">Call 067&nbsp;925&nbsp;3894</a>
+        <a class="btn btn-light" href="mailto:info@lustiqueco.co.za">Email us</a>
+      </div>
+      <p class="reveal d3" style="margin-top:2.4rem;font-family:var(--serif);font-style:italic;font-size:1.1rem;opacity:.85;">
+        Blessings, The Lustique Cosmetology Team.
+      </p>
+    </div>
+  </section>
+
 </BaseLayout>
+
+<style>
+  .rwd-br { display: none; }
+  @media (max-width: 540px) { .rwd-br { display: block; } }
+
+  .ty-tile {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    background: #fff;
+    border: 1.5px solid rgba(92,67,50,.12);
+    border-radius: 14px;
+    padding: 1.6rem 1.5rem;
+    text-decoration: none;
+    color: var(--charcoal);
+    transition: box-shadow .35s, transform .35s;
+  }
+  .ty-tile:hover {
+    box-shadow: 0 8px 28px -10px rgba(92,67,50,.18);
+    transform: translateY(-3px);
+  }
+  .ty-tile-icon { font-size: 1.5rem; }
+  .ty-tile strong {
+    font-family: var(--serif);
+    font-size: 1.2rem;
+    color: var(--mocha);
+    font-weight: 400;
+    line-height: 1.2;
+  }
+  .ty-tile span { font-size: .9rem; color: #7a6257; line-height: 1.5; }
+</style>
