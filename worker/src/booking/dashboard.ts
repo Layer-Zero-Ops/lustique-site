@@ -115,9 +115,9 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 <style>
   *,*::before,*::after{box-sizing:border-box;}
   body{margin:0;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;color:#2b2b2b;background:#f7f3ef;display:flex;min-height:100vh;}
-  .sidebar{width:230px;min-height:100vh;background:#fff;border-right:1px solid #ede7e0;padding:1.5rem .75rem 1.5rem;display:flex;flex-direction:column;flex-shrink:0;}
+  .sidebar{width:230px;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;background:#fff;border-right:1px solid #ede7e0;padding:1.5rem .75rem 1.5rem;display:flex;flex-direction:column;flex-shrink:0;}
   .sidebar-logo{display:block;width:72px;margin:0 auto 1.2rem;opacity:.92;}
-  .main{flex:1;padding:2rem 2.5rem;overflow-x:auto;}
+  .main{flex:1;padding:2rem 2.5rem;overflow-x:auto;margin-left:230px;}
   h1{font-size:1.35rem;margin:0 0 1.5rem;color:#2b2b2b;}
   h2{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a7d72;margin:1.6rem 0 .7rem;}
   .sidebar-footer{margin-top:auto;padding-top:1rem;border-top:1px solid #f3ede8;}
@@ -1364,7 +1364,7 @@ export async function handleAdminCalendar(
       ? `<div style="font-size:.65rem;color:#8a7d72;margin-top:2px;">${count}/${slots} slots</div>`
       : "";
 
-    cells += `<td style="${cellStyle}background:${bg};${todayRing}" onclick="fillDate('${dateStr}')" title="Click to set capacity for ${dateStr}">
+    cells += `<td style="${cellStyle}background:${bg};${todayRing}" onclick="fillDate('${dateStr}',${slots !== null ? slots : ''})" title="Click to set capacity for ${dateStr}">
       <div style="font-weight:700;font-size:.95rem;color:${isToday ? "#8a3a52" : "#2b2b2b"};">${d}${isToday ? `<span style="font-size:.62rem;font-weight:600;color:#8a3a52;margin-left:4px;">today</span>` : ""}</div>
       ${dots}${blockedTag}${slotsTag}
     </td>`;
@@ -1404,7 +1404,7 @@ export async function handleAdminCalendar(
       <span style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#5c3d47;"><span style="width:10px;height:10px;border-radius:2px;border:2px solid #8a3a52;display:inline-block;"></span>Today</span>
     </div>
 
-    <div style="margin-top:1.8rem;background:#fff;border:1px solid #ede7e0;border-radius:10px;padding:1.2rem 1.4rem;">
+    <div id="cap-form" style="margin-top:1.8rem;background:#fff;border:1px solid #ede7e0;border-radius:10px;padding:1.2rem 1.4rem;">
       <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.9rem;">Set Day Capacity</div>
       <p style="font-size:.82rem;color:#8a7d72;margin:0 0 .9rem;">Click any day to pre-fill the date, then set the number of bookings allowed (0 = fully blocked).</p>
       <form method="POST" action="/api/admin/calendar" style="display:flex;gap:.7rem;align-items:flex-end;flex-wrap:wrap;">
@@ -1422,9 +1422,10 @@ export async function handleAdminCalendar(
       </form>
     </div>
     <script>
-    function fillDate(d){
+    function fillDate(d,s){
       document.getElementById('cap-date').value=d;
-      document.getElementById('cap-date').focus();
+      if(s!==undefined&&s!==''){document.getElementById('cap-slots').value=s;}
+      document.getElementById('cap-form').scrollIntoView({behavior:'smooth',block:'nearest'});
     }
     </script>
   `;

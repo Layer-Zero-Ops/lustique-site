@@ -113,37 +113,48 @@ function restUrl(env: BlogEnv, path: string): string {
 function postForm(action: string, post?: BlogPost): string {
   const v = (field: keyof BlogPost, fallback = "") =>
     esc(String(post?.[field] ?? fallback));
+  const excerptLen = (post?.excerpt ?? "").length;
   return `
-    <form method="POST" action="${esc(action)}" style="max-width:720px;">
-      <div style="margin-bottom:1rem;">
+    <form method="POST" action="${esc(action)}" id="post-form" style="max-width:800px;">
+      <input type="hidden" name="publish" id="publish-flag" value="">
+      <div style="margin-bottom:1.1rem;">
         <label style="display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.4rem;">Title *</label>
         <input name="title" type="text" required value="${v("title")}" maxlength="200"
-          style="width:100%;font:inherit;font-size:1rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.5em .7em;background:#faf7f4;"
-          oninput="autoSlug(this.value)">
+          style="width:100%;font:inherit;font-size:1.05rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.5em .7em;background:#faf7f4;"
+          oninput="autoSlug(this.value)" placeholder="e.g. 5 Bridal Hair Trends for 2027">
       </div>
-      <div style="margin-bottom:1rem;">
+      <div style="margin-bottom:1.1rem;">
         <label style="display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.4rem;">Slug (URL path) *</label>
         <input id="slug-field" name="slug" type="text" required value="${v("slug")}" maxlength="100"
           pattern="[a-z0-9-]+" title="Lowercase letters, numbers and hyphens only"
           style="width:100%;font:inherit;font-size:.92rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.45em .7em;background:#faf7f4;font-family:monospace;">
         <div style="font-size:.75rem;color:#8a7d72;margin-top:.3rem;">lustiqueco.co.za/blog/<span id="slug-preview">${v("slug")}</span></div>
       </div>
-      <div style="margin-bottom:1rem;">
-        <label style="display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.4rem;">Excerpt (shown in blog list)</label>
-        <textarea name="excerpt" rows="2" maxlength="500"
-          style="width:100%;font:inherit;font-size:.9rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.5em .7em;background:#faf7f4;resize:vertical;">${v("excerpt")}</textarea>
+      <div style="margin-bottom:1.1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.4rem;">
+          <label style="display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;">Excerpt <span style="font-weight:400;text-transform:none;">(shown in blog list)</span></label>
+          <span id="exc-count" style="font-size:.72rem;color:#8a7d72;">${excerptLen}/500</span>
+        </div>
+        <textarea name="excerpt" id="excerpt-field" rows="2" maxlength="500"
+          oninput="document.getElementById('exc-count').textContent=this.value.length+'/500'"
+          style="width:100%;font:inherit;font-size:.9rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.5em .7em;background:#faf7f4;resize:vertical;"
+          placeholder="A short teaser readers see on the blog list page.">${v("excerpt")}</textarea>
       </div>
-      <div style="margin-bottom:1rem;">
-        <label style="display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.4rem;">Body * <span style="font-weight:400;text-transform:none;">(double Enter = new paragraph)</span></label>
-        <textarea name="body" rows="18" required maxlength="50000"
-          style="width:100%;font:inherit;font-size:.92rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.6em .75em;background:#faf7f4;resize:vertical;line-height:1.65;">${v("body")}</textarea>
+      <div style="margin-bottom:1.1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.4rem;">
+          <label style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;">Body * <span style="font-weight:400;text-transform:none;">(blank line = new paragraph)</span></label>
+          <span id="word-count" style="font-size:.72rem;color:#8a7d72;"></span>
+        </div>
+        <textarea name="body" id="body-field" rows="24" required maxlength="50000"
+          oninput="var w=this.value.trim().split(/\\s+/).filter(Boolean).length;document.getElementById('word-count').textContent=w+' word'+(w===1?'':'s');"
+          style="width:100%;font:inherit;font-size:.92rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.6em .75em;background:#faf7f4;resize:vertical;line-height:1.75;">${v("body")}</textarea>
       </div>
-      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.2rem;">
         <div style="flex:1;min-width:200px;">
           <label style="display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.4rem;">Cover image URL</label>
           <input name="cover_url" type="url" value="${v("cover_url")}" maxlength="500"
             style="width:100%;font:inherit;font-size:.88rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.45em .7em;background:#faf7f4;"
-            placeholder="https://…">
+            placeholder="https://…  (paste from Portfolio tab)">
         </div>
         <div style="flex:1;min-width:200px;">
           <label style="display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.4rem;">Tags (comma-separated)</label>
@@ -152,10 +163,14 @@ function postForm(action: string, post?: BlogPost): string {
             placeholder="bridal, tips, inspiration">
         </div>
       </div>
-      <div style="display:flex;gap:.8rem;align-items:center;">
-        <button type="submit"
+      <div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;">
+        <button type="submit" onclick="document.getElementById('publish-flag').value=''"
           style="font:inherit;font-weight:700;font-size:.9rem;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.55em 1.4em;cursor:pointer;">
           Save draft
+        </button>
+        <button type="submit" onclick="document.getElementById('publish-flag').value='1'"
+          style="font:inherit;font-weight:700;font-size:.9rem;background:#276749;color:#fff;border:none;border-radius:8px;padding:.55em 1.4em;cursor:pointer;">
+          Save &amp; publish
         </button>
         <a href="/api/admin/blog" style="color:#8a7d72;text-decoration:none;font-size:.88rem;">Cancel</a>
       </div>
@@ -171,6 +186,7 @@ function postForm(action: string, post?: BlogPost): string {
       this.dataset.edited='1';
       document.getElementById('slug-preview').textContent=this.value;
     });
+    (function(){var b=document.getElementById('body-field');if(b&&b.value){var w=b.value.trim().split(/\\s+/).filter(Boolean).length;document.getElementById('word-count').textContent=w+' word'+(w===1?'':'s');}})();
     </script>
   `;
 }
@@ -251,7 +267,7 @@ export async function handleAdminBlogNew(
   if (!user) return redirect("/api/admin/login?msg=session-expired");
 
   if (req.method === "POST") {
-    let title = "", slug = "", excerpt = "", body = "", coverUrl = "", tags = "";
+    let title = "", slug = "", excerpt = "", body = "", coverUrl = "", tags = "", publish = "";
     try {
       const fd = await req.formData();
       title    = ((fd.get("title")     as string | null) ?? "").trim();
@@ -260,6 +276,7 @@ export async function handleAdminBlogNew(
       body     = ((fd.get("body")      as string | null) ?? "").trim();
       coverUrl = ((fd.get("cover_url") as string | null) ?? "").trim();
       tags     = ((fd.get("tags")      as string | null) ?? "").trim();
+      publish  = ((fd.get("publish")   as string | null) ?? "").trim();
     } catch {
       return htmlResponse(`<p>Invalid form. <a href="/api/admin/blog/new">Back</a></p>`, 400);
     }
@@ -272,6 +289,7 @@ export async function handleAdminBlogNew(
     }
 
     const tagArr = tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
+    const publishNow = publish === "1";
 
     const insertRes = await f(restUrl(env, "blog_posts?select=id"), {
       method: "POST",
@@ -283,7 +301,8 @@ export async function handleAdminBlogNew(
         body,
         cover_url: coverUrl || null,
         tags: tagArr,
-        published: false,
+        published: publishNow,
+        published_at: publishNow ? new Date().toISOString() : null,
       }),
     });
 
@@ -322,7 +341,7 @@ export async function handleAdminBlogEdit(
   };
 
   if (req.method === "POST") {
-    let title = "", slug = "", excerpt = "", body = "", coverUrl = "", tags = "";
+    let title = "", slug = "", excerpt = "", body = "", coverUrl = "", tags = "", publish = "";
     try {
       const fd = await req.formData();
       title    = ((fd.get("title")     as string | null) ?? "").trim();
@@ -331,6 +350,7 @@ export async function handleAdminBlogEdit(
       body     = ((fd.get("body")      as string | null) ?? "").trim();
       coverUrl = ((fd.get("cover_url") as string | null) ?? "").trim();
       tags     = ((fd.get("tags")      as string | null) ?? "").trim();
+      publish  = ((fd.get("publish")   as string | null) ?? "").trim();
     } catch {
       return htmlResponse(`<p>Invalid form.</p>`, 400);
     }
@@ -345,19 +365,28 @@ export async function handleAdminBlogEdit(
     }
 
     const tagArr = tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
+    const publishNow = publish === "1";
+    const existing = await getPost();
+    const alreadyPublished = existing?.published ?? false;
+
+    const patch: Record<string, unknown> = {
+      title,
+      slug: slugify(slug),
+      excerpt: excerpt || null,
+      body,
+      cover_url: coverUrl || null,
+      tags: tagArr,
+      updated_at: new Date().toISOString(),
+    };
+    if (publishNow && !alreadyPublished) {
+      patch.published = true;
+      patch.published_at = new Date().toISOString();
+    }
 
     await f(restUrl(env, `blog_posts?id=eq.${encodeURIComponent(id)}`), {
       method: "PATCH",
       headers: { ...supabaseHeaders(env), prefer: "return=minimal" },
-      body: JSON.stringify({
-        title,
-        slug: slugify(slug),
-        excerpt: excerpt || null,
-        body,
-        cover_url: coverUrl || null,
-        tags: tagArr,
-        updated_at: new Date().toISOString(),
-      }),
+      body: JSON.stringify(patch),
     });
 
     return redirect("/api/admin/blog?saved=1");

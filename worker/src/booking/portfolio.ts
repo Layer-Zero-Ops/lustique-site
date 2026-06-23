@@ -140,27 +140,47 @@ export async function handleAdminPortfolio(
   const publicBase = `${env.SUPABASE_URL}/storage/v1/object/public/${BUCKET}`;
 
   const gallery = objects.length
-    ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-bottom:2rem;">
-        ${objects.map((obj) => {
-          const imgUrl = `${publicBase}/${esc(obj.name)}`;
-          const kbSize = obj.metadata?.size ? Math.round(obj.metadata.size / 1024) : null;
-          return `<div style="background:#fff;border:1px solid #ede7e0;border-radius:10px;overflow:hidden;position:relative;group;">
-            <img src="${imgUrl}" alt="${esc(obj.name)}" loading="lazy"
-              style="width:100%;aspect-ratio:1;object-fit:cover;display:block;">
-            <div style="padding:.5rem .6rem;">
-              <div style="font-size:.72rem;color:#5c3d47;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(obj.name)}">${esc(obj.name)}</div>
-              ${kbSize !== null ? `<div style="font-size:.68rem;color:#8a7d72;">${kbSize} KB</div>` : ""}
-            </div>
-            <form method="POST" action="/api/admin/portfolio/delete" style="padding:.0 .6rem .6rem;">
-              <input type="hidden" name="name" value="${esc(obj.name)}">
-              <button type="submit" onclick="return confirm('Delete this image?')"
-                style="font:inherit;font-size:.72rem;font-weight:600;color:#c53030;background:none;border:1px solid #f5c6c6;border-radius:6px;padding:.2em .6em;cursor:pointer;width:100%;">
-                Delete
-              </button>
-            </form>
-          </div>`;
-        }).join("")}
-      </div>`
+    ? `<table style="border-collapse:collapse;width:100%;margin-bottom:2rem;">
+        <thead><tr>
+          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;width:72px;">Preview</th>
+          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Filename</th>
+          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Size</th>
+          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Uploaded</th>
+          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Public URL</th>
+          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;"></th>
+        </tr></thead>
+        <tbody>
+          ${objects.map((obj) => {
+            const imgUrl = `${publicBase}/${esc(obj.name)}`;
+            const kbSize = obj.metadata?.size ? Math.round(obj.metadata.size / 1024) : null;
+            const uploadedDate = obj.created_at ? obj.created_at.slice(0, 10) : "—";
+            return `<tr style="border-bottom:1px solid #f3ede8;">
+              <td style="padding:.5rem .75rem;">
+                <a href="${imgUrl}" target="_blank" rel="noopener">
+                  <img src="${imgUrl}" alt="${esc(obj.name)}" loading="lazy"
+                    style="width:56px;height:56px;object-fit:cover;border-radius:6px;display:block;border:1px solid #ede7e0;">
+                </a>
+              </td>
+              <td style="padding:.5rem .75rem;font-size:.85rem;color:#3d2b38;font-weight:600;max-width:220px;word-break:break-all;">${esc(obj.name)}</td>
+              <td style="padding:.5rem .75rem;font-size:.82rem;color:#8a7d72;white-space:nowrap;">${kbSize !== null ? `${kbSize} KB` : "—"}</td>
+              <td style="padding:.5rem .75rem;font-size:.82rem;color:#8a7d72;white-space:nowrap;">${uploadedDate}</td>
+              <td style="padding:.5rem .75rem;max-width:260px;">
+                <input type="text" value="${imgUrl}" readonly onclick="this.select()"
+                  style="width:100%;font:inherit;font-size:.75rem;font-family:monospace;border:1px solid #ede7e0;border-radius:6px;padding:.3em .5em;background:#f7f3ef;color:#5c3d47;cursor:pointer;" title="Click to select URL">
+              </td>
+              <td style="padding:.5rem .75rem;white-space:nowrap;">
+                <form method="POST" action="/api/admin/portfolio/delete" style="display:inline;">
+                  <input type="hidden" name="name" value="${esc(obj.name)}">
+                  <button type="submit" onclick="return confirm('Delete this image?')"
+                    style="font:inherit;font-size:.78rem;font-weight:600;color:#c53030;background:none;border:1px solid #f5c6c6;border-radius:6px;padding:.25em .7em;cursor:pointer;">
+                    Delete
+                  </button>
+                </form>
+              </td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`
     : `<p style="color:#8a7d72;font-style:italic;margin-bottom:2rem;">No images yet — upload your first one below.</p>`;
 
   const inner = `
