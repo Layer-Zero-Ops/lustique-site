@@ -42,7 +42,7 @@ describe("computeEstimate — wedding", () => {
     const r = computeEstimate(base);
     expect(r.total).toBe(2890);
     expect(r.heads).toBe(1);
-    expect(r.lines).toEqual([{ label: "Bride — trial + wedding day (medium)", amount: 2890 }]);
+    expect(r.lines).toEqual([{ label: "Bride — makeup + hair, trial & wedding day (medium)", amount: 2890 }]);
   });
 
   it("full party: NO auto-assistant; promo frees the cheapest ADULT look (not the flower girl)", () => {
@@ -55,10 +55,10 @@ describe("computeEstimate — wedding", () => {
     expect(r.total).toBe(7520);
     expect(r.heads).toBe(7);
     expect(r.lines).toEqual([
-      { label: "Bride — trial + wedding day (medium)", amount: 2890 },
-      { label: "Bridesmaid look × 3", amount: 3135 },
-      { label: "Mother look × 2", amount: 1990 },
-      { label: "Flower girl (under 12) × 1", amount: 500 },
+      { label: "Bride — makeup + hair, trial & wedding day (medium)", amount: 2890 },
+      { label: "Bridesmaid look — makeup + hair × 3", amount: 3135 },
+      { label: "Mother look — makeup + hair × 2", amount: 1990 },
+      { label: "Flower girl (under 12) — makeup + hair × 1", amount: 500 },
       { label: "Promo — cheapest look free", amount: -995 },
     ]);
   });
@@ -89,7 +89,7 @@ describe("computeEstimate — wedding", () => {
   it("additional artists are added only when the bride requests them (R850 each)", () => {
     const r = computeEstimate({ ...base, requestedArtists: 2 });
     expect(r.total).toBe(2890 + 1700);
-    expect(r.lines).toContainEqual({ label: "Additional artist × 2", amount: 1700 });
+    expect(r.lines).toContainEqual({ label: "Additional artist × 2", amount: 1_700 });
   });
 
   it("mixed party-hair lengths price each adult head at its own length", () => {

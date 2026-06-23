@@ -75,7 +75,7 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
 
   // Wedding — full bridal logic.
   let total = PRICING.brideCore[input.brideHairLen];
-  lines.push({ label: `Bride — trial + wedding day (${LEN_LABEL[input.brideHairLen]})`, amount: total });
+  lines.push({ label: `Bride — makeup + hair, trial & wedding day (${LEN_LABEL[input.brideHairLen]})`, amount: total });
   const paid: number[] = [total];   // every paying look (incl. bride + flower girls) — for the "4+" threshold
   const freebie: number[] = [];     // looks eligible to be comped by the promo (not bride, not under-12 FG)
 
@@ -93,7 +93,17 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
       if (i < hr) c += hairCost();
       if (c > 0) { total += c; sub += c; count++; paid.push(c); if (eligible) freebie.push(c); }
     }
-    if (count > 0) lines.push({ label: `${label} × ${count}`, amount: sub });
+    if (count > 0) {
+      const services =
+        mk > 0 && hr > 0
+          ? mk === hr
+            ? `makeup + hair × ${count}`
+            : `makeup × ${mk}, hair × ${hr}`
+          : mk > 0
+            ? `makeup × ${count}`
+            : `hair × ${count}`;
+      lines.push({ label: `${label} — ${services}`, amount: sub });
+    }
     return heads;
   };
 
