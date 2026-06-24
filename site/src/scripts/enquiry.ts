@@ -12,9 +12,7 @@ const val = (id: string): string => {
 const numv = (id: string): number => parseInt(val(id), 10) || 0;
 
 const OCCASION: Record<string, string> = {
-  wedding: "Wedding", matric: "Matric farewell", editorial: "Editorial / photoshoot",
-  engagement: "Engagement / maternity shoot", corporate: "Corporate / event",
-  pageant: "Pageant / stage", lessons: "Group lesson (6+)",
+  wedding: "Wedding", matric: "Matric farewell",
 };
 const LEN: Record<string, string> = { short: "Short", medium: "Medium", long: "Long", xlong: "X-Long" };
 const lenLabel = (id: string): string => LEN[val(id) || "medium"] ?? "Medium";
