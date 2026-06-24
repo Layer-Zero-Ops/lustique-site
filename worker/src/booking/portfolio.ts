@@ -175,7 +175,11 @@ export async function handleAdminPortfolio(
 
   const artists: ArtistOption[] = artistsRes.ok ? ((await artistsRes.json()) as ArtistOption[]) : [];
   const rawObjects: StorageObject[] = listRes.ok ? ((await listRes.json()) as StorageObject[]) : [];
-  const objects = rawObjects.filter((o) => o.metadata !== null);
+  // Storage list with a prefix returns names relative to that prefix.
+  // Normalize to absolute paths so all downstream logic (URLs, delete, seed) is consistent.
+  const objects = rawObjects
+    .filter((o) => o.metadata !== null)
+    .map((o) => ({ ...o, name: prefix ? `${prefix}${o.name}` : o.name }));
   const dbRecords: PortfolioImageRecord[] = dbRes.ok ? ((await dbRes.json()) as PortfolioImageRecord[]) : [];
 
   // Build a position map keyed by storage_path
