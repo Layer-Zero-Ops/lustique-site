@@ -203,8 +203,13 @@ export async function handleAdminForms(
         <td>${statusBadge(e.status)}</td>
         <td style="color:#8a7d72;font-size:.82rem;">${e.created_at.slice(0, 10)}</td>
         <td style="white-space:nowrap;">
-          <a href="/api/admin/forms/${esc(e.id)}/send-quote"
-            style="display:inline-block;font-size:.78rem;font-weight:700;padding:.3em .8em;background:#8a3a52;color:#fff;border-radius:6px;text-decoration:none;">Send Quote</a>
+          ${e.booking_id
+            ? `<a href="/api/admin/booking/${esc(e.booking_id)}"
+                style="display:inline-block;font-size:.78rem;font-weight:700;padding:.3em .8em;background:#276749;color:#fff;border-radius:6px;text-decoration:none;">View Invoice →</a>`
+            : `<form method="POST" action="/api/admin/enquiries/${esc(e.id)}/generate-invoice" style="display:inline;">
+                <button type="submit" style="font:inherit;font-size:.78rem;font-weight:700;padding:.3em .8em;background:#8a3a52;color:#fff;border:none;border-radius:6px;cursor:pointer;">Generate Invoice</button>
+              </form>`
+          }
           <a href="/api/admin/enquiries/${esc(e.id)}"
             style="display:inline-block;margin-left:.4rem;font-size:.78rem;font-weight:600;padding:.3em .8em;background:#f7e8ec;color:#8a3a52;border-radius:6px;text-decoration:none;">View →</a>
         </td>

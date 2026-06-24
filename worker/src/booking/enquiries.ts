@@ -3,11 +3,14 @@
 // All routes are JWT-gated via getAdminSession.
 
 import { getAdminSession, type AdminUser } from "./auth";
-import { listEnquiries, getEnquiryById, updateEnquiry, type EnquiryCrmRow } from "./db";
+import { listEnquiries, getEnquiryById, updateEnquiry, insertBooking, type EnquiryCrmRow } from "./db";
+import { signToken, hashToken } from "./token";
+import { makeReference } from "./util";
 import type { Env } from "../index";
 
 export interface EnquiriesEnv extends Env {
   SUPABASE_JWT_SECRET: string;
+  SIGNING_SECRET: string;
 }
 
 // ── HTML helpers (local copies — dashboard.ts owns the shell; we export handlers only) ──
@@ -186,6 +189,21 @@ export async function handleAdminEnquiryDetail(
           <button type="submit" style="align-self:flex-start;padding:.5rem 1.4rem;background:#8a3a52;color:#fff;border:none;border-radius:8px;font:inherit;font-size:.88rem;font-weight:700;cursor:pointer;">Save</button>
         </form>
         ${e.contacted_at ? `<p style="font-size:.82rem;color:#8a7d72;margin-top:1rem;">First contacted: ${esc(e.contacted_at.slice(0, 10))}</p>` : ""}
+        <div style="margin-top:1.5rem;padding-top:1.2rem;border-top:1px solid #f3ede8;">
+          <h2 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a7d72;margin:0 0 .7rem;">Invoice</h2>
+          ${e.booking_id
+            ? `<a href="/api/admin/booking/${esc(e.booking_id)}"
+                style="display:inline-block;padding:.5em 1.2em;background:#276749;color:#fff;border-radius:8px;font-size:.88rem;font-weight:700;text-decoration:none;">View Invoice →</a>`
+            : `<form method="POST" action="/api/admin/enquiries/${esc(e.id)}/generate-invoice">
+                <button type="submit"
+                  style="font:inherit;font-size:.88rem;font-weight:700;padding:.5em 1.2em;background:#8a3a52;color:#fff;border:none;border-radius:8px;cursor:pointer;"
+                  onclick="return confirm('Generate an invoice for ${esc(e.name.replace(/'/g, "\\'"))}? This creates a booking record you can review and edit before sending.')">
+                  Generate Invoice
+                </button>
+                <p style="font-size:.78rem;color:#8a7d72;margin:.5rem 0 0;">Creates a booking record in Invoices using this enquiry's data. You can edit the total before sending.</p>
+              </form>`
+          }
+        </div>
       </div>
     </div>`;
 
@@ -230,4 +248,80 @@ export async function handleAdminUpdateEnquiry(
 
   await updateEnquiry(env, id, patch, f);
   return redirect(`/api/admin/enquiries/${id}?saved=1`);
+}
+
+// ── Generate Invoice (POST handler) ──────────────────────────────────────────
+
+const OCCASION_KEY: Record<string, string> = {
+  "Wedding": "wedding",
+  "Matric farewell": "matric",
+};
+
+function parseTotalCents(estimate: string | null): number {
+  if (!estimate) return 0;
+  // "from R 21 229" → strip label + spaces → parse rands → × 100
+  const digits = estimate.replace(/from\s+R\s*/i, "").replace(/\s/g, "");
+  const rands = parseFloat(digits);
+  return isNaN(rands) ? 0 : Math.round(rands * 100);
+}
+
+export async function handleAdminGenerateInvoice(
+  req: Request,
+  env: EnquiriesEnv,
+  shell: ShellFn,
+  id: string,
+  f: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAdminSession(req, env, f);
+  if (!user) return redirect("/api/admin/login?msg=session-expired");
+
+  const e = await getEnquiryById(env, id, f);
+  if (!e) return new Response("Enquiry not found", { status: 404 });
+
+  // Idempotent — already generated, just send them there
+  if (e.booking_id) return redirect(`/api/admin/booking/${e.booking_id}`);
+
+  const bookingId = crypto.randomUUID();
+  const reference = makeReference(bookingId, new Date().getUTCFullYear());
+  const idempotencyKey = `enquiry:${e.id}`;
+
+  const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+  const tokenExpiry = new Date(Date.now() + TOKEN_TTL_MS);
+  const token = await signToken(bookingId, tokenExpiry, env.SIGNING_SECRET);
+  const tokenHash = await hashToken(token);
+
+  const occasion = OCCASION_KEY[e.occasion ?? ""] ?? "wedding";
+  const weddingDate = e.event_date ?? "2099-12-31"; // Zandeline can correct on the booking detail
+
+  const returned = await insertBooking(env, {
+    id: bookingId,
+    reference,
+    idempotency_key: idempotencyKey,
+    status: "requested",
+    occasion,
+    wedding_date: weddingDate,
+    bride_name: e.name,
+    bride_email: e.email,
+    bride_phone: e.phone,
+    town: e.town ?? null,
+    province: null,
+    venue: null,
+    party_size: 1,
+    estimate_input: {},
+    total_cents: parseTotalCents(e.estimate),
+    quote_lines: Array.isArray(e.details) ? e.details : [],
+    deposit_pct: null,
+    deposit_net_cents: 0,
+    balance_net_cents: 0,
+    availability_conflict: false,
+    consent_at: e.created_at,
+    confirm_token_hash: tokenHash,
+    confirm_token_expires_at: tokenExpiry.toISOString(),
+    notes: e.message ?? null,
+  }, f);
+
+  // Link the booking back to the enquiry and mark it converted
+  await updateEnquiry(env, id, { booking_id: returned.id, status: "converted" }, f);
+
+  return redirect(`/api/admin/booking/${returned.id}`);
 }

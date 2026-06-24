@@ -39,7 +39,7 @@ import {
 } from "./booking/admin-actions";
 import { handleCalendarFeed } from "./booking/calendar";
 import { persistEnquiry, insertNotification } from "./booking/db";
-import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry } from "./booking/enquiries";
+import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice } from "./booking/enquiries";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
 import { handleAdminStaffing } from "./booking/staffing";
@@ -364,6 +364,11 @@ export default {
       if (req.method === "GET" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.split("/").length === 5) {
         const id = url.pathname.slice("/api/admin/enquiries/".length);
         return handleAdminEnquiryDetail(req, env as Parameters<typeof handleAdminEnquiryDetail>[1], adminShell, id);
+      }
+      // POST /api/admin/enquiries/:id/generate-invoice — create booking from enquiry
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.endsWith("/generate-invoice")) {
+        const id = url.pathname.split("/")[4]!;
+        return handleAdminGenerateInvoice(req, env as Parameters<typeof handleAdminGenerateInvoice>[1], adminShell, id);
       }
       // POST /api/admin/enquiries/:id — update status/notes (PRG)
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.split("/").length === 5) {

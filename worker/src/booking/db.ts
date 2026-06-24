@@ -603,10 +603,11 @@ export interface EnquiryCrmRow {
   status: string;
   notes: string | null;
   contacted_at: string | null;
+  booking_id: string | null;
 }
 
 const ENQUIRY_COLS =
-  "id,created_at,name,email,phone,occasion,event_date,town,estimate,message,details,status,notes,contacted_at";
+  "id,created_at,name,email,phone,occasion,event_date,town,estimate,message,details,status,notes,contacted_at,booking_id";
 
 export async function listEnquiries(
   env: DbEnv,
@@ -637,7 +638,7 @@ export async function getEnquiryById(
 export async function updateEnquiry(
   env: DbEnv,
   id: string,
-  patch: { status?: string; notes?: string; contacted_at?: string | null },
+  patch: { status?: string; notes?: string; contacted_at?: string | null; booking_id?: string | null },
   f: typeof fetch = fetch,
 ): Promise<void> {
   const r = await f(rest(env, `enquiries?id=eq.${encodeURIComponent(id)}`), {
