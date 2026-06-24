@@ -118,7 +118,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 
   return `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>${esc(title)} — Lustique Admin</title>
+<meta name="robots" content="noindex"><link rel="icon" type="image/svg+xml" href="https://lustiqueco.co.za/favicon.svg"><title>${esc(title)} — Lustique Admin</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;}
   body{margin:0;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;color:#2b2b2b;background:#f7f3ef;display:flex;min-height:100vh;}
@@ -288,7 +288,7 @@ export async function handleAdminLogin(
   if (req.method === "GET") {
     return htmlResponse(`<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>Admin Login — Lustique Co.</title>
+<meta name="robots" content="noindex"><link rel="icon" type="image/svg+xml" href="https://lustiqueco.co.za/favicon.svg"><title>Admin Login — Lustique Co.</title>
 <style>
   *{box-sizing:border-box;}
   body{margin:0;background:#FAF6F0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 16px;font-family:Arial,sans-serif;}
@@ -389,7 +389,7 @@ export async function handleAdminLogin(
 
   return htmlResponse(`<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>Check your email — Lustique Co.</title>
+<meta name="robots" content="noindex"><link rel="icon" type="image/svg+xml" href="https://lustiqueco.co.za/favicon.svg"><title>Check your email — Lustique Co.</title>
 <style>
   *{box-sizing:border-box;}
   body{margin:0;background:#FAF6F0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 16px;font-family:Arial,sans-serif;}
@@ -573,7 +573,7 @@ export async function handleAdminAuthCallback(
   // Serve a JS extraction page; it reads the fragment and redirects back with ?access_token=
   return new Response(
     `<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><title>Signing in — Lustique Co.</title>
+<meta charset="utf-8"><link rel="icon" type="image/svg+xml" href="https://lustiqueco.co.za/favicon.svg"><title>Signing in — Lustique Co.</title>
 </head><body>
 <script>
 (function(){
@@ -663,7 +663,7 @@ export async function handleAdminDashboard(
   const table = `<table>
 <thead><tr>
   <th>Reference</th><th>Bride</th><th>Wedding date</th><th>Town</th>
-  <th>Party</th><th>Quote</th><th>Status</th>
+  <th>Party</th><th>Total</th><th>Status</th>
 </tr></thead>
 <tbody>${rows}</tbody>
 </table>`;
@@ -1119,11 +1119,11 @@ export async function handleAdminQuotes(
 
   const tabBar = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.4rem;">
   <div style="display:flex;gap:.3rem;background:#f7f3ef;border-radius:10px;padding:.3rem;">
-    ${tabLink("quotes", "Invoices")}
-    ${tabLink("invoices", "Bookings")}
+    ${tabLink("quotes", "Pending")}
+    ${tabLink("invoices", "Confirmed")}
     ${tabLink("payments", "Payments")}
   </div>
-  <a href="/api/admin/quotes/new" style="display:inline-flex;align-items:center;gap:.4rem;background:#8a3a52;color:#fff;text-decoration:none;border-radius:8px;padding:.45rem 1.1rem;font-size:.86rem;font-weight:600;">+ Create Quote</a>
+  <a href="/api/admin/quotes/new" style="display:inline-flex;align-items:center;gap:.4rem;background:#8a3a52;color:#fff;text-decoration:none;border-radius:8px;padding:.45rem 1.1rem;font-size:.86rem;font-weight:600;">+ Create Invoice</a>
 </div>`;
 
   let body = "";
@@ -1159,7 +1159,7 @@ export async function handleAdminQuotes(
             <td>${expiresCell}</td>
           </tr>`;
         }).join("\n")
-      : `<tr><td colspan="9" class="empty">no pending quotes ✦</td></tr>`;
+      : `<tr><td colspan="9" class="empty">no pending invoices ✦</td></tr>`;
     body = `<table><thead><tr>
       <th>Reference</th><th>Bride</th><th>Email</th><th>Wedding</th><th>Town</th>
       <th>Party</th><th>Total</th><th>Status</th><th>Expires</th>
@@ -1217,7 +1217,7 @@ export async function handleAdminQuotes(
     </tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  return htmlResponse(adminShell("Quotes", user, tabBar + body, url.pathname));
+  return htmlResponse(adminShell("Invoices", user, tabBar + body, url.pathname));
 }
 
 // ── handleAdminPayments ───────────────────────────────────────────────────────
@@ -1875,7 +1875,7 @@ function quoteComposerForm(error?: string): string {
     (s) => `<option value="${esc(s.label)}|${s.price}">${esc(s.label)} — R ${s.price}</option>`,
   ).join("");
 
-  return `<h1>Create Quote</h1>
+  return `<h1>Create Invoice</h1>
 ${error ? `<div style="background:#fff5f5;color:#c53030;border:1.5px solid #fed7d7;border-radius:8px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.9rem;">${esc(error)}</div>` : ""}
 <form method="POST" action="/api/admin/quotes/new" id="qform" style="max-width:820px;">
 
@@ -1989,7 +1989,7 @@ export async function handleAdminQuoteComposer(
 
   if (req.method === "POST") {
     const form = await req.formData().catch(() => null);
-    if (!form) return htmlResponse(adminShell("Create Quote", user, quoteComposerForm("Invalid form submission."), "/api/admin/quotes/new"), 400);
+    if (!form) return htmlResponse(adminShell("Create Invoice", user, quoteComposerForm("Invalid form submission."), "/api/admin/quotes/new"), 400);
 
     const clientName = String(form.get("client_name") ?? "").trim();
     const clientEmail = String(form.get("client_email") ?? "").trim();
@@ -1998,10 +1998,10 @@ export async function handleAdminQuoteComposer(
     const note = String(form.get("note") ?? "").trim();
 
     if (!clientName || !clientEmail) {
-      return htmlResponse(adminShell("Create Quote", user, quoteComposerForm("Client name and email are required."), "/api/admin/quotes/new"), 400);
+      return htmlResponse(adminShell("Create Invoice", user, quoteComposerForm("Client name and email are required."), "/api/admin/quotes/new"), 400);
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
-      return htmlResponse(adminShell("Create Quote", user, quoteComposerForm("Please enter a valid email address."), "/api/admin/quotes/new"), 400);
+      return htmlResponse(adminShell("Create Invoice", user, quoteComposerForm("Please enter a valid email address."), "/api/admin/quotes/new"), 400);
     }
 
     const descs = form.getAll("desc[]").map(String);
@@ -2070,7 +2070,7 @@ export async function handleAdminQuoteComposer(
         fetchFn,
       );
     } catch {
-      return htmlResponse(adminShell("Create Quote", user, quoteComposerForm("Failed to send email — please try again."), "/api/admin/quotes/new"), 500);
+      return htmlResponse(adminShell("Create Invoice", user, quoteComposerForm("Failed to send email — please try again."), "/api/admin/quotes/new"), 500);
     }
 
     return new Response(null, {
@@ -2079,5 +2079,5 @@ export async function handleAdminQuoteComposer(
     });
   }
 
-  return htmlResponse(adminShell("Create Quote", user, quoteComposerForm(), "/api/admin/quotes/new"));
+  return htmlResponse(adminShell("Create Invoice", user, quoteComposerForm(), "/api/admin/quotes/new"));
 }
