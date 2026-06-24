@@ -8,7 +8,7 @@
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main`
 
-**Start with TASK-C — needs Pieter's EFT banking details (PAUSE if not yet supplied). Then TASK-G (favicon, quick win), then TASK-F (nav audit).**
+**Start with TASK-G (favicon, quick win ~10 min), then TASK-F (nav audit), then TASK-E (notifications).**
 
 ---
 
@@ -236,6 +236,7 @@ The logo is likely in `site/public/` — check for `favicon.ico`, `logo.svg`, or
 
 ## Previously completed this session (2026-06-24)
 
+- ✅ TASK-C: Wave-style invoice layout (logo, from/to, T&Cs, banking, footer) + `parseServiceLines()` populates `quote_lines` on Generate Invoice — `62c9eef`
 - ✅ BUG-1: "R NaN" fix — `quote_lines: []` in `handleAdminGenerateInvoice`
 - ✅ TASK-A: Granular quote breakdown — pricing engine emits separate makeup/hair lines; site estimator and enquiry.details now granular
 - ✅ TASK-B: Admin enquiry detail — styled Quote Breakdown table from kind="service" entries
@@ -256,7 +257,7 @@ The logo is likely in `site/public/` — check for `favicon.ico`, `logo.svg`, or
 4. **`npm install` in `site/`** — to prune Sanity from node_modules
 5. **Delete `astro-portabletext-0.13.0.tgz`** from repo root
 6. **Hard-refresh Safari** on quote page (Cmd+Shift+R) to clear stale "Secure your date" cache
-7. **EFT banking details** — supply account name, number, branch code, bank name for invoice template (TASK-C)
+7. ~~**EFT banking details**~~ ✅ — supplied; run `UPDATE business_settings SET value = 'Lustique Cosmetology' WHERE key = 'eft_account_holder'` in Supabase SQL editor if you want the full legal name (currently "Lustique Co." in the seed)
 
 ---
 
@@ -266,7 +267,7 @@ The logo is likely in `site/public/` — check for `favicon.ico`, `logo.svg`, or
 ✅ BUG-1  → Fixed
 ✅ TASK-A → Done
 ✅ TASK-B → Done
-TASK-C → Invoice page layout (Wave-style, EFT details) — needs Pieter's banking details first ⚠
+✅ TASK-C → Invoice page layout (Wave-style) + quote_lines from enquiry service lines — commit 62c9eef
 TASK-G → Dashboard favicon (quick win, 10 min)
 TASK-F → Navigation audit + cleanup
 TASK-E → Notification triggers (after flows are stable)
