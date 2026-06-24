@@ -310,7 +310,4 @@ TASK-D → Yoco "Pay Now" button (LAST — after EFT confirmed working)
 - `shared/pricing/` — pricing logic (read before touching estimator)
 
 ## ⇄ Umbrella
-**⬆ To umbrella — 🟢 FYI: Lustique UX overhaul scoped (2026-06-24)**
-Session produced: Generate Invoice feature shipped; BUG-1 (R NaN) identified; full UX overhaul
-scoped across 7 tasks covering quote breakdown granularity, Wave-style invoice layout, Yoco Pay Now
-flow, navigation audit, and dashboard favicon. ▶ NEXT: Sonnet builds BUG-1 → TASK-A → TASK-B → TASK-C.
+*(clear — reconciled 2026-06-24)*
