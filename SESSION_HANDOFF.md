@@ -1,226 +1,315 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Booking flow build · **Updated:** 2026-06-24
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Invoice & UX overhaul · **Updated:** 2026-06-24
+
+---
 
 ## ▶ NEXT (Sonnet, fresh session — BUILD)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main`
 
-**Mission:** Worker deployed ✅ (`1523499`). Booking flow, staffing tab, calendar all live.
-
-▶ NEXT: **Newsletter lead magnet** (TASK 3 below). Blocked on Pieter's Brevo list ID.
-
-**Pieter actions still open:**
-1. **Brevo newsletter list ID** — create list in Brevo → share numeric ID → enables Task 3
-2. Migration 0018 (`supabase/migrations/0018_public_read_policies.sql`) — public read for `artists` + `portfolio_images` (unblocks Portfolio/team pages on site)
-3. Add `SUPABASE_URL` + `SUPABASE_ANON_KEY` as CF Pages build env vars (unblocks Supabase-powered pages)
-4. Run `npm install` in `site/` to prune Sanity from node_modules
-5. Delete stray `astro-portabletext-0.13.0.tgz` from repo root
-6. Hard-refresh Safari on quote page (Cmd+Shift+R) to clear stale "Secure your date" cache
+**Start with TASK-C — needs Pieter's EFT banking details (PAUSE if not yet supplied). Then TASK-G (favicon, quick win), then TASK-F (nav audit).**
 
 ---
 
-## 🔵 PLAN SET — Opus decision (2026-06-23, booking flow)
+## ✅ BUG-1 — DONE (commit d6958c8)
 
-**Chosen: Option A (reframe), reusing the existing `quote_sent` / `accepted` states.**
+**What broke:** When Zandeline clicks "Generate Invoice" on a Forms enquiry, a booking is created with `quote_lines` populated from `enquiry.details`. The booking invoice renderer (`worker/src/booking/dashboard.ts`) expects `quote_lines` as `{label: string, amount: number}` pairs (cents), but enquiry `details` are stored as `{label: string, value: string}` string pairs. Result: every line shows "R NaN" in the invoice view.
 
-Pieter confirmed the **bride still picks her deposit** (sees 25% & 50% in rands, ticks one →
-that amount feeds the Yoco link). A payment link needs a fixed amount, so the choice page
-*must* survive — and that page already does `quote_sent → accepted → Yoco webhook →
-deposit_paid`. The state machine Pieter described **already exists**; it was only mis-named
-"quote". So we rebrand the label, not the plumbing: no `invoice_sent` enum (it would churn 50
-refs across 12 files for an enum string the bride never sees), no migration, no webhook change.
-Full rationale + file-by-file list in the spec.
+**Screenshot evidence:** Booking `LUS-2026-A94320` for Zandeline Kemp — all SERVICE rows show "R NaN".
 
----
+**Fix approach:** In `handleAdminGenerateInvoice` (in `worker/src/booking/enquiries.ts`), set `quote_lines: []` (empty array) instead of `e.details`. The invoice total (`total_cents`) is correctly set from `parseTotalCents(e.estimate)`. The proper line-item structure will come from the new estimation breakdown work below (TASK-A). Once TASK-A is done, quote_lines from the estimator will have the right `{label, amount}` shape. For now: empty lines, correct total.
 
-### TASK 2 — Booking Flow Simplification ✅ DONE (2026-06-23, commit `eab4263`)
-
-Option A reframe executed. reject.ts → 410 stub. accept.ts → "Secure your date" copy. admin-actions.ts → deposit invoice email (heading, deposit options table, single CTA, 14d TTL). dashboard.ts → STATUS_LABELS map, "Send Deposit Invoice →" button, "Invoices" nav/tab, timeline labels. 401/401 tests green.
+**Files to touch:**
+- `worker/src/booking/enquiries.ts` — `handleAdminGenerateInvoice`: change `quote_lines: Array.isArray(e.details) ? e.details : []` → `quote_lines: []`
 
 ---
 
-### TASK 1 — Scrap Sanity + UI polish ✅ DONE (2026-06-23, commits `dd43743`–`e94d744`)
+## ✅ TASK-A — DONE (commit d6958c8)
+Pricing engine emits separate "X Makeup × N" / "X Hair Styling × N" lines. enquiry.ts computes and stores them as kind="service" entries in enquiry.details at submit time.
 
-All Sanity code replaced with Supabase REST queries. Dashboard polished. Thank-you page redesigned.
-
-**Pieter actions still required before production works:**
-1. Apply migration 0018 (`supabase/migrations/0018_public_read_policies.sql`) — public read for `artists` + `portfolio_images`
-2. Add `SUPABASE_URL` + `SUPABASE_ANON_KEY` as CF Pages env vars
-3. Run `npm install` in `site/` to prune Sanity
-4. Delete stray `astro-portabletext-0.13.0.tgz` from repo root
-5. **Quote page "Secure your date" still showing on live site** — code is already removed (commit `6d7db05`), but CF Pages deployment may be stale. Hard-refresh Safari (Cmd+Shift+R) or retrigger CF Pages deploy.
+## ✅ TASK-B — DONE (commit d6958c8)
+Admin enquiry detail splits details into info rows + styled Quote Breakdown table. Backward-compat: old enquiries without kind="service" entries still render as flat key-value.
 
 ---
 
-## ▶ TASK 2 — Booking Flow Simplification (Opus to plan, Sonnet to build)
+## 🟠 TASK-A — Granular quote breakdown (site estimator) [archived detail]
 
-### The business reality (Pieter, 2026-06-23)
+### What Pieter said
+"On the estimation/quote breakdown, I don't want you to list 'Bridesmaid look x2'. I want a more detailed breakdown like: 'Bridesmaid Makeup x2', 'Bridesmaid Hair Styling x2', 'Mother Makeup x1', 'Mother Hair Styling x1', 'Guest Makeup x2', 'Guest Hair Styling x2' etc."
 
-> "The estimator doubles as the quote. When a client submits the booking form, they've already seen what it costs. If Lustique is available for their date, they receive an invoice (Yoco payment link) to secure the booking. There is no separate quote step."
+### Screenshot context
+Screenshot 4 (08:26) shows the current quote form output on the website:
+- Bride (medium) ← combined look
+- Bridesmaids ×2 ← combined look
+- Mother ×1 ← combined look
+- Guest ×2 ← combined look
+- Flower girl (under 12) ×2 ← combined look
+- Additional artist ×1
+- Promo discount
+- Estimated total: from R 9 270
 
-### Current state machine (as built)
+The desired output splits each "look" into its makeup and hair lines separately.
 
-```
-requested
-  → [Zandeline clicks "Send Quote" in admin]
-  → quote_sent   (bride gets email with "Accept" + "Reject" token links + printable invoice link)
-  → accepted     (bride clicks Accept → redirected to Yoco checkout)
-  → deposit_paid (Yoco webhook fires)
-  → settled      (Zandeline clicks "Mark Balance Paid")
+### What needs to change
 
-  OR: quote_sent → rejected (bride clicks Reject)
+**Where the quote breakdown is generated:** `site/src/scripts/enquiry.ts` (the estimator/quote form script). The pricing logic in `shared/pricing/` drives the calculation — read it before editing to understand how party roles and service types are structured.
+
+**Rule:** For each party member type (Bride, Bridesmaid, Mother, Guest, Flower girl), if hair styling is included → emit a separate "X Hair Styling ×N" line; if makeup is included → emit a separate "X Makeup ×N" line. Never combine into "X look ×N".
+
+**Quote lines output shape (for both the website display AND what gets POSTed to `enquiry.details`):**
+```ts
+{ label: "Bridesmaid Makeup", quantity: 2, unit_cents: 85000, line_cents: 170000 }
+{ label: "Bridesmaid Hair Styling", quantity: 2, unit_cents: 95000, line_cents: 190000 }
+// etc.
 ```
 
-### Intended state machine
+When these are stored in `enquiry.details`, save them as `{label: string, value: string}` for backward compat (the value being formatted as "R X,XXX").
 
-```
-requested
-  → [Zandeline reviews in admin — confirms available]
-  → [Zandeline sends Yoco payment link directly]
-  → deposit_paid
-  → settled
-```
-
-### Key codebase facts (read before planning)
-
-**DB schema** (`supabase/migrations/0001_booking_core.sql` + `0006_capacity_and_status.sql`):
-```sql
--- Original enum:
-create type booking_status as enum (
-  'requested', 'confirmed', 'deposit_paid', 'settled', 'declined', 'cancelled', 'expired'
-);
--- Added in 0006:
-ALTER TYPE booking_status ADD VALUE IF NOT EXISTS 'quote_sent';
-ALTER TYPE booking_status ADD VALUE IF NOT EXISTS 'accepted';
-ALTER TYPE booking_status ADD VALUE IF NOT EXISTS 'rejected';
-ALTER TYPE booking_status ADD VALUE IF NOT EXISTS 'invoice_expired';
-```
-
-**Key files:**
-- `worker/src/booking/admin-actions.ts` — `handleAdminSendQuote()` (lines 148–240): signs accept/reject/invoice tokens, transitions `requested → quote_sent`, sends two emails (bride + Zandeline).
-- `worker/src/booking/accept.ts` — handles `GET /api/booking/accept?token=` → redirects to Yoco checkout
-- `worker/src/booking/reject.ts` — handles `GET /api/booking/reject?token=` → marks `rejected`, sends email
-- `worker/src/booking/yoco.ts` — Yoco payment link generation
-- `worker/src/booking/token.ts` — `signActionToken` / `verifyActionToken` (HMAC-SHA256, action-scoped)
-- `worker/src/booking/dashboard.ts` — admin booking detail UI (renders "Send Quote" button)
-- `worker/src/booking/forms.ts` — Forms tab "Send Quote" button → `/api/admin/forms/:id/send-quote`
-- `worker/src/booking/invoice.ts` — `GET /api/booking/invoice?token=` — printable invoice page
-- `worker/src/booking/quotes.ts` — Quotes tab pipeline (shows `requested` + `quote_sent`)
-- `worker/src/booking/db.ts` — `transitionRequestedBooking()` — the DB update that guards transitions
-
-**The Manual Quote Composer** (`/api/admin/quotes/new`) is a separate flow for CRM enquiries (not bookings). It sends a free-form email to a lead — this is UNRELATED to booking status and must remain unchanged.
-
-### What Opus must decide
-
-**The core question:** What does Zandeline actually do after reviewing a booking to say "yes, I'm available, here's your payment link"?
-
-**Option A — Minimal (repurpose "Send Quote" → "Send Invoice"):**
-- Rename the admin button and action to "Send Deposit Invoice"
-- Skip accept/reject token links in the email
-- Include the Yoco payment link directly (pre-generate it at send time)
-- Transition: `requested → invoice_sent` (new enum value) → Yoco webhook → `deposit_paid`
-- Add DB migration: `ALTER TYPE booking_status ADD VALUE 'invoice_sent'`
-- The old `quote_sent` / `accepted` / `rejected` values become dead (data compat — existing rows stay valid, new bookings never hit them)
-- `accept.ts` and `reject.ts` become orphaned routes (can be kept as 410 stubs or removed)
-
-**Option B — Additive (keep "Send Quote" for custom pricing, add new path for standard):**
-- Keep existing Send Quote flow as-is for non-standard jobs
-- Add a "Send Deposit Invoice" button that skips the quote step
-- Two paths: quote → accept → deposit | or direct → deposit
-- More UI complexity; more code; but preserves backward compat with any existing `quote_sent` bookings
-
-**Option C — Yoco-first (Pieter generates the Yoco link manually, pastes it into an email):**
-- No code change to the booking flow
-- Build a "Generate Yoco Link" helper in the admin that produces a shareable URL
-- Zandeline copies it into a manual email or WhatsApp message
-- Simplest for code, but worst UX for Zandeline
-
-### Constraints Opus must respect
-
-1. **Postgres enum values can only be added, never removed** — any existing values (`quote_sent`, `accepted`, `rejected`) stay in the schema forever. Plan accordingly.
-2. **Token security** — if the new flow still uses a Yoco link, verify whether it should be time-limited and whether the booking ID should be embedded.
-3. **The `accept.ts` / `reject.ts` routes must either be kept (even as 410 stubs) or gracefully handle tokens that were issued before the change.** There may be zero live bookings in `quote_sent` state right now — check via: `SELECT status, COUNT(*) FROM bookings GROUP BY status` (ask Pieter to run this if needed).
-4. **Yoco link expiry** — Yoco payment links expire. The admin needs to know if a link has expired so they can regenerate it.
-5. **No new npm packages** in worker (uses wrangler, native fetch only).
-6. **Sonnet builds in one session** — the plan must be granular enough that each file change is unambiguous.
-
-### What the Opus output must include
-
-1. **Chosen option** + one-paragraph rationale (why this option, what it gains, what it gives up)
-2. **New state machine diagram** (text is fine: `requested → invoice_sent → deposit_paid → settled`)
-3. **DB migration** — exact SQL for new enum value(s) if needed
-4. **Email template spec** — what the new "deposit invoice" email shows (Yoco link CTA, amount, date, cancellation note)
-5. **Admin UI changes** — which buttons change, what the booking detail page looks like in each status
-6. **File-by-file change list** for Sonnet (file path, what changes, what stays)
-7. **Build sequence** — ordered task list for Sonnet so nothing breaks mid-build
-8. **Test strategy** — which existing tests break, what new tests are needed
+When the `Generate Invoice` flow is later updated (see TASK-C), these granular line items get converted to proper `{label, amount}` booking `quote_lines`.
 
 ---
 
-### TASK 3 — Newsletter lead magnet (Sonnet build, after booking flow)
+## 🟠 TASK-B — Forms detail page: granular breakdown from submitted data
 
-The Guides page "Send it to me" button is a dead link (`<a href="#">`). Brevo supports contact lists — we already have the API key.
+### What Pieter said
+"On the submitted form, the one that both Zandeline sees and is used to generate an invoice, I want a similar kind of breakdown on this page, using the data submitted by the customer."
 
-**What needs to happen:**
-1. **Pieter:** Create a contact list in Brevo (Contacts → Lists → New list, name "Lustique Newsletter"). Copy the list ID (a number, e.g. `3`).
-2. **Sonnet builds:** `worker/src/booking/newsletter.ts` — `POST /api/newsletter` endpoint that calls `POST https://api.brevo.com/v3/contacts` with `{ email, listIds: [LIST_ID] }`. Add route in `index.ts`. Add `BREVO_NEWSLETTER_LIST_ID` secret to wrangler + CF.
-3. **Sonnet updates:** `site/src/pages/guides.astro` — wire the form with a `fetch('/api/newsletter', ...)` call. Show success/error inline.
+### What needs to change
 
-**No new npm packages. No Turnstile needed (low-value form — rate-limit by IP in worker if wanted).**
+**File:** `worker/src/booking/enquiries.ts` — `handleAdminEnquiryDetail`
+
+The form detail page currently renders `e.details` as a flat list of `{label, value}` pairs in a simple table. Once TASK-A produces granular line items (Bridesmaid Makeup ×2, Bridesmaid Hair Styling ×2, etc.), those line items will arrive as structured `enquiry.details` entries.
+
+The enquiry detail page must render them in a **styled line-item table** (not a flat key-value dump):
+
+| Service | Qty | Unit Price | Line Total |
+|---------|-----|-----------|-----------|
+| Bridesmaid Makeup | 2 | R 850 | R 1 700 |
+| Bridesmaid Hair Styling | 2 | R 950 | R 1 900 |
+| ... | | | |
+| **Estimated Total** | | | **R 9 270** |
+
+Non-pricing fields (event date, venue, province, occasion, bride name, heard via, etc.) stay as a separate info section above the line-item table.
 
 ---
 
-### TASK 4 — Pieter actions still open
+## 🟠 TASK-C — Invoice page: mimic Zandeline's Wave invoice layout
 
-1. **Brevo newsletter list ID** — create list, share ID → enables Task 3
-2. **Real artist emails** — collect from Zandeline, update `artists` table (currently `firstname@lustiqueco.co.za`)
-3. **GA4 Measurement ID** — swap `G-XXXXXXXXXX` in `site/src/data/site.ts`
-4. **CF Email Routing** — `info@lustiqueco.co.za` forward → upgrade to "Send to Worker" once Email Inbox is built
-5. **iCal subscriptions** — share `https://lustiqueco.co.za/api/calendar.ics?key=<ICAL_KEY>` with Zandeline + artists
-6. **E2E smoke test** — submit a test booking on the live site, trace through to admin dashboard
-7. **DB status check** — run `SELECT status, COUNT(*) FROM bookings GROUP BY status` in Supabase SQL editor. Share with Opus — it needs to know if any live bookings are in `quote_sent` state.
+### What Pieter said
+"On the invoice page, once the system has generated one. It has to mimic the look and layout of her current invoice."
+
+### Screenshot context
+Screenshot 3 (08:23) shows Zandeline's existing Wave invoice. Key layout elements:
+- **Header:** Lustique Cosmetology logo top-left, "INVOICE" label top-right
+- **Meta block:** Invoice #, Date, Due date (right-aligned)
+- **From/To block:** Lustique Cosmetology details | Client name + contact
+- **Line items table:** Description | Qty | Unit Price | Amount
+  - Example: "Hair Styling Wedding Package: The Bride + 5" | 1 | R 6 000 | R 6 000
+  - Example: "Bridal Trial/Preview Appointment" | 1 | R 1 200 | R 1 200
+- **Subtotal / Total** (right-aligned)
+- **T&Cs section** (below totals): payment terms, what's included, booking fee note, travel/accommodation policy
+- **Banking details** (for EFT): bank name, account holder, account number, branch code, reference (booking ref)
+- **Footer:** "Thank you for your business" or similar
+
+### What needs to change
+
+**File:** `worker/src/booking/invoice.ts` — the public-facing invoice page (`GET /api/booking/invoice?token=`)
+
+Rebuild the HTML to match the Wave layout above. Use Lustique's brand colours (burgundy / rose / cream). The T&Cs and EFT banking details must appear on every invoice.
+
+**EFT details to embed (get from Zandeline / confirm with Pieter before committing values — use placeholders until confirmed):**
+```
+Bank: [Bank Name]
+Account Holder: Lustique Cosmetology
+Account Number: [XXXX]
+Branch Code: [XXXX]
+Reference: [booking reference, e.g. LUS-2026-A94320]
+```
+
+**Pieter action required:** Confirm/supply EFT banking details for the invoice template.
+
+Also update `worker/src/booking/dashboard.ts` — the admin booking detail invoice preview should use the same layout (or link to the public invoice page).
 
 ---
 
-## Current state (as-built, 2026-06-23)
+## 🟠 TASK-D — Yoco "Pay Now" button on invoice (LATER — after EFT confirmed working)
 
-### Worker (lustique-form-handler) — latest commits on `main`
-- All booking flows live ✅
+### What Pieter said
+"Once we're confident that the Yoco payment process works correctly, we can then add a dedicated 'Pay Now' button to the invoice."
+
+### Spec
+
+**Trigger:** Customer clicks "Pay Now" on invoice page.
+
+**Popup:** Deposit selection modal — three options:
+- 25% of invoice total (R X,XXX)
+- 50% of invoice total (R X,XXX)
+- 100% of invoice total (R X,XXX)
+
+**T&Cs note:** As per booking terms — reference the PRICING.md deposit policy.
+
+**Also in popup:** "Reject" button → triggers rejection flow (see below).
+
+**On "Proceed":** Selected amount → Yoco payment link generated → link presented to customer in the popup (or redirect to Yoco checkout page).
+
+**Rejection flow ("Reject" button):**
+- Customer clicks "Reject"
+- Modal asks: "Please let us know why you're declining this invoice" (text area)
+- Customer clicks "Submit"
+- System: marks booking status → `rejected`; sends Zandeline a notification (dashboard + email); stores rejection reason on booking record
+
+### Booking record changes needed for this task
+- `bookings` table: add `rejection_reason text` column (new migration)
+- `bookings` table: `deposit_pct` gets set when customer selects 25/50/100
+
+### Payment outcome handling
+- **Success:** Yoco webhook fires → booking moves to `deposit_paid` → customer becomes a "Client" in CRM pipeline → event date saved/confirmed in platform calendar → Zandeline gets dashboard notification
+- **Failed/pending:** Payment link stored in Payments tab with outcome tracking
+
+### Payments tab record per Yoco link
+Store in a `payment_links` or `payments` table (new migration when implementing):
+- `booking_id`
+- `amount_cents`
+- `deposit_pct_selected` (25/50/100)
+- `yoco_checkout_id`
+- `yoco_payment_url`
+- `status` (pending/succeeded/failed)
+- `created_at`
+
+**NOTE: Do not implement TASK-D until Pieter confirms EFT flow is working end-to-end.**
+
+---
+
+## 🟠 TASK-E — Dashboard notifications (when anything requires Zandeline's attention)
+
+Notification triggers that must appear in the dashboard bell (already has a bell icon — fix was applied for overflow clipping):
+1. New form submission (enquiry received)
+2. Invoice rejected by customer (+ rejection reason)
+3. Payment received (deposit_paid webhook)
+4. Balance due (approaching event date, balance not settled)
+5. New contact/lead added
+
+**Current state:** Notification bell exists in dashboard UI. The dropdown was fixed in the previous session to use `position:fixed` + `getBoundingClientRect()` so it isn't clipped by the sidebar overflow. The notification count/data backend needs to be wired up to these events.
+
+---
+
+## 🟠 TASK-F — Navigation cleanup (site + dashboard)
+
+### What Pieter said
+"I want you to clean up the website and dashboard's native navigation flows and pathways so that it works logically."
+
+### Dashboard navigation audit needed
+
+Read `worker/src/booking/dashboard.ts` in full and map every nav item, tab, and route. Things to check:
+- Are all nav items working and pointing to real routes?
+- Is there dead nav (pointing to 404 or placeholder pages)?
+- Do tab flows make logical sense for Zandeline's workflow?
+- Is the CRM pipeline (Forms → Enquiries → Clients) intuitive?
+
+**Known issue from earlier session:** "Forms" tab shows submitted quote forms. "Invoices" tab shows bookings. These may need relabelling or merging for clarity.
+
+### Site navigation audit needed
+
+Read `site/src/` pages and layouts. Things to check:
+- Is there dead navigation (e.g. links to `/book.html` which was deleted)?
+- Does the quote form flow logically to a thank-you state?
+- Are all public-facing pages reachable from the nav?
+- Any orphaned pages or broken internal links?
+
+**Known:** `book.astro` was deleted in the previous session. Ensure no nav links still point to `/book.html`.
+
+---
+
+## 🟠 TASK-G — Dashboard favicon: Lustique logo
+
+### What Pieter said
+"Please change the favicon of the dashboard to also be the logo of Lustique."
+
+**What needs to change:** The admin dashboard (served from the Worker, not the Astro site) renders its own HTML shell in `worker/src/booking/dashboard.ts`. Find the `<head>` section and add/replace the `<link rel="favicon">` tag to point to the Lustique logo.
+
+The logo is likely in `site/public/` — check for `favicon.ico`, `logo.svg`, or `logo.png`. The Worker can serve the logo from R2, or reference the public site URL directly (e.g. `https://lustiqueco.co.za/favicon.ico`).
+
+**Check:** What does `site/public/` contain for logo/favicon assets?
+
+---
+
+## Previously completed this session (2026-06-24)
+
+- ✅ BUG-1: "R NaN" fix — `quote_lines: []` in `handleAdminGenerateInvoice`
+- ✅ TASK-A: Granular quote breakdown — pricing engine emits separate makeup/hair lines; site estimator and enquiry.details now granular
+- ✅ TASK-B: Admin enquiry detail — styled Quote Breakdown table from kind="service" entries
+- ✅ Notification bubble overflow fix (`position:fixed` + `getBoundingClientRect()`) — `worker/src/booking/dashboard.ts`
+- ✅ Quote form occasion options reduced to 2 (Wedding + Matric farewell) — `site/src/scripts/enquiry.ts`
+- ✅ `book.astro`, `book-page.ts`, `booking-request.ts` deleted (orphaned "Secure your date" page)
+- ✅ Migration 0019: `enquiries.booking_id` FK column — applied to Supabase
+- ✅ "Generate Invoice" feature: button in Forms list + enquiry detail → creates booking from enquiry, links via `booking_id`, transitions enquiry to "converted"
+- ✅ "View Invoice →" / "Generate Invoice" conditional rendering in Forms list and enquiry detail
+
+---
+
+## Pieter actions still open (from previous sessions)
+
+1. **Brevo newsletter list ID** — create list in Brevo → share numeric ID → enables Task 3 (newsletter)
+2. **Migration 0018** — apply `supabase/migrations/0018_public_read_policies.sql` (public read for `artists` + `portfolio_images`)
+3. **CF Pages env vars** — add `SUPABASE_URL` + `SUPABASE_ANON_KEY` as Cloudflare Pages build env vars
+4. **`npm install` in `site/`** — to prune Sanity from node_modules
+5. **Delete `astro-portabletext-0.13.0.tgz`** from repo root
+6. **Hard-refresh Safari** on quote page (Cmd+Shift+R) to clear stale "Secure your date" cache
+7. **EFT banking details** — supply account name, number, branch code, bank name for invoice template (TASK-C)
+
+---
+
+## Build order for next session
+
+```
+✅ BUG-1  → Fixed
+✅ TASK-A → Done
+✅ TASK-B → Done
+TASK-C → Invoice page layout (Wave-style, EFT details) — needs Pieter's banking details first ⚠
+TASK-G → Dashboard favicon (quick win, 10 min)
+TASK-F → Navigation audit + cleanup
+TASK-E → Notification triggers (after flows are stable)
+TASK-D → Yoco "Pay Now" button (LAST — after EFT confirmed working)
+```
+
+---
+
+## Current state (as-built, 2026-06-24)
+
+### Worker (`lustique-form-handler`) — on `main`
+- Booking flow end-to-end ✅
 - Admin dashboard: Bookings / Clients / Content / Admin nav ✅
 - Calendar with occasion badges, slot editor ✅
-- Quotes tab: `requested` + `quote_sent` pipeline ✅
-- Manual Quote Composer: `/api/admin/quotes/new` ✅
-- Forms unified inbox + Send Quote flow ✅
+- Forms tab: enquiry list + detail + "Generate Invoice" button ✅
+- Enquiries CRM: list + detail + status + "View Invoice →" when booking linked ✅
 - Contacts: read + Add individual / CSV import ✅
-- Enquiries CRM: list + detail + status update ✅
 - Portfolio: gallery + artist filter + image ordering ✅
-- Blog: CRUD (create, edit, draft/publish) ✅
+- Blog: CRUD ✅
 - Calendar feed: `/api/calendar.ics?key=ICAL_KEY` ✅
 
-### Supabase migrations applied (0001–0017)
-- 0016: `blog_posts` ✅
-- 0017: `portfolio_images` ✅
+### Supabase migrations applied (0001–0019)
+- 0019: `enquiries.booking_id` FK ✅ (applied 2026-06-24)
 - ⚠ 0018: public read policies — **NOT YET APPLIED**
 
 ### Site (Cloudflare Pages — auto-deploys from `main`)
 - Public site live at `lustiqueco.co.za` ✅
-- Sanity scrapped — Supabase queries across all dynamic pages ✅
 - ⚠ Pages show real data only after migration 0018 + CF Pages env vars are set
-
-### Known backlog (not blocking go-live)
-- **Email Inbox** — CF Email Routing + `email` event handler + `/api/admin/email` tab
-- **Testimonials** — no table; index.astro is static placeholder
-- **Brevo custom SMTP** — auth emails still from `noreply@mail.app.supabase.io`
 
 ---
 
 ## Key files
 - `PLAN.md` · `PRICING.md` · `BRAND.md` · `ARCHITECTURE.md`
-- `docs/superpowers/specs/` — booking core spec, replan spec
-- `docs/RUNBOOK-go-live.md`
+- `worker/src/booking/dashboard.ts` — admin UI shell + booking detail
+- `worker/src/booking/enquiries.ts` — Forms/enquiry handlers including Generate Invoice
+- `worker/src/booking/invoice.ts` — public invoice page (needs Wave-style rebuild — TASK-C)
+- `worker/src/booking/db.ts` — DB helpers
+- `worker/src/index.ts` — route dispatch
+- `site/src/scripts/enquiry.ts` — quote estimator (needs granular breakdown — TASK-A)
+- `shared/pricing/` — pricing logic (read before touching estimator)
 
 ## ⇄ Umbrella
-**⬆ To umbrella — 🟢 SHIPPED: Booking flow design locked (Opus, 2026-06-23)**
-Booking-flow decision made: Option A reframe (deposit invoice, reuse `quote_sent`/`accepted`,
-no migration). Spec + Sonnet plan written under `docs/superpowers/`. ▶ NEXT: Sonnet builds it.
+**⬆ To umbrella — 🟢 FYI: Lustique UX overhaul scoped (2026-06-24)**
+Session produced: Generate Invoice feature shipped; BUG-1 (R NaN) identified; full UX overhaul
+scoped across 7 tasks covering quote breakdown granularity, Wave-style invoice layout, Yoco Pay Now
+flow, navigation audit, and dashboard favicon. ▶ NEXT: Sonnet builds BUG-1 → TASK-A → TASK-B → TASK-C.
