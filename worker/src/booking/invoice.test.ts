@@ -1,6 +1,6 @@
-// worker/src/booking/invoice.test.ts — S9 invoice page tests
+// worker/src/booking/invoice.test.ts — S9 invoice page + TASK-D reject handler
 import { describe, it, expect, vi } from "vitest";
-import { renderInvoicePage } from "./invoice";
+import { renderInvoicePage, handleInvoiceReject } from "./invoice";
 import { signActionToken } from "./token";
 
 const SECRET = "test-signing-secret";
@@ -10,6 +10,8 @@ function makeEnv() {
     SUPABASE_URL: "https://fake.supabase.co",
     SUPABASE_SERVICE_KEY: "svc-key",
     SIGNING_SECRET: SECRET,
+    BREVO_API_KEY: "brevo-key",
+    NOTIFY_EMAIL: "info@lustiqueco.co.za",
     AUDIT: { put: vi.fn().mockResolvedValue(undefined) },
   };
 }
@@ -165,5 +167,89 @@ describe("invoice content", () => {
     }) as unknown as typeof fetch;
     const r = await renderInvoicePage(makeEnv(), get(await validToken()), f);
     expect(r.status).toBe(200);
+  });
+
+  it("shows decline button for quote_sent status", async () => {
+    const f = makeDbFetch({ ...BOOKING, status: "quote_sent" });
+    const r = await renderInvoicePage(makeEnv(), get(await validToken()), f);
+    expect(await r.text()).toContain("declineBtn");
+  });
+
+  it("hides decline button when booking is already paid", async () => {
+    const f = makeDbFetch({ ...BOOKING, status: "deposit_paid" });
+    const r = await renderInvoicePage(makeEnv(), get(await validToken()), f);
+    expect(await r.text()).not.toContain("declineBtn");
+  });
+});
+
+// ── handleInvoiceReject ───────────────────────────────────────────────────────
+
+function postReject(token: string, reason = ""): Request {
+  const body = new URLSearchParams({ reason });
+  return new Request(
+    `https://worker.dev/api/booking/invoice/reject?token=${encodeURIComponent(token)}`,
+    { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: body.toString() },
+  );
+}
+
+function makeRejectFetch(status = "quote_sent", extra: Partial<typeof BOOKING> = {}): typeof fetch {
+  const f = vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => [{ ...BOOKING, status, ...extra }] })  // getBookingByIdForInvoice
+    .mockResolvedValueOnce({ ok: true, json: async () => [{ ...BOOKING, status: "rejected", ...extra }] }) // transitionBooking
+    .mockResolvedValue({ ok: true, json: async () => ({}) }); // rejections insert, notification, email, audit
+  return f as unknown as typeof fetch;
+}
+
+describe("handleInvoiceReject", () => {
+  it("returns 400 with no token", async () => {
+    const r = await handleInvoiceReject(
+      makeEnv(),
+      new Request("https://worker.dev/api/booking/invoice/reject", { method: "POST" }),
+    );
+    expect(r.status).toBe(400);
+  });
+
+  it("returns 400 for a tampered token", async () => {
+    const r = await handleInvoiceReject(makeEnv(), postReject("bad-token"), makeRejectFetch());
+    expect(r.status).toBe(400);
+  });
+
+  it("returns 200 ok:true when booking is already rejected (already handled)", async () => {
+    const f = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => [{ ...BOOKING, status: "rejected" }] }) as unknown as typeof fetch;
+    const r = await handleInvoiceReject(makeEnv(), postReject(await validToken()), f);
+    expect(r.status).toBe(200);
+    const body = await r.json() as { ok: boolean; already?: boolean };
+    expect(body.ok).toBe(true);
+    expect(body.already).toBe(true);
+  });
+
+  it("transitions quote_sent → rejected and returns 200", async () => {
+    const f = makeRejectFetch("quote_sent");
+    const r = await handleInvoiceReject(makeEnv(), postReject(await validToken(), "Too expensive"), f);
+    expect(r.status).toBe(200);
+    const body = await r.json() as { ok: boolean };
+    expect(body.ok).toBe(true);
+    // Verify transitionBooking PATCH hit quote_sent guard
+    const calls = (f as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+    expect(calls.some((u) => u.includes("status=eq.quote_sent"))).toBe(true);
+  });
+
+  it("inserts a rejections row with reason_text", async () => {
+    const f = makeRejectFetch("quote_sent");
+    await handleInvoiceReject(makeEnv(), postReject(await validToken(), "Budget changed"), f);
+    const calls = (f as ReturnType<typeof vi.fn>).mock.calls;
+    const rejectionCall = calls.find((c) => (c[0] as string).includes("/rejections"));
+    expect(rejectionCall).toBeTruthy();
+    const body = JSON.parse((rejectionCall![1] as RequestInit).body as string);
+    expect(body.rejected_by).toBe("bride");
+    expect(body.reason_text).toBe("Budget changed");
+  });
+
+  it("405 on GET", async () => {
+    const r = await handleInvoiceReject(
+      makeEnv(),
+      new Request("https://worker.dev/api/booking/invoice/reject", { method: "GET" }),
+    );
+    expect(r.status).toBe(405);
   });
 });

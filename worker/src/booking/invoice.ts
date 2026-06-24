@@ -1,19 +1,22 @@
 /**
- * GET /api/booking/invoice?token=<signed> — bride's printable invoice (S9).
+ * GET  /api/booking/invoice?token=<signed>        — bride's printable invoice (S9).
+ * POST /api/booking/invoice/reject?token=<signed> — bride declines the invoice.
  *
- * Token is signed with action "invoice" and a 2-year TTL — generated once on
- * review approval and included in the deposit email. Stateless: no new DB column.
- *
- * Renders a Lustique-branded HTML invoice the bride can open and print to PDF.
- * Shows live payment status (awaiting deposit / deposit paid / fully paid).
+ * The invoice token is signed with action "invoice" and a 2-year TTL.
+ * Rejection transitions booking quote_sent → rejected, inserts a rejections row,
+ * fires the admin bell (invoice_rejected), and sends an admin email.
  */
 
-import { getBookingByIdForInvoice } from "./db";
+import { getBookingByIdForInvoice, transitionBooking, insertNotification } from "./db";
+import { writeAudit } from "./audit";
 import { verifyActionToken } from "./token";
+import { sendEmail, esc as emailEsc } from "../lib/email";
 import type { AuditEnv } from "./audit";
 
 export interface InvoiceEnv extends AuditEnv {
   SIGNING_SECRET: string;
+  BREVO_API_KEY: string;
+  NOTIFY_EMAIL: string;
 }
 
 const esc = (s = "") =>
@@ -45,7 +48,7 @@ function invoicePage(b: {
   balance_net_cents: number;
   status: string;
   quote_lines: Array<{ label: string; amount: number }>;
-}): string {
+}, invoiceToken: string): string {
   const today = new Date();
   const due = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
   const fmtDate = (d: Date) =>
@@ -146,10 +149,30 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
 .print-btn{display:block;width:100%;margin-top:2rem;font:inherit;font-size:.88rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #E8D5B7;border-radius:4px;padding:.75em;cursor:pointer;background:none;color:#7A2E3A;transition:background .15s;}
 .print-btn:hover{background:#FAF6F0;}
 
+/* ── Decline link ── */
+.decline-link{display:block;text-align:center;margin-top:1rem;font-size:.82rem;color:#b08a8a;cursor:pointer;background:none;border:none;text-decoration:underline;font:inherit;}
+.decline-link:hover{color:#7A2E3A;}
+
+/* ── Decline modal ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:#fff;border-radius:10px;padding:2rem;max-width:440px;width:calc(100% - 2rem);box-shadow:0 8px 40px rgba(0,0,0,.18);}
+.modal-box h2{font-size:1.1rem;color:#3A2E26;margin:0 0 .6rem;}
+.modal-box p{font-size:.9rem;color:#6b5d52;margin:0 0 1rem;line-height:1.6;}
+.modal-box textarea{width:100%;border:1.5px solid #E8D5B7;border-radius:6px;padding:.6rem .75rem;font:inherit;font-size:.9rem;resize:vertical;min-height:80px;color:#3A2E26;}
+.modal-box textarea:focus{outline:none;border-color:#7A2E3A;}
+.modal-actions{display:flex;gap:.7rem;margin-top:1.2rem;justify-content:flex-end;}
+.btn-cancel{font:inherit;font-size:.88rem;padding:.6em 1.2em;border:1.5px solid #E8D5B7;border-radius:6px;background:none;color:#6b5d52;cursor:pointer;}
+.btn-cancel:hover{background:#FAF6F0;}
+.btn-decline{font:inherit;font-size:.88rem;font-weight:600;padding:.6em 1.4em;border:none;border-radius:6px;background:#7A2E3A;color:#fff;cursor:pointer;}
+.btn-decline:hover{background:#5c2230;}
+.btn-decline:disabled{opacity:.5;cursor:not-allowed;}
+
 @media print{
   body{background:#fff;padding:0;}
   .page{box-shadow:none;padding:1.5rem 2rem;}
   .print-btn{display:none;}
+  .decline-link{display:none;}
 }
 </style>
 </head>
@@ -239,6 +262,56 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
 
   <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
 
+${b.status === "quote_sent" ? `
+  <button class="decline-link" id="declineBtn">I want to decline this invoice</button>
+
+  <div class="modal-overlay" id="declineModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-box">
+      <h2 id="modalTitle">Decline this invoice</h2>
+      <p>We're sorry it didn't work out. If you'd like to let us know why, please share any feedback below — it helps us improve.</p>
+      <textarea id="declineReason" placeholder="Optional — any feedback is welcome" rows="4"></textarea>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="cancelDecline">Cancel</button>
+        <button class="btn-decline" id="submitDecline">Decline invoice</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    var btn=document.getElementById('declineBtn');
+    var modal=document.getElementById('declineModal');
+    var cancel=document.getElementById('cancelDecline');
+    var submit=document.getElementById('submitDecline');
+    var reason=document.getElementById('declineReason');
+    btn.addEventListener('click',function(){modal.classList.add('open');reason.focus();});
+    cancel.addEventListener('click',function(){modal.classList.remove('open');});
+    modal.addEventListener('click',function(e){if(e.target===modal)modal.classList.remove('open');});
+    submit.addEventListener('click',function(){
+      submit.disabled=true;submit.textContent='Declining…';
+      var body=new URLSearchParams();
+      body.set('reason',reason.value.trim());
+      fetch('/api/booking/invoice/reject?token=${esc(invoiceToken)}',{
+        method:'POST',
+        headers:{'content-type':'application/x-www-form-urlencoded'},
+        body:body.toString()
+      }).then(function(r){
+        if(r.ok){
+          modal.classList.remove('open');
+          document.querySelector('.page').innerHTML='<div style="text-align:center;padding:3rem 1rem;"><p style="font-size:1.1rem;color:#3A2E26;margin-bottom:.8rem;">Thank you for letting us know.</p><p style="color:#6b5d52;font-size:.95rem;">We appreciate you taking the time to get back to us. If circumstances change, please don\'t hesitate to reach out at <a href="mailto:info@lustiqueco.co.za" style="color:#7A2E3A;">info@lustiqueco.co.za</a>.</p></div>';
+        } else {
+          submit.disabled=false;submit.textContent='Decline invoice';
+          alert('Something went wrong — please try again or email us at info@lustiqueco.co.za');
+        }
+      }).catch(function(){
+        submit.disabled=false;submit.textContent='Decline invoice';
+        alert('Something went wrong — please try again or email us at info@lustiqueco.co.za');
+      });
+    });
+  }());
+  </script>
+` : ""}
+
 </div>
 </body>
 </html>`;
@@ -276,12 +349,127 @@ export async function renderInvoicePage(
     }
   } catch { /* non-fatal — page still renders without bank details */ }
 
-  const html = invoicePage(booking).replace(">Loading…</div>", `>${bankHtml}</div>`);
+  const html = invoicePage(booking, token).replace(">Loading…</div>", `>${bankHtml}</div>`);
   return new Response(html, {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "private, no-store",
     },
+  });
+}
+
+// ── handleInvoiceReject ───────────────────────────────────────────────────────
+
+/**
+ * POST /api/booking/invoice/reject?token=<signed>
+ * Body (form-urlencoded): reason=<text>
+ *
+ * Verifies the invoice token, guards that the booking is still quote_sent,
+ * transitions to rejected, writes a rejections row, rings the admin bell,
+ * and sends Zandeline an email with the reason.
+ */
+export async function handleInvoiceReject(
+  env: InvoiceEnv,
+  req: Request,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Response> {
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  const token = new URL(req.url).searchParams.get("token") ?? "";
+  if (!token) return new Response("Missing token", { status: 400, headers: { "content-type": "text/plain" } });
+
+  const v = await verifyActionToken(token, env.SIGNING_SECRET, "invoice");
+  if (!v) return new Response("Invalid or expired link", { status: 400, headers: { "content-type": "text/plain" } });
+
+  const booking = await getBookingByIdForInvoice(env, v.bookingId, fetchImpl);
+  if (!booking) return new Response("Booking not found", { status: 404, headers: { "content-type": "text/plain" } });
+
+  // Only allow rejection from quote_sent (awaiting deposit).
+  // If already handled (rejected/settled/paid), return 200 so the UI shows the thank-you page.
+  if (booking.status !== "quote_sent") {
+    return new Response(JSON.stringify({ ok: true, already: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  let reason = "";
+  try {
+    const form = await req.formData();
+    reason = String(form.get("reason") ?? "").slice(0, 1000).trim();
+  } catch { /* no body — reason stays empty */ }
+
+  const now = new Date().toISOString();
+
+  // Guard-update: quote_sent → rejected.
+  const updated = await transitionBooking(
+    env,
+    booking.id,
+    "quote_sent",
+    { status: "rejected", rejected_at: now },
+    fetchImpl,
+  );
+
+  // If another request already moved it, still return ok.
+  if (updated) {
+    // Store rejection record.
+    await fetchImpl(`${env.SUPABASE_URL}/rest/v1/rejections`, {
+      method: "POST",
+      headers: {
+        apikey: env.SUPABASE_SERVICE_KEY,
+        authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        "content-type": "application/json",
+        prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        booking_id: booking.id,
+        rejected_by: "bride",
+        reason_text: reason || null,
+      }),
+    }).catch(() => {});
+
+    // Ring the admin bell.
+    insertNotification(env, {
+      type: "invoice_rejected",
+      title: `Invoice declined — ${booking.bride_name}`,
+      body: reason ? reason.slice(0, 80) : `${booking.reference} · ${booking.wedding_date}`,
+      link: `/api/admin/booking/${booking.id}`,
+      booking_id: booking.id,
+      payload: { reference: booking.reference, reason },
+    }, fetchImpl).catch(() => {});
+
+    // Email Zandeline.
+    const reasonHtml = reason
+      ? `<p style="margin:1rem 0 0;"><strong>Reason given:</strong><br/>${emailEsc(reason)}</p>`
+      : `<p style="margin:1rem 0 0;color:#8a7d72;">No reason was provided.</p>`;
+    sendEmail(
+      env,
+      { email: env.NOTIFY_EMAIL, name: "Lustique" },
+      `Invoice declined — ${booking.bride_name} · ${booking.reference}`,
+      `<p style="font:14px/1.6 system-ui,sans-serif;">
+        <strong>${emailEsc(booking.bride_name)}</strong> has declined invoice
+        <strong>${emailEsc(booking.reference)}</strong>
+        (wedding date: ${emailEsc(booking.wedding_date)}).
+       </p>
+       ${reasonHtml}
+       <p style="margin-top:1.2rem;font-size:.9rem;color:#8a7d72;">
+         The booking has been marked as Declined in the dashboard.
+       </p>`,
+      fetchImpl,
+    ).catch(() => {});
+
+    await writeAudit(
+      env,
+      { bookingId: booking.id, eventType: "bride.invoice-rejected", payload: { reference: booking.reference, reason } },
+      fetchImpl,
+    ).catch(() => {});
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
   });
 }
