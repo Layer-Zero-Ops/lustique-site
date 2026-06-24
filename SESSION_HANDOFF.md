@@ -8,7 +8,9 @@
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main`
 
-**▶ NEXT: TASK-D — Yoco "Pay Now" button on invoice (after EFT confirmed working).**
+**▶ NEXT: TASK-D remainder — Yoco "Pay Now" deposit selection (after EFT confirmed working end-to-end).**
+
+TASK-D/reject ✅ done (commit d91756e) — invoice decline flow live on invoice page.
 
 ---
 
@@ -236,6 +238,7 @@ The logo is likely in `site/public/` — check for `favicon.ico`, `logo.svg`, or
 
 ## Previously completed this session (2026-06-24)
 
+- ✅ TASK-D/reject: Invoice decline flow — "Decline this invoice" button on invoice page, POST /api/booking/invoice/reject, admin bell + email — commit d91756e
 - ✅ TASK-E: Notification bell wired to real events (deposit_paid, balance_due, contact_added) + emoji icons in dropdown — commit eab986c
   - ⚠ PIETER: Apply migration 0020 in Supabase SQL editor (`ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'balance_due'; ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'contact_added';`)
 
