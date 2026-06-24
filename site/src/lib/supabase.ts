@@ -14,4 +14,4 @@ export async function supabaseGet<T>(path: string): Promise<T[]> {
 }
 
 export const storageUrl = (path: string) =>
-  `${SUPABASE_URL}/storage/v1/object/public/portfolio/${path}`;
+  `${SUPABASE_URL}/storage/v1/object/public/Portfolio/${path}`;
