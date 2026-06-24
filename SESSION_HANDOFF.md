@@ -1,15 +1,22 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** Booking flow build · **Updated:** 2026-06-23
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Booking flow build · **Updated:** 2026-06-24
 
 ## ▶ NEXT (Sonnet, fresh session — BUILD)
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main`
 
-**Mission:** ✅ TASK 2 DONE — booking flow reframed as deposit invoice (commit `eab4263`).
+**Mission:** Worker deployed ✅ (`1523499`). Booking flow, staffing tab, calendar all live.
 
-▶ NEXT: **Newsletter lead magnet** (TASK 3 below). Needs Pieter's Brevo list ID first.
-Also: deploy worker (`cd worker && npm run deploy`) so live site gets the new email + dashboard labels.
+▶ NEXT: **Newsletter lead magnet** (TASK 3 below). Blocked on Pieter's Brevo list ID.
+
+**Pieter actions still open:**
+1. **Brevo newsletter list ID** — create list in Brevo → share numeric ID → enables Task 3
+2. Migration 0018 (`supabase/migrations/0018_public_read_policies.sql`) — public read for `artists` + `portfolio_images` (unblocks Portfolio/team pages on site)
+3. Add `SUPABASE_URL` + `SUPABASE_ANON_KEY` as CF Pages build env vars (unblocks Supabase-powered pages)
+4. Run `npm install` in `site/` to prune Sanity from node_modules
+5. Delete stray `astro-portabletext-0.13.0.tgz` from repo root
+6. Hard-refresh Safari on quote page (Cmd+Shift+R) to clear stale "Secure your date" cache
 
 ---
 
