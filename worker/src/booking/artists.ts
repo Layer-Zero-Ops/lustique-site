@@ -133,7 +133,7 @@ async function getBookingStatus(
 
 // ── HTTP handlers ─────────────────────────────────────────────────────────────
 
-const ASSIGNABLE_STATUSES = ["quote_sent", "accepted"];
+const ASSIGNABLE_STATUSES = ["quote_sent", "accepted", "deposit_paid", "settled"];
 
 function errorRedirect(bookingId: string, message: string): Response {
   return new Response(null, {
@@ -144,10 +144,22 @@ function errorRedirect(bookingId: string, message: string): Response {
   });
 }
 
-function successRedirect(bookingId: string): Response {
+function successRedirect(bookingId: string, returnTo?: string): Response {
+  const dest =
+    returnTo && returnTo.startsWith("/api/admin/")
+      ? returnTo
+      : `/api/admin/booking/${encodeURIComponent(bookingId)}?saved=1`;
+  return new Response(null, { status: 302, headers: { Location: dest } });
+}
+
+function errorRedirectTo(bookingId: string, message: string, returnTo?: string): Response {
+  const base =
+    returnTo && returnTo.startsWith("/api/admin/")
+      ? returnTo
+      : `/api/admin/booking/${encodeURIComponent(bookingId)}`;
   return new Response(null, {
     status: 302,
-    headers: { Location: `/api/admin/booking/${encodeURIComponent(bookingId)}?saved=1` },
+    headers: { Location: `${base}?error=${encodeURIComponent(message)}` },
   });
 }
 
@@ -169,36 +181,39 @@ export async function handleAssignArtist(
 
   let artistId: string;
   let lead: boolean;
+  let returnTo: string | undefined;
   try {
     const fd = await req.formData();
     artistId = ((fd.get("artist_id") as string | null) ?? "").trim();
     const leadRaw = ((fd.get("lead") as string | null) ?? "false").trim();
     lead = leadRaw === "true";
+    returnTo = (fd.get("returnTo") as string | null) ?? undefined;
   } catch {
     return errorRedirect(bookingId, "Invalid form data");
   }
 
-  if (!artistId) return errorRedirect(bookingId, "Missing artist_id");
-  if (!UUID_RE.test(artistId)) return errorRedirect(bookingId, "Invalid artist_id");
+  if (!artistId) return errorRedirectTo(bookingId, "Missing artist_id", returnTo);
+  if (!UUID_RE.test(artistId)) return errorRedirectTo(bookingId, "Invalid artist_id", returnTo);
 
   let booking: { id: string; status: string } | null;
   try {
     booking = await getBookingStatus(env, bookingId, fetchFn);
   } catch {
-    return errorRedirect(bookingId, "Could not fetch booking");
+    return errorRedirectTo(bookingId, "Could not fetch booking", returnTo);
   }
-  if (!booking) return errorRedirect(bookingId, "Booking not found");
+  if (!booking) return errorRedirectTo(bookingId, "Booking not found", returnTo);
   if (!ASSIGNABLE_STATUSES.includes(booking.status)) {
-    return errorRedirect(bookingId, `Cannot assign artists when status is ${booking.status}`);
+    return errorRedirectTo(bookingId, `Cannot assign artists when status is ${booking.status}`, returnTo);
   }
 
   try {
     await insertBookingArtist(env, bookingId, artistId, lead, fetchFn);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Insert failed";
-    return errorRedirect(
+    return errorRedirectTo(
       bookingId,
       msg.includes("23505") || msg.includes("duplicate") ? "Artist already assigned" : "Assignment failed",
+      returnTo,
     );
   }
 
@@ -208,7 +223,7 @@ export async function handleAssignArtist(
     fetchFn,
   );
 
-  return successRedirect(bookingId);
+  return successRedirect(bookingId, returnTo);
 }
 
 export async function handleRemoveArtist(
@@ -226,32 +241,34 @@ export async function handleRemoveArtist(
   if (!user) return loginRedirect();
 
   let artistId: string;
+  let returnTo: string | undefined;
   try {
     const fd = await req.formData();
     artistId = ((fd.get("artist_id") as string | null) ?? "").trim();
+    returnTo = (fd.get("returnTo") as string | null) ?? undefined;
   } catch {
     return errorRedirect(bookingId, "Invalid form data");
   }
 
-  if (!artistId) return errorRedirect(bookingId, "Missing artist_id");
-  if (!UUID_RE.test(artistId)) return errorRedirect(bookingId, "Invalid artist_id");
+  if (!artistId) return errorRedirectTo(bookingId, "Missing artist_id", returnTo);
+  if (!UUID_RE.test(artistId)) return errorRedirectTo(bookingId, "Invalid artist_id", returnTo);
 
   let booking: { id: string; status: string } | null;
   try {
     booking = await getBookingStatus(env, bookingId, fetchFn);
   } catch {
-    return errorRedirect(bookingId, "Could not fetch booking");
+    return errorRedirectTo(bookingId, "Could not fetch booking", returnTo);
   }
-  if (!booking) return errorRedirect(bookingId, "Booking not found");
+  if (!booking) return errorRedirectTo(bookingId, "Booking not found", returnTo);
   if (!ASSIGNABLE_STATUSES.includes(booking.status)) {
-    return errorRedirect(bookingId, `Cannot remove artists when status is ${booking.status}`);
+    return errorRedirectTo(bookingId, `Cannot remove artists when status is ${booking.status}`, returnTo);
   }
 
   try {
     await deleteBookingArtist(env, bookingId, artistId, fetchFn);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Delete failed";
-    return errorRedirect(bookingId, msg);
+    return errorRedirectTo(bookingId, msg, returnTo);
   }
 
   await writeAudit(
@@ -260,5 +277,5 @@ export async function handleRemoveArtist(
     fetchFn,
   );
 
-  return successRedirect(bookingId);
+  return successRedirect(bookingId, returnTo);
 }

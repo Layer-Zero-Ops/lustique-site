@@ -42,6 +42,7 @@ import { persistEnquiry, insertNotification } from "./booking/db";
 import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry } from "./booking/enquiries";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
+import { handleAdminStaffing } from "./booking/staffing";
 import { handleAdminPortfolio, handleAdminPortfolioDelete, handleAdminPortfolioReorder } from "./booking/portfolio";
 import {
   handleAdminBlog,
@@ -454,6 +455,11 @@ export default {
       // POST /api/admin/notifications/read — mark one or all as read
       if (req.method === "POST" && url.pathname === "/api/admin/notifications/read") {
         return await handleAdminNotificationsRead(req, dashEnv);
+      }
+
+      // GET /api/admin/staffing — artist assignment overview
+      if (req.method === "GET" && url.pathname === "/api/admin/staffing") {
+        return handleAdminStaffing(req, env as Parameters<typeof handleAdminStaffing>[1], adminShell);
       }
 
       // ── Forms ─────────────────────────────────────────────────────────────

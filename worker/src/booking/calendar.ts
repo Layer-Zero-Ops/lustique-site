@@ -15,16 +15,16 @@ interface CalBooking {
   updated_at: string;
 }
 
-const DEAD = "expired,declined,cancelled,rejected,invoice_expired";
-
 export async function listActiveBookingsForCalendar(
   env: DbEnv,
   f: typeof fetch = fetch,
 ): Promise<CalBooking[]> {
+  // Only include paid/confirmed bookings in the ical feed — the date is truly locked in.
+  // Pending bookings (requested/quote_sent/accepted) are visible in the admin calendar only.
   const url =
     rest(env, "bookings") +
     `?select=reference,bride_name,wedding_date,town,venue,party_size,updated_at` +
-    `&status=not.in.(${DEAD})` +
+    `&status=in.(deposit_paid,settled)` +
     `&order=wedding_date.asc`;
   const r = await f(url, { headers: headers(env) });
   if (!r.ok) throw new Error(`listActiveBookingsForCalendar ${r.status}`);

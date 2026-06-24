@@ -86,12 +86,12 @@ describe("generateIcal", () => {
 // ── listActiveBookingsForCalendar ─────────────────────────────────────────────
 
 describe("listActiveBookingsForCalendar", () => {
-  it("queries bookings excluding dead statuses ordered by wedding_date", async () => {
+  it("queries only confirmed (deposit_paid/settled) bookings ordered by wedding_date", async () => {
     const f = vi.fn().mockResolvedValue(res([booking]));
     const rows = await listActiveBookingsForCalendar(env, f as unknown as typeof fetch);
     expect(rows).toHaveLength(1);
     const url = f.mock.calls[0]![0] as string;
-    expect(url).toContain("status=not.in.(expired,declined,cancelled,rejected,invoice_expired)");
+    expect(url).toContain("status=in.(deposit_paid,settled)");
     expect(url).toContain("order=wedding_date.asc");
     expect(url).toContain("select=reference,bride_name,wedding_date,town,venue,party_size,updated_at");
   });

@@ -74,6 +74,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     if (href === "/api/admin/calendar")   return currentPath.startsWith("/api/admin/calendar");
     if (href === "/api/admin/website")    return currentPath.startsWith("/api/admin/website");
     if (href === "/api/admin/templates")  return currentPath.startsWith("/api/admin/templates");
+    if (href === "/api/admin/staffing")   return currentPath.startsWith("/api/admin/staffing");
     return currentPath === href;
   }
 
@@ -110,6 +111,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     ].join("\n")),
     navGroup("Admin", [
       navLink("/api/admin/dashboard",  "Inbox"),
+      navLink("/api/admin/staffing",   "Staffing"),
       navLink("/api/admin/templates",  "Templates"),
     ].join("\n")),
   ].join("\n");
@@ -1398,7 +1400,7 @@ export async function handleAdminCalendar(
     fetchFn(
       supabaseUrl(
         env,
-        `bookings?wedding_date=gte.${monthStart}&wedding_date=lte.${monthEnd}&status=in.(requested,quote_sent,accepted,deposit_paid)&select=wedding_date,status,occasion`,
+        `bookings?wedding_date=gte.${monthStart}&wedding_date=lte.${monthEnd}&status=in.(requested,quote_sent,accepted,deposit_paid,settled)&select=wedding_date,status,occasion`,
       ),
       { headers: hdr },
     ),
@@ -1411,14 +1413,21 @@ export async function handleAdminCalendar(
   const bookings: CalendarBooking[] = bRes.ok ? ((await bRes.json()) as CalendarBooking[]) : [];
   const blockedDates: BlockedDate[] = bdRes.ok ? ((await bdRes.json()) as BlockedDate[]) : [];
 
-  // Build day-count + occasion maps
-  const countByDay    = new Map<string, number>();
-  const trialsByDay   = new Map<string, number>();
-  const weddingsByDay = new Map<string, number>();
-  const matricByDay   = new Map<string, number>();
+  const CONFIRMED = new Set(["deposit_paid", "settled"]);
+
+  // Build day-count + occasion maps — confirmed (paid) vs pending (pre-payment)
+  const confirmedByDay = new Map<string, number>();
+  const pendingByDay   = new Map<string, number>();
+  const trialsByDay    = new Map<string, number>();
+  const weddingsByDay  = new Map<string, number>();
+  const matricByDay    = new Map<string, number>();
   for (const b of bookings) {
     const d = b.wedding_date.slice(0, 10);
-    countByDay.set(d, (countByDay.get(d) ?? 0) + 1);
+    if (CONFIRMED.has(b.status)) {
+      confirmedByDay.set(d, (confirmedByDay.get(d) ?? 0) + 1);
+    } else {
+      pendingByDay.set(d, (pendingByDay.get(d) ?? 0) + 1);
+    }
     if (b.occasion === "trial") {
       trialsByDay.set(d, (trialsByDay.get(d) ?? 0) + 1);
     } else if (b.occasion === "matric") {
@@ -1451,29 +1460,37 @@ export async function handleAdminCalendar(
   }
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const count = countByDay.get(dateStr) ?? 0;
+    const confirmed = confirmedByDay.get(dateStr) ?? 0;
+    const pending   = pendingByDay.get(dateStr) ?? 0;
     const slots = slotsByDay.get(dateStr) ?? null;
     const isBlocked = slots === 0;
-    const overCapacity = slots !== null && slots > 0 && count >= slots;
+    // Only confirmed (paid) bookings count against capacity
+    const overCapacity = slots !== null && slots > 0 && confirmed >= slots;
     const isToday = dateStr === todayStr;
 
-    const bg = isBlocked ? "#fde8e8" : overCapacity ? "#fef3cd" : count > 0 ? "#edfcf2" : "#fff";
+    const bg = isBlocked ? "#fde8e8" : overCapacity ? "#fef3cd" : confirmed > 0 ? "#edfcf2" : pending > 0 ? "#fffbeb" : "#fff";
     const todayRing = isToday ? "box-shadow:inset 0 0 0 2px #8a3a52;" : "";
 
-    // Booking dots (up to 3) + overflow count
-    const dotColor = overCapacity ? "#c53030" : "#276749";
-    const dots = count > 0
-      ? `<div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;">
-          ${Array.from({ length: Math.min(count, 3) }, () => `<span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block;"></span>`).join("")}
-          ${count > 3 ? `<span style="font-size:.65rem;color:${dotColor};font-weight:700;line-height:7px;">+${count - 3}</span>` : ""}
-        </div>`
+    // Dots: solid green = confirmed/paid, outlined amber = pending (pre-payment)
+    const confirmedDots = confirmed > 0
+      ? Array.from({ length: Math.min(confirmed, 3) }, () =>
+          `<span style="width:7px;height:7px;border-radius:50%;background:#276749;display:inline-block;"></span>`
+        ).join("") + (confirmed > 3 ? `<span style="font-size:.65rem;color:#276749;font-weight:700;line-height:7px;">+${confirmed - 3}</span>` : "")
+      : "";
+    const pendingDots = pending > 0
+      ? Array.from({ length: Math.min(pending, 3) }, () =>
+          `<span style="width:7px;height:7px;border-radius:50%;border:1.5px solid #b7791f;display:inline-block;"></span>`
+        ).join("") + (pending > 3 ? `<span style="font-size:.65rem;color:#b7791f;font-weight:700;line-height:7px;">+${pending - 3}</span>` : "")
+      : "";
+    const dots = (confirmedDots || pendingDots)
+      ? `<div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;">${confirmedDots}${pendingDots}</div>`
       : "";
 
     const blockedTag = isBlocked
       ? `<div style="font-size:.65rem;color:#c53030;font-weight:700;margin-top:3px;text-transform:uppercase;letter-spacing:.04em;">Blocked</div>`
       : "";
     const slotsTag = !isBlocked && slots !== null
-      ? `<div style="font-size:.65rem;color:#8a7d72;margin-top:2px;">${count}/${slots} slots</div>`
+      ? `<div style="font-size:.65rem;color:#8a7d72;margin-top:2px;">${confirmed}/${slots} slots</div>`
       : "";
 
     const tw = trialsByDay.get(dateStr) ?? 0;
