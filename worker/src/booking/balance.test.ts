@@ -159,8 +159,9 @@ describe("balanceSweep", () => {
       .mockResolvedValueOnce(res({ messageId: "m" }, 201)) // booking 2 bride
       .mockResolvedValueOnce(res({ messageId: "m" }, 201)) // booking 2 Zandeline
       .mockResolvedValueOnce(res([dueRow()], 200))         // booking 2 stamp
-      .mockResolvedValueOnce(res({}, 201));                // booking 2 audit sent
+      .mockResolvedValueOnce(res({}, 201))                 // booking 2 audit sent
+      .mockResolvedValueOnce(res({}, 201));                // booking 2 insertNotification → bell
     await balanceSweep(env, f as unknown as typeof fetch, NOW);
-    expect(f.mock.calls.length).toBe(8);
+    expect(f.mock.calls.length).toBe(9);
   });
 });

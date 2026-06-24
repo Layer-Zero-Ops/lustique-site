@@ -4,7 +4,7 @@
 // Local AdminActionsEnv avoids circular imports; DashboardEnv satisfies it structurally.
 
 import { getAdminSession, loginRedirect, type AuthEnv } from "./auth";
-import { getBookingById, transitionBooking, transitionRequestedBooking, type ConfirmBookingRow } from "./db";
+import { getBookingById, transitionBooking, transitionRequestedBooking, insertNotification, type ConfirmBookingRow } from "./db";
 import { writeAudit } from "./audit";
 import { signActionToken } from "./token";
 import {
@@ -314,6 +314,15 @@ export async function handleAdminMarkDepositPaid(
     (await transitionBooking(env, bookingId, "accepted", { status: "deposit_paid", deposit_paid_at: now }, fetchFn)) ??
     (await transitionBooking(env, bookingId, "confirmed", { status: "deposit_paid", deposit_paid_at: now }, fetchFn));
   if (!updated) return errorRedirect(bookingId, "Deposit already marked — refresh and check status");
+
+  insertNotification(env, {
+    type: "deposit_paid",
+    title: `Booking fee received — ${booking.bride_name}`,
+    body: `${booking.reference} · ${booking.wedding_date} (marked by admin)`,
+    link: `/api/admin/booking/${booking.id}`,
+    booking_id: booking.id,
+    payload: { reference: booking.reference, markedBy: session.email },
+  }, fetchFn).catch(() => {});
 
   try {
     await sendEmail(

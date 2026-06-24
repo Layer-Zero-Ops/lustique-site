@@ -8,7 +8,7 @@
  * balanceSweep() runs inside scheduled() — 14 working days before the wedding,
  * emails the bride her EFT balance details and sends Zandeline the mark-balance-paid link.
  */
-import { getBookingById, transitionBooking, listBookingsDueForBalanceReminder, type ConfirmBookingRow } from "./db";
+import { getBookingById, transitionBooking, listBookingsDueForBalanceReminder, insertNotification, type ConfirmBookingRow } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { signActionToken, verifyActionToken } from "./token";
 import { workingDaysBefore } from "./util";
@@ -209,6 +209,14 @@ export async function balanceSweep(
       const stamped = await transitionBooking(env, b.id, "deposit_paid", { balance_reminder_sent_at: today.toISOString() }, fetchImpl);
       if (stamped) {
         await writeAudit(env, { bookingId: b.id, eventType: "payment.balance-reminder.sent", payload: { reference: b.reference, balanceNetCents: b.balance_net_cents } }, fetchImpl);
+        insertNotification(env, {
+          type: "balance_due",
+          title: `Balance due — ${b.bride_name}`,
+          body: `${b.reference} · Wedding ${b.wedding_date}`,
+          link: `/api/admin/booking/${b.id}`,
+          booking_id: b.id,
+          payload: { reference: b.reference, balanceNetCents: b.balance_net_cents },
+        }, fetchImpl).catch(() => {});
       }
     } catch {
       await writeAudit(env, { bookingId: b.id, eventType: "payment.balance-reminder.failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});

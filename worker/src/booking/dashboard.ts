@@ -201,6 +201,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
         renderItems(d.items);
       }).catch(function(){});
   }
+  var NOTIF_ICON={enquiry_received:'💬',deposit_paid:'💳',balance_due:'⏰',contact_added:'👤',invoice_rejected:'❌',balance_paid:'✅',invoice_expired:'📋',booking_requested:'📝'};
   function renderItems(items){
     list.textContent='';
     if(!items||!items.length){
@@ -212,12 +213,18 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     items.forEach(function(n){
       var a=document.createElement('a');
       a.href=n.link||'#';
-      a.style.cssText='display:block;padding:.65rem .9rem;border-bottom:1px solid #f3ede8;text-decoration:none;color:#2b2b2b;';
+      a.style.cssText='display:flex;align-items:flex-start;gap:.5rem;padding:.65rem .9rem;border-bottom:1px solid #f3ede8;text-decoration:none;color:#2b2b2b;';
       a.addEventListener('click',function(){markRead(n.id);});
+      var icon=document.createElement('span');
+      icon.style.cssText='font-size:1rem;line-height:1.3;flex-shrink:0;';
+      icon.textContent=NOTIF_ICON[n.type]||'🔔';
+      a.appendChild(icon);
+      var txt=document.createElement('div');txt.style.cssText='min-width:0;';
       var t=document.createElement('div');
-      t.style.cssText='font-weight:600;font-size:.85rem;';
-      t.textContent=n.title;a.appendChild(t);
-      if(n.body){var b=document.createElement('div');b.style.cssText='font-size:.78rem;color:#8a7d72;margin-top:.15rem;';b.textContent=n.body;a.appendChild(b);}
+      t.style.cssText='font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      t.textContent=n.title;txt.appendChild(t);
+      if(n.body){var b=document.createElement('div');b.style.cssText='font-size:.78rem;color:#8a7d72;margin-top:.15rem;';b.textContent=n.body;txt.appendChild(b);}
+      a.appendChild(txt);
       list.appendChild(a);
     });
   }

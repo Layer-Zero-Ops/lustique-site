@@ -9,7 +9,7 @@
  *
  * v1 takes deposits by EFT (no Yoco). S4 swaps the EFT block for a Yoco pay-link.
  */
-import { getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, type ConfirmBookingRow } from "./db";
+import { getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, insertNotification, type ConfirmBookingRow } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken, verifyActionToken } from "./token";
 import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail, getEftSettings, type EftSettings } from "../lib/email";
@@ -273,6 +273,15 @@ export async function handleMarkPaid(env: BookingConfirmEnv, req: Request, fetch
     await transitionBooking(env, b.id, "accepted", { status: "deposit_paid", deposit_paid_at: now2 }, fetchImpl) ??
     await transitionBooking(env, b.id, "confirmed", { status: "deposit_paid", deposit_paid_at: now2 }, fetchImpl);
   if (!updated) return htmlResponse(handledHtml(), 200);
+
+  insertNotification(env, {
+    type: "deposit_paid",
+    title: `Booking fee received — ${b.bride_name}`,
+    body: `${b.reference} · ${b.wedding_date}`,
+    link: `/api/admin/booking/${b.id}`,
+    booking_id: b.id,
+    payload: { reference: b.reference },
+  }, fetchImpl).catch(() => {});
 
   try {
     await sendEmail(env, { email: b.bride_email, name: b.bride_name },

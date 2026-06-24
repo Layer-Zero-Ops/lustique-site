@@ -4,6 +4,7 @@
 // Deduplicates by email so each person appears once.
 
 import { getAdminSession } from "./auth";
+import { insertNotification } from "./db";
 import type { Env } from "../index";
 import type { ShellFn } from "./enquiries";
 
@@ -383,11 +384,22 @@ export async function handleAdminAddContact(
     const phone = String(form.get("phone") ?? "").trim();
     if (!name || !email) return redirect("/api/admin/contacts?error=missing-fields");
 
-    await f(`${env.SUPABASE_URL}/rest/v1/enquiries`, {
+    const res = await f(`${env.SUPABASE_URL}/rest/v1/enquiries`, {
       method: "POST",
-      headers: hdr,
+      headers: { ...hdr, prefer: "return=representation" },
       body: JSON.stringify({ name, email, phone: phone || "", message: "" }),
     });
+    if (res.ok) {
+      const rows = (await res.json()) as Array<{ id: string }>;
+      const id = rows[0]?.id;
+      insertNotification(env, {
+        type: "contact_added",
+        title: `New contact — ${name}`,
+        body: email,
+        link: id ? `/api/admin/enquiries/${id}` : "/api/admin/contacts",
+        payload: { email },
+      }, f).catch(() => {});
+    }
     return redirect("/api/admin/contacts?added=1");
   }
 

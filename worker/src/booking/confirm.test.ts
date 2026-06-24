@@ -214,8 +214,9 @@ describe("mark-paid (POST)", () => {
       .mockResolvedValueOnce(res([bookingRow({ status: "confirmed" })]))          // [0] getBookingById
       .mockResolvedValueOnce(res([]))                                              // [1] transitionBooking(accepted) → miss (legacy booking)
       .mockResolvedValueOnce(res([bookingRow({ status: "deposit_paid" })]))        // [2] transitionBooking(confirmed) → success
-      .mockResolvedValueOnce(res({ messageId: "m" }, 201))                         // [3] Brevo → bride
-      .mockResolvedValueOnce(res({}, 201));                                        // [4] writeAudit → insertAudit
+      .mockResolvedValueOnce(res({}, 201))                                         // [3] insertNotification → bell
+      .mockResolvedValueOnce(res({ messageId: "m" }, 201))                         // [4] Brevo → bride
+      .mockResolvedValueOnce(res({}, 201));                                        // [5] writeAudit → insertAudit
     const resp = await handleMarkPaid(env, markPaidPost(t), f as unknown as typeof fetch);
     expect(resp.status).toBe(200);
     // Wave A tries accepted first; legacy booking is in confirmed, so confirmed fallback wins
@@ -224,7 +225,7 @@ describe("mark-paid (POST)", () => {
     const patch = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
     expect(patch.status).toBe("deposit_paid");
     expect(patch.deposit_paid_at).toBeTruthy();
-    const bride = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
+    const bride = JSON.parse((f.mock.calls[4]![1] as RequestInit).body as string);
     expect(bride.htmlContent).toMatch(/secured|confirmed/i);
   });
   it("does not re-email if the booking already moved on (0-row guard)", async () => {
