@@ -140,14 +140,51 @@ export async function handleAdminEnquiryDetail(
   const url = new URL(req.url);
   const saved = url.searchParams.get("saved") === "1";
 
-  // Build detail rows from submitted form data
+  // Build detail sections from submitted form data.
+  // Entries with kind="service" render as a quote line-item table; all others render as key-value.
   let detailRows = "";
+  let serviceTable = "";
   if (Array.isArray(e.details)) {
-    const rows = (e.details as Array<{ label?: string; value?: string }>)
-      .filter((d) => d.value && String(d.value).trim())
-      .map((d) => `<tr><td style="color:#8a7d72;padding:3px 12px 3px 0;white-space:nowrap;">${esc(d.label ?? "")}</td><td>${esc(String(d.value))}</td></tr>`)
-      .join("");
-    if (rows) detailRows = `<table style="border-collapse:collapse;font-size:.88rem;margin:.5rem 0 1rem;">${rows}</table>`;
+    type DetailEntry = { label?: string; value?: string; kind?: string };
+    const all = e.details as DetailEntry[];
+    const infoEntries = all.filter((d) => d.kind !== "service" && d.value && String(d.value).trim());
+    const serviceEntries = all.filter((d) => d.kind === "service" && d.value && String(d.value).trim());
+
+    if (infoEntries.length > 0) {
+      const rows = infoEntries
+        .map((d) => `<tr><td style="color:#8a7d72;padding:3px 12px 3px 0;white-space:nowrap;">${esc(d.label ?? "")}</td><td>${esc(String(d.value))}</td></tr>`)
+        .join("");
+      detailRows = `<table style="border-collapse:collapse;font-size:.88rem;margin:.5rem 0 1rem;">${rows}</table>`;
+    }
+
+    if (serviceEntries.length > 0) {
+      const serviceRows = serviceEntries.map((d) => {
+        const isDiscount = String(d.value).startsWith("−");
+        const cellStyle = isDiscount
+          ? `style="color:#8a3a52;font-style:italic;"`
+          : "";
+        return `<tr>
+          <td ${cellStyle} style="padding:6px 12px 6px 0;">${esc(d.label ?? "")}</td>
+          <td ${cellStyle} style="padding:6px 0;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(String(d.value))}</td>
+        </tr>`;
+      }).join("");
+      const totalLine = e.estimate
+        ? `<tr><td colspan="2" style="border-top:2px solid rgba(60,42,42,.2);padding-top:8px;"></td></tr>
+           <tr>
+             <td style="padding:4px 12px 4px 0;font-weight:700;">Estimated Total</td>
+             <td style="padding:4px 0;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(e.estimate)}</td>
+           </tr>`
+        : "";
+      serviceTable = `
+        <h2 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a7d72;margin:1.2rem 0 .5rem;">Quote Breakdown</h2>
+        <table style="border-collapse:collapse;font-size:.88rem;width:100%;margin:.5rem 0 1rem;">
+          <thead><tr>
+            <th style="text-align:left;padding:4px 12px 8px 0;font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a7d72;border-bottom:1px solid #ede7e0;">Service</th>
+            <th style="text-align:right;padding:4px 0 8px;font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a7d72;border-bottom:1px solid #ede7e0;">Amount</th>
+          </tr></thead>
+          <tbody>${serviceRows}${totalLine}</tbody>
+        </table>`;
+    }
   }
 
   const statusOptions = Object.entries(STATUS_LABELS)
@@ -171,6 +208,7 @@ export async function handleAdminEnquiryDetail(
           <tr><td style="color:#8a7d72;padding:3px 12px 3px 0;">Received</td><td>${esc(e.created_at.slice(0, 16).replace("T", " "))}</td></tr>
         </table>
         ${detailRows ? `<h2 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a7d72;margin:1.2rem 0 .5rem;">Occasion details</h2>${detailRows}` : ""}
+        ${serviceTable}
         ${e.message ? `<h2 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a7d72;margin:1.2rem 0 .5rem;">Message</h2><p style="font-size:.9rem;white-space:pre-wrap;margin:0;">${esc(e.message)}</p>` : ""}
       </div>
       <div>
@@ -309,7 +347,7 @@ export async function handleAdminGenerateInvoice(
     party_size: 1,
     estimate_input: {},
     total_cents: parseTotalCents(e.estimate),
-    quote_lines: Array.isArray(e.details) ? e.details : [],
+    quote_lines: [],
     deposit_pct: null,
     deposit_net_cents: 0,
     balance_net_cents: 0,

@@ -86,36 +86,27 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
   const addRole = (label: string, mk: number, hr: number, mkPrice: number, hairCost: () => number, eligible: boolean): number => {
     mk = Math.max(0, mk); hr = Math.max(0, hr);
     const heads = Math.max(mk, hr);
-    let sub = 0, count = 0;
+    let mkSub = 0, hrSub = 0;
     for (let i = 0; i < heads; i++) {
-      let c = 0;
-      if (i < mk) c += mkPrice;
-      if (i < hr) c += hairCost();
-      if (c > 0) { total += c; sub += c; count++; paid.push(c); if (eligible) freebie.push(c); }
+      let lookCost = 0;
+      if (i < mk) { mkSub += mkPrice; lookCost += mkPrice; }
+      if (i < hr) { const hc = hairCost(); hrSub += hc; lookCost += hc; }
+      if (lookCost > 0) { paid.push(lookCost); if (eligible) freebie.push(lookCost); }
     }
-    if (count > 0) {
-      const services =
-        mk > 0 && hr > 0
-          ? mk === hr
-            ? `makeup + hair × ${count}`
-            : `makeup × ${mk}, hair × ${hr}`
-          : mk > 0
-            ? `makeup × ${count}`
-            : `hair × ${count}`;
-      lines.push({ label: `${label} — ${services}`, amount: sub });
-    }
+    if (mkSub > 0) { total += mkSub; lines.push({ label: `${label} Makeup × ${mk}`, amount: mkSub }); }
+    if (hrSub > 0) { total += hrSub; lines.push({ label: `${label} Hair Styling × ${hr}`, amount: hrSub }); }
     return heads;
   };
 
   const adultHair = () => PRICING.hairAdult[nextAdultLen()];
   let heads = 1;
-  heads += addRole("Bridesmaid look", input.bmMakeup, input.bmHair, PRICING.makeup.bridesmaid, adultHair, true);
-  heads += addRole("Mother look", input.momMakeup, input.momHair, PRICING.makeup.mother, adultHair, true);
-  heads += addRole("Guest look", input.guestMakeup, input.guestHair, PRICING.makeup.guest, adultHair, true);
+  heads += addRole("Bridesmaid", input.bmMakeup, input.bmHair, PRICING.makeup.bridesmaid, adultHair, true);
+  heads += addRole("Mother", input.momMakeup, input.momHair, PRICING.makeup.mother, adultHair, true);
+  heads += addRole("Guest", input.guestMakeup, input.guestHair, PRICING.makeup.guest, adultHair, true);
   const fgUnder = input.fgAge === "under";
   const fgTable = fgUnder ? PRICING.hairFgUnder : PRICING.hairAdult;
   heads += addRole(
-    fgUnder ? "Flower girl (under 12)" : "Flower girl (12+)",
+    fgUnder ? "Flower Girl (under 12)" : "Flower Girl (12+)",
     input.fgMakeup, input.fgHair,
     fgUnder ? PRICING.makeup.fgUnder : PRICING.makeup.fgOver,
     () => fgTable[input.fgHairLen],

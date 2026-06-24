@@ -3,7 +3,10 @@
    Before the backend is deployed there's no /api/enquiry, so it surfaces a soft error
    instead of failing silently. Pricing/occasion logic lives in estimator.ts. */
 
-type Detail = { label: string; value: string };
+import { computeEstimate } from "@lustique/pricing";
+import { readInput } from "./estimator";
+
+type Detail = { label: string; value: string; kind?: "service" };
 
 const val = (id: string): string => {
   const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
@@ -69,6 +72,22 @@ function collect() {
   }
   add("Style", val("style"));
   add("Inspiration", val("inspo"));
+
+  // Granular service lines from the pricing engine (weddings only).
+  // Stored with kind="service" so the admin enquiry detail page can render a proper quote table.
+  if (occasion === "wedding") {
+    try {
+      const fmtR = (n: number) =>
+        (n < 0 ? "− R " : "R ") +
+        Math.round(Math.abs(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+      const result = computeEstimate(readInput());
+      for (const line of result.lines) {
+        if (line.amount !== 0) {
+          details.push({ label: line.label, value: fmtR(line.amount), kind: "service" });
+        }
+      }
+    } catch { /* non-critical — enquiry still submits without service lines */ }
+  }
 
   const tsInput = document.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"]');
   return {

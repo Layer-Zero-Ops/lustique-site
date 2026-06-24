@@ -56,9 +56,12 @@ describe("computeEstimate — wedding", () => {
     expect(r.heads).toBe(7);
     expect(r.lines).toEqual([
       { label: "Bride — makeup + hair, trial & wedding day (medium)", amount: 2890 },
-      { label: "Bridesmaid look — makeup + hair × 3", amount: 3135 },
-      { label: "Mother look — makeup + hair × 2", amount: 1990 },
-      { label: "Flower girl (under 12) — makeup + hair × 1", amount: 500 },
+      { label: "Bridesmaid Makeup × 3", amount: 1650 },
+      { label: "Bridesmaid Hair Styling × 3", amount: 1485 },
+      { label: "Mother Makeup × 2", amount: 1000 },
+      { label: "Mother Hair Styling × 2", amount: 990 },
+      { label: "Flower Girl (under 12) Makeup × 1", amount: 250 },
+      { label: "Flower Girl (under 12) Hair Styling × 1", amount: 250 },
       { label: "Promo — cheapest look free", amount: -995 },
     ]);
   });

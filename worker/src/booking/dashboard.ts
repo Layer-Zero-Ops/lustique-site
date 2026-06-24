@@ -156,11 +156,11 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 <nav class="sidebar">
   <img src="https://lustiqueco.co.za/assets/logo.png" alt="Lustique Co." class="sidebar-logo">
   ${nav}
-  <div style="position:relative;margin-top:.6rem;" id="notif-wrap">
+  <div style="margin-top:.6rem;" id="notif-wrap">
     <button class="notif-bell" id="notif-bell" aria-label="Notifications" aria-haspopup="true">
       <span>🔔</span><span>Notifications</span><span class="notif-count" id="notif-badge"></span>
     </button>
-    <div id="notif-dropdown" role="menu" style="display:none;position:absolute;bottom:calc(100% + .4rem);left:0;width:290px;background:#fff;border:1.5px solid #ede7e0;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.12);z-index:50;overflow:hidden;">
+    <div id="notif-dropdown" role="menu" style="display:none;position:fixed;width:290px;background:#fff;border:1.5px solid #ede7e0;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.12);z-index:9999;overflow:hidden;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:.55rem .9rem;border-bottom:1px solid #ede7e0;">
         <span style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;">Notifications</span>
         <button onclick="markAllRead()" style="font:inherit;font-size:.75rem;font-weight:700;color:#8a3a52;background:none;border:none;cursor:pointer;padding:0;">Mark all read</button>
@@ -231,7 +231,14 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   };
   bell.addEventListener('click',function(e){
     e.stopPropagation();
-    dropdown.style.display=dropdown.style.display==='none'?'block':'none';
+    var open=dropdown.style.display==='none';
+    if(open){
+      var r=bell.getBoundingClientRect();
+      dropdown.style.left=r.left+'px';
+      dropdown.style.top=(r.top-8)+'px';
+      dropdown.style.transform='translateY(-100%)';
+    }
+    dropdown.style.display=open?'block':'none';
   });
   document.addEventListener('click',function(){dropdown.style.display='none';});
   poll();
