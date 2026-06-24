@@ -18,7 +18,7 @@ export interface PortfolioEnv extends Env {
   SUPABASE_JWT_SECRET: string;
 }
 
-const BUCKET = "portfolio";
+const BUCKET = "Portfolio";
 
 const esc = (s = "") =>
   s.replace(/[<>&"']/g, (c) =>
