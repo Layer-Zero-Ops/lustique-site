@@ -28,37 +28,38 @@ const desc = "Free downloadable guides: 30-day bridal skin prep, wedding-morning
         <p id="nlMsg" style="margin-top:.8rem;font-size:.88rem;color:var(--mocha);display:none;"></p>
       </div>
     </div>
-    <script>
-      const btn = document.getElementById("nlBtn");
-      const msg = document.getElementById("nlMsg");
-      const form = document.getElementById("nlForm");
-      if (btn) {
-        btn.addEventListener("click", async () => {
-          const input = document.getElementById("nlEmail") as HTMLInputElement | null;
-          const email = input ? input.value.trim() : "";
+    <script is:inline>
+      (function () {
+        var btn = document.getElementById("nlBtn");
+        var msg = document.getElementById("nlMsg");
+        var form = document.getElementById("nlForm");
+        if (!btn) return;
+        btn.addEventListener("click", async function () {
+          var input = document.getElementById("nlEmail");
+          var email = input ? input.value.trim() : "";
           if (!email) { if (input) input.focus(); return; }
-          (btn as HTMLButtonElement).disabled = true;
+          btn.disabled = true;
           btn.textContent = "Sending…";
           try {
-            const res = await fetch("/api/newsletter", {
+            var res = await fetch("/api/newsletter", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ email }),
+              body: JSON.stringify({ email: email }),
             });
             if (res.ok) {
-              if (form) form.innerHTML = `<p style="color:var(--mocha);font-family:var(--serif);font-style:italic;font-size:1.05rem;">You’re in — check your inbox.</p>`;
+              if (form) form.innerHTML = "<p>You’re in — check your inbox.</p>";
             } else {
-              if (msg) { (msg as HTMLElement).textContent = "Something went wrong. Please try again."; (msg as HTMLElement).style.display = "block"; }
-              (btn as HTMLButtonElement).disabled = false;
+              if (msg) { msg.textContent = "Something went wrong. Please try again."; msg.style.display = "block"; }
+              btn.disabled = false;
               btn.textContent = "Send it to me";
             }
-          } catch {
-            if (msg) { (msg as HTMLElement).textContent = "Something went wrong. Please try again."; (msg as HTMLElement).style.display = "block"; }
-            (btn as HTMLButtonElement).disabled = false;
+          } catch (e) {
+            if (msg) { msg.textContent = "Something went wrong. Please try again."; msg.style.display = "block"; }
+            btn.disabled = false;
             btn.textContent = "Send it to me";
           }
         });
-      }
+      })();
     </script>
   </div></section>
 </BaseLayout>
