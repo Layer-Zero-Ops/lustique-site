@@ -303,6 +303,21 @@ function parseTotalCents(estimate: string | null): number {
   return isNaN(rands) ? 0 : Math.round(rands * 100);
 }
 
+// "R 1 700" or "− R 850" → rands as number (quote_lines.amount convention: rands, not cents)
+function parseServiceLines(
+  details: unknown,
+): Array<{ label: string; amount: number }> {
+  if (!Array.isArray(details)) return [];
+  return (details as Array<{ label?: string; value?: string; kind?: string }>)
+    .filter((d) => d.kind === "service" && d.label && d.value)
+    .map((d) => {
+      const isNeg = (d.value ?? "").includes("−");
+      const rands = parseFloat((d.value ?? "").replace(/[^0-9.]/g, "")) || 0;
+      return { label: d.label!, amount: isNeg ? -rands : rands };
+    })
+    .filter((l) => l.amount !== 0);
+}
+
 export async function handleAdminGenerateInvoice(
   req: Request,
   env: EnquiriesEnv,
@@ -347,7 +362,7 @@ export async function handleAdminGenerateInvoice(
     party_size: 1,
     estimate_input: {},
     total_cents: parseTotalCents(e.estimate),
-    quote_lines: [],
+    quote_lines: parseServiceLines(e.details),
     deposit_pct: null,
     deposit_net_cents: 0,
     balance_net_cents: 0,
