@@ -8,7 +8,7 @@
 
 **Model:** Sonnet · **Lane:** Build · **Branch:** `main`
 
-**Start with TASK-G (favicon, quick win ~10 min), then TASK-F (nav audit), then TASK-E (notifications).**
+**▶ NEXT: TASK-D — Yoco "Pay Now" button on invoice (after EFT confirmed working).**
 
 ---
 
@@ -236,6 +236,9 @@ The logo is likely in `site/public/` — check for `favicon.ico`, `logo.svg`, or
 
 ## Previously completed this session (2026-06-24)
 
+- ✅ TASK-E: Notification bell wired to real events (deposit_paid, balance_due, contact_added) + emoji icons in dropdown — commit eab986c
+  - ⚠ PIETER: Apply migration 0020 in Supabase SQL editor (`ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'balance_due'; ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'contact_added';`)
+
 - ✅ TASK-C: Wave-style invoice layout (logo, from/to, T&Cs, banking, footer) + `parseServiceLines()` populates `quote_lines` on Generate Invoice — `62c9eef`
 - ✅ BUG-1: "R NaN" fix — `quote_lines: []` in `handleAdminGenerateInvoice`
 - ✅ TASK-A: Granular quote breakdown — pricing engine emits separate makeup/hair lines; site estimator and enquiry.details now granular
@@ -268,9 +271,9 @@ The logo is likely in `site/public/` — check for `favicon.ico`, `logo.svg`, or
 ✅ TASK-A → Done
 ✅ TASK-B → Done
 ✅ TASK-C → Invoice page layout (Wave-style) + quote_lines from enquiry service lines — commit 62c9eef
-TASK-G → Dashboard favicon (quick win, 10 min)
-TASK-F → Navigation audit + cleanup
-TASK-E → Notification triggers (after flows are stable)
+✅ TASK-G → Dashboard favicon — commit 72d13b7
+✅ TASK-F → Nav audit + label cleanup (Pending/Confirmed tabs, Create Invoice, Total col) — commit 72d13b7
+✅ TASK-E → Notification triggers — commit eab986c
 TASK-D → Yoco "Pay Now" button (LAST — after EFT confirmed working)
 ```
 
