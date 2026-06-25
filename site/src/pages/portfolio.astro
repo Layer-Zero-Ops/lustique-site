@@ -1,28 +1,9 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { supabaseGet, storageUrl } from "../lib/supabase";
 
 const title = "Portfolio — Lustique Co.";
 const desc =
   "Real brides, real mornings — a gallery of recent bridal hair and makeup work, filterable by artist.";
-
-type PortfolioImage = {
-  id: string;
-  storage_path: string;
-  position: number;
-  artist_id: string;
-  artists: { id: string; name: string } | null;
-};
-
-const images = await supabaseGet<PortfolioImage>(
-  "portfolio_images?select=id,storage_path,position,artist_id,artists(id,name)&order=position.asc"
-);
-
-const artistsMap = new Map<string, string>();
-for (const img of images) {
-  if (img.artists) artistsMap.set(img.artists.id, img.artists.name);
-}
-const artists = Array.from(artistsMap.entries()).map(([id, name]) => ({ id, name }));
 ---
 <BaseLayout slug="portfolio.html" title={title} desc={desc} breadcrumb={[{ name: "Portfolio" }]}>
 
@@ -39,26 +20,9 @@ const artists = Array.from(artistsMap.entries()).map(([id, name]) => ({ id, name
 
     <div class="filters" id="artistFilters" role="group" aria-label="Filter portfolio by artist">
       <button type="button" class="active" data-filter="all">All artists</button>
-      {artists.map((a) => (
-        <button type="button" data-filter={a.id}>
-          {a.name}
-        </button>
-      ))}
     </div>
 
-    <div class="gallery" id="gallery">
-      {images.map((img) => (
-        <img
-          class="gitem"
-          src={storageUrl(img.storage_path)}
-          alt={`Portfolio image — Lustique Co. bridal artistry`}
-          data-artist={img.artist_id}
-          loading="lazy"
-          decoding="async"
-          width="900"
-        />
-      ))}
-    </div>
+    <div class="gallery" id="gallery"></div>
 
     <div class="gallery-empty" id="galleryEmpty" hidden>
       <p class="lead"><span data-empty-name>This artist</span>'s portfolio is coming soon.</p>
@@ -66,13 +30,9 @@ const artists = Array.from(artistsMap.entries()).map(([id, name]) => ({ id, name
       <button type="button" class="btn btn-ghost" data-reset>View all work</button>
     </div>
 
-    {images.length === 0 && (
-      <p class="note center" style="margin-top:2rem;">
-        Our portfolio gallery is coming soon — follow us on Instagram for the latest work.
-      </p>
-    )}
+    <p id="galleryLoading" class="note center" style="margin-top:2rem;">Loading portfolio…</p>
 
-    <p class="note center" style="margin-top:2rem;">
+    <p class="note center" style="margin-top:2rem;display:none;" id="galleryNote">
       Every photograph here is our own real work — never stock, never AI. Per-artist galleries
       arrive as each of our nine artists shares hers.
     </p>
@@ -88,5 +48,67 @@ const artists = Array.from(artistsMap.entries()).map(([id, name]) => ({ id, name
       <a class="btn btn-primary reveal d2" href="quote.html">Get a Quote</a>
     </div>
   </section>
+
+  <script is:inline>
+    (function () {
+      var SUPABASE_URL = "https://ywoovdpnphcogwgoqhst.supabase.co";
+      var ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3b292ZHBucGhjb2d3Z29xaHN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNTI2MTUsImV4cCI6MjA5NjkyODYxNX0.hUxMUBrm8sKOj2E3Uv6OG5J1EYGPn4ToCF14y1OtgII";
+
+      function storageUrl(path) {
+        return SUPABASE_URL + "/storage/v1/object/public/Portfolio/" + path;
+      }
+
+      async function loadPortfolio() {
+        var loading = document.getElementById("galleryLoading");
+        var note    = document.getElementById("galleryNote");
+        var gallery = document.getElementById("gallery");
+        var filters = document.getElementById("artistFilters");
+
+        try {
+          var res = await fetch(
+            SUPABASE_URL + "/rest/v1/portfolio_images?select=id,storage_path,position,artist_id,artists(id,name)&order=position.asc",
+            { headers: { apikey: ANON_KEY, Authorization: "Bearer " + ANON_KEY } }
+          );
+          if (!res.ok) throw new Error("fetch failed");
+          var images = await res.json();
+
+          if (loading) loading.style.display = "none";
+          if (note) note.style.display = "";
+
+          if (!images.length) return;
+
+          // Build artist filter buttons (preserve event delegation in site.js)
+          var seen = new Map();
+          images.forEach(function (img) {
+            if (img.artists && !seen.has(img.artists.id)) {
+              seen.set(img.artists.id, img.artists.name);
+            }
+          });
+          seen.forEach(function (name, id) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.dataset.filter = id;
+            btn.textContent = name;
+            filters.appendChild(btn);
+          });
+
+          // Build gallery images
+          gallery.innerHTML = images.map(function (img) {
+            return '<img class="gitem"'
+              + ' src="' + storageUrl(img.storage_path) + '"'
+              + ' alt="Portfolio image — Lustique Co. bridal artistry"'
+              + ' data-artist="' + (img.artist_id || "") + '"'
+              + ' loading="lazy" decoding="async" width="900">';
+          }).join("");
+
+        } catch (e) {
+          if (loading) loading.style.display = "none";
+          if (note) note.style.display = "";
+        }
+      }
+
+      loadPortfolio();
+    })();
+  </script>
 
 </BaseLayout>

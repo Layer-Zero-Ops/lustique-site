@@ -267,16 +267,29 @@ export async function handleAdminPortfolio(
 
   const btnStyle = `font:inherit;font-size:.9rem;background:#f7f3ef;color:#5c3d47;border:1px solid #ede7e0;border-radius:5px;padding:.15em .45em;cursor:pointer;line-height:1;`;
 
+  const thStyle = `font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;`;
+
   const gallery = sortedObjects.length
-    ? orderNote + `<table style="border-collapse:collapse;width:100%;margin-bottom:2rem;">
+    ? orderNote + `
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.8rem;">
+        <button id="batchDeleteBtn" disabled onclick="batchDelete()"
+          style="font:inherit;font-size:.82rem;font-weight:700;color:#c53030;background:none;border:1px solid #f5c6c6;border-radius:6px;padding:.3em .8em;cursor:pointer;opacity:.4;">
+          Delete selected (<span id="selCount">0</span>)
+        </button>
+        <span id="batchProg" style="font-size:.82rem;color:#8a7d72;"></span>
+      </div>
+      <table style="border-collapse:collapse;width:100%;margin-bottom:2rem;">
         <thead><tr>
-          ${filterArtist ? `<th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .5rem;border-bottom:2px solid #ede7e0;width:56px;"></th>` : ""}
-          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;width:72px;">Preview</th>
-          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Filename</th>
-          ${!filterArtist ? `<th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Artist</th>` : ""}
-          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Size</th>
-          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;">Uploaded</th>
-          <th style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;"></th>
+          <th style="${thStyle}width:36px;">
+            <input type="checkbox" id="selectAll" title="Select all" style="cursor:pointer;">
+          </th>
+          ${filterArtist ? `<th style="${thStyle}width:56px;"></th>` : ""}
+          <th style="${thStyle}width:72px;">Preview</th>
+          <th style="${thStyle}">Filename</th>
+          ${!filterArtist ? `<th style="${thStyle}">Artist</th>` : ""}
+          <th style="${thStyle}">Size</th>
+          <th style="${thStyle}">Uploaded</th>
+          <th style="${thStyle}"></th>
         </tr></thead>
         <tbody>
           ${sortedObjects.map((obj, idx) => {
@@ -303,6 +316,9 @@ export async function handleAdminPortfolio(
                 </form>
               </td>` : "";
             return `<tr style="border-bottom:1px solid #f3ede8;">
+              <td style="padding:.5rem .75rem;">
+                <input type="checkbox" class="row-check" value="${esc(obj.name)}" style="cursor:pointer;">
+              </td>
               ${reorderBtns}
               <td style="padding:.5rem .75rem;">
                 <a href="${imgUrl}" target="_blank" rel="noopener">
@@ -327,7 +343,54 @@ export async function handleAdminPortfolio(
             </tr>`;
           }).join("")}
         </tbody>
-      </table>`
+      </table>
+      <script>
+        (function(){
+          var selectAll = document.getElementById('selectAll');
+          var batchBtn  = document.getElementById('batchDeleteBtn');
+          var selCount  = document.getElementById('selCount');
+          function updateBtn(){
+            var n = document.querySelectorAll('.row-check:checked').length;
+            selCount.textContent = n;
+            batchBtn.disabled = n === 0;
+            batchBtn.style.opacity = n ? '1' : '.4';
+          }
+          if(selectAll){
+            selectAll.addEventListener('change', function(){
+              document.querySelectorAll('.row-check').forEach(function(c){ c.checked = selectAll.checked; });
+              updateBtn();
+            });
+          }
+          document.querySelectorAll('.row-check').forEach(function(c){
+            c.addEventListener('change', function(){
+              updateBtn();
+              if(!this.checked && selectAll) selectAll.checked = false;
+            });
+          });
+        })();
+        async function batchDelete(){
+          var checks = Array.from(document.querySelectorAll('.row-check:checked'));
+          if(!checks.length) return;
+          if(!confirm('Delete ' + checks.length + ' image' + (checks.length !== 1 ? 's' : '') + '? This cannot be undone.')) return;
+          var btn  = document.getElementById('batchDeleteBtn');
+          var prog = document.getElementById('batchProg');
+          btn.disabled = true;
+          var artist = new URLSearchParams(location.search).get('artist') || '';
+          var ok = 0;
+          for(var i = 0; i < checks.length; i++){
+            prog.textContent = 'Deleting ' + (i+1) + ' of ' + checks.length + '…';
+            var fd = new FormData();
+            fd.append('name', checks[i].value);
+            fd.append('return_artist', artist);
+            try {
+              await fetch('/api/admin/portfolio/delete?json=1', { method: 'POST', body: fd });
+              ok++;
+            } catch(e){}
+          }
+          prog.textContent = ok + ' deleted. Reloading…';
+          setTimeout(function(){ location.reload(); }, 800);
+        }
+      </script>`
     : `<p style="color:#8a7d72;font-style:italic;margin-bottom:1rem;">${filterArtist ? `No images yet for ${esc(activeArtist?.name ?? "this artist")}.` : "No images yet."}</p>`;
 
   const artistOptions = artists.map((a) =>
@@ -478,6 +541,11 @@ export async function handleAdminPortfolioDelete(
     }),
   ]);
 
+  if (new URL(req.url).searchParams.has("json")) {
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { "content-type": "application/json" },
+    });
+  }
   const qs = returnArtist && uuidRe.test(returnArtist) ? `?artist=${encodeURIComponent(returnArtist)}` : "";
   return redirect(`/api/admin/portfolio${qs}`);
 }
