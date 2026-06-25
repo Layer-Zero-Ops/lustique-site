@@ -9,9 +9,9 @@ export const NAV: [string, string][] = [
 ];
 
 export const SITE_JSONLD = {
-  "@context": "https://schema.org", "@type": "HealthAndBeautyBusiness",
+  "@context": "https://schema.org", "@type": ["HealthAndBeautyBusiness", "BeautySalon"],
   name: "Lustique Co.",
-  description: "Bridal hair and makeup artistry in Pretoria — a team of nine artists serving Gauteng and beyond.",
+  description: "Bridal makeup artists and hair stylists in Pretoria — a team of nine specialists serving Gauteng and beyond since 2018.",
   image: OG_IMG, "@id": SITE + "/", url: SITE + "/", telephone: "+27-67-925-3894", priceRange: "R500–R8000",
   address: { "@type": "PostalAddress", streetAddress: "242 Frangipani Street, La Montagne", addressLocality: "Pretoria", addressRegion: "Gauteng", postalCode: "0184", addressCountry: "ZA" },
   geo: { "@type": "GeoCoordinates", latitude: -25.8062, longitude: 28.2652 },
@@ -20,7 +20,16 @@ export const SITE_JSONLD = {
     { "@type": "OpeningHoursSpecification", dayOfWeek: "Saturday", opens: "07:00", closes: "14:00" },
   ],
   hasMap: "https://share.google/R6t6HICG43BFPqSLz",
-  areaServed: ["Gauteng", "Limpopo", "Mpumalanga", "North West"],
+  areaServed: [
+    { "@type": "City", name: "Pretoria" },
+    { "@type": "State", name: "Gauteng" },
+    { "@type": "State", name: "Limpopo" },
+    { "@type": "State", name: "Mpumalanga" },
+    { "@type": "State", name: "North West" },
+  ],
+  knowsAbout: ["Bridal Makeup", "Bridal Hair Styling", "Wedding Beauty", "Airbrush Makeup", "Bridal Trials"],
+  paymentAccepted: "Cash, EFT",
+  currenciesAccepted: "ZAR",
   founder: { "@type": "Person", name: "Zandeline Kemp" },
   sameAs: ["https://www.instagram.com/lustique_cosmetology/", "https://www.facebook.com/LustiqueCosmetology", "https://www.tiktok.com/@lustique_co"],
 };

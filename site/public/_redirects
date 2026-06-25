@@ -1,3 +1,8 @@
+# www → apex redirect (301). Requires www.lustiqueco.co.za to be added as a
+# custom domain in the CF Pages project — without that, CF never serves this
+# file for www requests (hence the current 522 error).
+https://www.lustiqueco.co.za/*  https://lustiqueco.co.za/:splat  301
+
 # Redirect old blog-*.html URLs to new blog/ directory URLs (301 permanent).
 # These redirects must be committed BEFORE the 3 old .astro pages are deleted
 # (deletion happens in Task 7, after Sanity content is seeded).
