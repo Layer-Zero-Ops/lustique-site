@@ -1033,6 +1033,23 @@ export async function handleAdminBookingDetail(
     ${assignFormHtml}`;
 
   const actionsHtml = (() => {
+    if (b.status === "quote_sent") {
+      return `<h2>Actions</h2>
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
+          <form method="POST" action="/api/admin/booking/${esc(id)}/send-quote">
+            <button type="submit" style="font:inherit;font-weight:700;background:#276749;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Resend the deposit invoice to ${esc(b.bride_name.replace(/'/g, "\\'"))}? She will receive a fresh email with a new link.')">
+              Resend Deposit Invoice →
+            </button>
+          </form>
+          <form method="POST" action="/api/admin/booking/${esc(id)}/decline-booking">
+            <button type="submit" style="font:inherit;font-weight:700;background:#c53030;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Decline this booking? This emails ${esc(b.bride_name.replace(/'/g, "\\'"))} a polite decline — this cannot be undone.')">
+              Decline Booking
+            </button>
+          </form>
+        </div>`;
+    }
     if (b.status === "requested") {
       return `<h2>Actions</h2>
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">

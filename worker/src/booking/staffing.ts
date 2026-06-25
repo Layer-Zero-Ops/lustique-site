@@ -85,6 +85,49 @@ export async function handleAdminStaffing(
     for (const { id, rows } of results) assignmentMap.set(id, rows);
   }
 
+  // Invert: artist → bookings they're on
+  const artistBookingMap = new Map<string, Array<{ booking: StaffingBooking; lead: boolean }>>();
+  for (const artist of artists) artistBookingMap.set(artist.id, []);
+  for (const booking of bookings) {
+    for (const row of (assignmentMap.get(booking.id) ?? [])) {
+      if (artistBookingMap.has(row.artist_id)) {
+        artistBookingMap.get(row.artist_id)!.push({ booking, lead: row.lead });
+      }
+    }
+  }
+
+  function specialismLabel(s: string[]): string {
+    const has = (x: string) => s?.includes(x);
+    if (has("bridal-hair") && has("bridal-makeup")) return "Bridal Hair & Makeup";
+    if (has("bridal-makeup")) return "Bridal Makeup";
+    if (has("bridal-hair")) return "Bridal Hair";
+    return "Bridal Artistry";
+  }
+
+  const artistCards = artists.map((artist) => {
+    const events = artistBookingMap.get(artist.id) ?? [];
+    const eventsHtml = events.length
+      ? `<div style="font-size:.72rem;font-weight:600;color:#6b5d52;margin-bottom:.25rem;">${events.length} upcoming event${events.length === 1 ? "" : "s"}:</div>`
+        + events.map(({ booking, lead }) =>
+          `<div style="font-size:.76rem;display:flex;align-items:center;gap:.3rem;margin-top:.15rem;flex-wrap:wrap;">
+            <a href="/api/admin/booking/${esc(booking.id)}" style="color:#8a3a52;text-decoration:none;font-weight:600;white-space:nowrap;">${esc(booking.wedding_date)}</a>
+            <span style="color:#5c4332;">— ${esc(booking.bride_name)}</span>
+            ${lead ? `<span style="background:#e9d8fd;color:#553c9a;border-radius:10px;font-size:.66rem;font-weight:700;padding:.04em .45em;">Lead</span>` : ""}
+          </div>`).join("")
+      : `<div style="color:#a89080;font-size:.75rem;font-style:italic;">No upcoming events assigned</div>`;
+    return `<div style="background:#fff;border:1.5px solid #ede7e0;border-radius:10px;padding:1rem 1.1rem;">
+      <div style="font-weight:700;color:#3a2e26;font-size:.92rem;">${esc(artist.name)}</div>
+      <div style="font-size:.74rem;color:#8a7d72;margin-top:.1rem;">${esc(specialismLabel(artist.specialisms))}</div>
+      <div style="margin-top:.6rem;border-top:1px solid #f0e8e0;padding-top:.5rem;">${eventsHtml}</div>
+    </div>`;
+  }).join("");
+
+  const rosterSection = `
+    <h2 style="margin:0 0 .8rem;">Artists</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.75rem;margin-bottom:2rem;">
+      ${artistCards}
+    </div>`;
+
   const rows = bookings.map((b) => {
     const assignments = assignmentMap.get(b.id) ?? [];
     const unassigned = artists.filter((a) => !assignments.some((as) => as.artist_id === a.id));
@@ -136,6 +179,8 @@ export async function handleAdminStaffing(
   const inner = `
     ${savedMsg ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;border:1px solid #b7dfc8;color:#276749;font-size:.88rem;">✓ ${esc(savedMsg)}</div>` : ""}
     ${errorMsg ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#fff5f5;border:1px solid #f5c6c6;color:#c53030;font-size:.88rem;">⚠ ${esc(errorMsg)}</div>` : ""}
+    ${rosterSection}
+    <h2 style="margin:0 0 .8rem;">Confirmed Upcoming Events</h2>
     ${!bookings.length
       ? `<p style="color:#8a7d72;font-style:italic;">No confirmed upcoming bookings yet. Bookings appear here once the booking fee is paid.</p>`
       : `<table>

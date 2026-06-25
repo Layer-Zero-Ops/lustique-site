@@ -164,18 +164,23 @@ export async function handleAdminSendQuote(
     return errorRedirect(bookingId, "Could not fetch booking");
   }
   if (!booking) return errorRedirect(bookingId, "Booking not found");
-  if (booking.status !== "requested") {
+  if (booking.status !== "requested" && booking.status !== "quote_sent") {
     return errorRedirect(bookingId, `Cannot send quote — status is ${booking.status}`);
   }
 
   const now = new Date().toISOString();
-  const updated = await transitionRequestedBooking(
-    env,
-    bookingId,
-    { status: "quote_sent", quote_sent_at: now, confirm_token_used_at: now },
-    fetchFn,
-  );
-  if (!updated) return errorRedirect(bookingId, "Booking already handled — refresh and check status");
+  if (booking.status === "requested") {
+    const updated = await transitionRequestedBooking(
+      env,
+      bookingId,
+      { status: "quote_sent", quote_sent_at: now, confirm_token_used_at: now },
+      fetchFn,
+    );
+    if (!updated) return errorRedirect(bookingId, "Booking already handled — refresh and check status");
+  } else {
+    // Resend — status stays quote_sent, just refresh the timestamp
+    await transitionBooking(env, bookingId, "quote_sent", { quote_sent_at: now }, fetchFn);
+  }
 
   const origin = env.ALLOWED_ORIGIN || "";
   const acceptToken = await signActionToken(
