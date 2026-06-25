@@ -86,34 +86,50 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     return `<a href="${href}" style="display:flex;align-items:center;gap:.3rem;padding:.4rem .85rem;border-radius:7px;text-decoration:none;color:${active ? "#8a3a52" : "#5c3d47"};font-weight:${active ? "700" : "500"};font-size:.84rem;${active ? "background:#f7e8ec;" : ""}">${esc(label)}${badge}</a>`;
   }
 
-  function navGroup(label: string, links: string): string {
-    return `<div style="margin-top:.9rem;">
-  <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#c0a898;padding:.15rem .85rem .4rem;">${esc(label)}</div>
-  ${links}
+  function navGroup(label: string, links: ReturnType<typeof navLink>[], defaultOpen: boolean): string {
+    const groupId = `ng-${label.toLowerCase()}`;
+    return `<div style="margin-top:.6rem;">
+  <button class="nav-grp" data-group="${groupId}" aria-expanded="${defaultOpen}"
+    style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:.2rem .85rem .3rem;background:none;border:none;cursor:pointer;text-align:left;">
+    <span style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#c0a898;">${esc(label)}</span>
+    <span class="nav-chev" style="font-size:.58rem;color:#c0a898;transition:transform .2s;transform:${defaultOpen ? "rotate(90deg)" : "none"};">▶</span>
+  </button>
+  <div id="${groupId}" style="overflow:hidden;transition:max-height .22s ease;max-height:${defaultOpen ? "400px" : "0"};">
+    ${links.join("\n")}
+  </div>
 </div>`;
   }
 
+  const bookingsLinks = [
+    navLink("/api/admin/calendar",    "Calendar"),
+    navLink("/api/admin/quotes",      "Invoices"),
+    navLink("/api/admin/rejections",  "Declined"),
+  ];
+  const clientsLinks = [
+    navLink("/api/admin/forms",      "Forms", "enq-badge"),
+    navLink("/api/admin/contacts",   "Contacts"),
+    navLink("/api/admin/enquiries",  "CRM"),
+  ];
+  const contentLinks = [
+    navLink("/api/admin/portfolio",  "Portfolio"),
+    navLink("/api/admin/website",    "Website"),
+    navLink("/api/admin/blog",       "Blog"),
+  ];
+  const adminLinks = [
+    navLink("/api/admin/dashboard",  "Inbox"),
+    navLink("/api/admin/staffing",   "Staffing"),
+    navLink("/api/admin/templates",  "Templates"),
+  ];
+
   const nav = [
-    navGroup("Bookings", [
-      navLink("/api/admin/calendar",   "Calendar"),
-      navLink("/api/admin/quotes",     "Invoices"),
-      navLink("/api/admin/rejections", "Declined"),
-    ].join("\n")),
-    navGroup("Clients", [
-      navLink("/api/admin/forms",     "Forms", "enq-badge"),
-      navLink("/api/admin/contacts",  "Contacts"),
-      navLink("/api/admin/enquiries", "CRM"),
-    ].join("\n")),
-    navGroup("Content", [
-      navLink("/api/admin/portfolio", "Portfolio"),
-      navLink("/api/admin/website",   "Website"),
-      navLink("/api/admin/blog",      "Blog"),
-    ].join("\n")),
-    navGroup("Admin", [
-      navLink("/api/admin/dashboard",  "Inbox"),
-      navLink("/api/admin/staffing",   "Staffing"),
-      navLink("/api/admin/templates",  "Templates"),
-    ].join("\n")),
+    navGroup("Bookings", bookingsLinks, bookingsLinks.some((_, i) =>
+      isActive(["/api/admin/calendar", "/api/admin/quotes", "/api/admin/rejections"][i]!))),
+    navGroup("Clients",  clientsLinks,  clientsLinks.some((_, i) =>
+      isActive(["/api/admin/forms", "/api/admin/contacts", "/api/admin/enquiries"][i]!))),
+    navGroup("Content",  contentLinks,  contentLinks.some((_, i) =>
+      isActive(["/api/admin/portfolio", "/api/admin/website", "/api/admin/blog"][i]!))),
+    navGroup("Admin",    adminLinks,    adminLinks.some((_, i) =>
+      isActive(["/api/admin/dashboard", "/api/admin/staffing", "/api/admin/templates"][i]!))),
   ].join("\n");
 
   return `<!doctype html><html lang="en"><head>
@@ -250,6 +266,33 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   document.addEventListener('click',function(){dropdown.style.display='none';});
   poll();
   setInterval(poll,60000);
+}());
+(function(){
+  var STORE_KEY='lq-nav-groups';
+  function saved(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}');}catch(e){return{};}}
+  function save(k,v){try{var s=saved();s[k]=v;localStorage.setItem(STORE_KEY,JSON.stringify(s));}catch(e){}}
+  document.querySelectorAll('.nav-grp').forEach(function(btn){
+    var gid=btn.getAttribute('data-group');
+    var content=document.getElementById(gid);
+    if(!content)return;
+    var s=saved();
+    if(gid in s){
+      var open=s[gid];
+      btn.setAttribute('aria-expanded',open);
+      content.style.maxHeight=open?'400px':'0';
+      var chev=btn.querySelector('.nav-chev');
+      if(chev)chev.style.transform=open?'rotate(90deg)':'none';
+    }
+    btn.addEventListener('click',function(){
+      var isOpen=btn.getAttribute('aria-expanded')==='true';
+      var next=!isOpen;
+      btn.setAttribute('aria-expanded',next);
+      content.style.maxHeight=next?'400px':'0';
+      var chev=btn.querySelector('.nav-chev');
+      if(chev)chev.style.transform=next?'rotate(90deg)':'none';
+      save(gid,next);
+    });
+  });
 }());
 </script>
 </body></html>`;
