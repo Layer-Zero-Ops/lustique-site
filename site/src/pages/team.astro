@@ -15,10 +15,11 @@ type Artist = {
 const rawArtists = await supabaseGet<Artist>(
   "artists?select=id,name,specialisms,photo_url&active=eq.true"
 );
-// Zandeline (founder) always first, rest alphabetical
+// Zandeline (founder) always first, rest alphabetical — only show artists with a photo
+const withPhoto = rawArtists.filter(a => a.photo_url);
 const artists = [
-  ...rawArtists.filter(a => a.name.toLowerCase() === "zandeline"),
-  ...rawArtists.filter(a => a.name.toLowerCase() !== "zandeline").sort((a, b) => a.name.localeCompare(b.name)),
+  ...withPhoto.filter(a => a.name.toLowerCase() === "zandeline"),
+  ...withPhoto.filter(a => a.name.toLowerCase() !== "zandeline").sort((a, b) => a.name.localeCompare(b.name)),
 ];
 
 function specialismLabel(specialisms: string[]): string {
