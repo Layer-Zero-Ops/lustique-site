@@ -78,26 +78,19 @@ export async function handleAdminPortfolio(
 
   const url = new URL(req.url);
 
-  // POST — upload a new image
+  // POST — upload one or more images
   if (req.method === "POST") {
-    let file: File | null = null;
+    let files: File[] = [];
     let artistId = "";
     try {
       const fd = await req.formData();
-      file = fd.get("image") as File | null;
+      files = (fd.getAll("image") as File[]).filter((v) => v instanceof File && v.size > 0);
       artistId = ((fd.get("artist_id") as string | null) ?? "").trim();
     } catch {
       return htmlResponse(`<p>Could not read upload. <a href="/api/admin/portfolio">Back</a></p>`, 400);
     }
-    if (!file || file.size === 0) {
+    if (files.length === 0) {
       return redirect(`/api/admin/portfolio?error=no-file${artistId ? "&artist=" + encodeURIComponent(artistId) : ""}`);
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      return redirect(`/api/admin/portfolio?error=too-large${artistId ? "&artist=" + encodeURIComponent(artistId) : ""}`);
-    }
-    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    if (!allowed.includes(file.type)) {
-      return redirect(`/api/admin/portfolio?error=bad-type${artistId ? "&artist=" + encodeURIComponent(artistId) : ""}`);
     }
     // Validate artist_id: must be UUID or empty
     const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -105,51 +98,70 @@ export async function handleAdminPortfolio(
       return redirect("/api/admin/portfolio?error=bad-artist");
     }
 
-    const safeName = file.name
-      .replace(/[^a-zA-Z0-9._-]/g, "-")
-      .replace(/-+/g, "-")
-      .toLowerCase();
-    const uniqueName = artistId ? `${artistId}/${Date.now()}-${safeName}` : `${Date.now()}-${safeName}`;
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
-    const uploadRes = await f(
-      `${env.SUPABASE_URL}/storage/v1/object/${BUCKET}/${uniqueName}`,
-      {
-        method: "POST",
-        headers: {
-          ...hdr,
-          "content-type": file.type,
-          "cache-control": "public, max-age=31536000",
-          "x-upsert": "false",
-        },
-        body: file,
-      },
-    );
-
-    if (!uploadRes.ok) {
-      const err = await uploadRes.text().catch(() => "unknown");
-      if (err.includes("already exists")) return redirect("/api/admin/portfolio?error=exists");
-      return redirect("/api/admin/portfolio?error=upload-failed");
-    }
-
-    // Get next position for this artist
+    // Get current max position so we can assign positions sequentially
     const posQs = artistId
       ? `portfolio_images?artist_id=eq.${encodeURIComponent(artistId)}&select=position&order=position.desc&limit=1`
       : `portfolio_images?artist_id=is.null&select=position&order=position.desc&limit=1`;
     const posRes = await f(`${env.SUPABASE_URL}/rest/v1/${posQs}`, { headers: hdr });
     const posRows: Array<{ position: number }> = posRes.ok ? ((await posRes.json()) as Array<{ position: number }>) : [];
-    const nextPos = posRows.length > 0 ? (posRows[0]?.position ?? 0) + 10 : 10;
+    let nextPos = posRows.length > 0 ? (posRows[0]?.position ?? 0) + 10 : 10;
 
-    await f(`${env.SUPABASE_URL}/rest/v1/portfolio_images`, {
-      method: "POST",
-      headers: { ...hdr, "content-type": "application/json", prefer: "return=minimal" },
-      body: JSON.stringify({
-        storage_path: uniqueName,
-        artist_id: artistId || null,
-        position: nextPos,
-      }),
-    });
+    let successCount = 0;
+    let failCount = 0;
+    const toInsert: Array<{ storage_path: string; artist_id: string | null; position: number }> = [];
+    const batchTs = Date.now();
 
-    return redirect(`/api/admin/portfolio?saved=1${artistId ? "&artist=" + encodeURIComponent(artistId) : ""}`);
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]!;
+      if (file.size > 10 * 1024 * 1024 || !allowed.includes(file.type)) {
+        failCount++;
+        continue;
+      }
+      const safeName = file.name
+        .replace(/[^a-zA-Z0-9._-]/g, "-")
+        .replace(/-+/g, "-")
+        .toLowerCase();
+      const uniqueName = artistId
+        ? `${artistId}/${batchTs}-${i}-${safeName}`
+        : `${batchTs}-${i}-${safeName}`;
+
+      const uploadRes = await f(
+        `${env.SUPABASE_URL}/storage/v1/object/${BUCKET}/${uniqueName}`,
+        {
+          method: "POST",
+          headers: {
+            ...hdr,
+            "content-type": file.type,
+            "cache-control": "public, max-age=31536000",
+            "x-upsert": "false",
+          },
+          body: file,
+        },
+      );
+
+      if (!uploadRes.ok) { failCount++; continue; }
+
+      toInsert.push({ storage_path: uniqueName, artist_id: artistId || null, position: nextPos });
+      nextPos += 10;
+      successCount++;
+    }
+
+    // Batch-insert all DB records in one request
+    if (toInsert.length > 0) {
+      await f(`${env.SUPABASE_URL}/rest/v1/portfolio_images`, {
+        method: "POST",
+        headers: { ...hdr, "content-type": "application/json", prefer: "return=minimal" },
+        body: JSON.stringify(toInsert),
+      });
+    }
+
+    const qs = new URLSearchParams();
+    if (successCount > 0) qs.set("saved", String(successCount));
+    if (failCount > 0) qs.set("failed", String(failCount));
+    if (artistId) qs.set("artist", artistId);
+    return redirect(`/api/admin/portfolio?${qs}`);
   }
 
   // GET — list images (optionally filtered by artist prefix)
@@ -212,12 +224,13 @@ export async function handleAdminPortfolio(
     return posA - posB;
   });
 
-  const saved  = url.searchParams.get("saved")  === "1";
+  const savedCount = parseInt(url.searchParams.get("saved") ?? "0", 10);
+  const failedCount = parseInt(url.searchParams.get("failed") ?? "0", 10);
   const errorP = url.searchParams.get("error");
 
   const errorMessages: Record<string, string> = {
-    "no-file":       "No file selected — please choose an image.",
-    "too-large":     "File too large — maximum 10 MB.",
+    "no-file":       "No file selected — please choose at least one image.",
+    "too-large":     "File too large — maximum 10 MB per image.",
     "bad-type":      "Unsupported format — use JPEG, PNG, WebP or GIF.",
     "exists":        "A file with that name already exists.",
     "upload-failed": "Upload failed — please try again.",
@@ -313,17 +326,27 @@ export async function handleAdminPortfolio(
     `<option value="${esc(a.id)}"${a.id === filterArtist ? " selected" : ""}>${esc(a.name)}</option>`
   ).join("");
 
+  const savedMsg = savedCount > 0
+    ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;border:1px solid #b7dfc8;color:#276749;font-size:.88rem;">
+        ✓ ${savedCount} image${savedCount !== 1 ? "s" : ""} uploaded${failedCount > 0 ? ` — ${failedCount} skipped (too large or wrong format)` : ""}.
+       </div>`
+    : "";
+  const failedMsg = failedCount > 0 && savedCount === 0
+    ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#fff5f5;border:1px solid #f5c6c6;color:#c53030;font-size:.88rem;">⚠ ${failedCount} file${failedCount !== 1 ? "s" : ""} could not be uploaded — check size (max 10 MB) and format (JPEG, PNG, WebP, GIF).</div>`
+    : "";
+
   const inner = `
-    ${saved ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#f0fff4;border:1px solid #b7dfc8;color:#276749;font-size:.88rem;">✓ Image uploaded.</div>` : ""}
+    ${savedMsg}
+    ${failedMsg}
     ${errorP && errorMessages[errorP] ? `<div style="margin-bottom:1rem;padding:.65em .9em;border-radius:8px;background:#fff5f5;border:1px solid #f5c6c6;color:#c53030;font-size:.88rem;">⚠ ${esc(errorMessages[errorP])}</div>` : ""}
 
     ${filterTabs}
     ${gallery}
 
     <div style="background:#fff;border:1px solid #ede7e0;border-radius:10px;padding:1.2rem 1.4rem;max-width:520px;">
-      <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.9rem;">Upload Image</div>
-      <p style="font-size:.82rem;color:#8a7d72;margin:0 0 .9rem;">Accepted: JPEG, PNG, WebP, GIF · Max 10 MB</p>
-      <form method="POST" action="/api/admin/portfolio" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:.75rem;">
+      <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8a7d72;margin-bottom:.9rem;">Upload Images</div>
+      <p style="font-size:.82rem;color:#8a7d72;margin:0 0 .9rem;">Select one or many · JPEG, PNG, WebP, GIF · Max 10 MB each</p>
+      <form id="uploadForm" method="POST" action="/api/admin/portfolio" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:.75rem;">
         <label style="display:flex;flex-direction:column;gap:.3rem;font-size:.82rem;font-weight:600;color:#5c3d47;">
           Artist
           <select name="artist_id" style="font:inherit;font-size:.88rem;border:1.5px solid #c9bfb8;border-radius:8px;padding:.45em .7em;background:#faf7f4;">
@@ -332,18 +355,37 @@ export async function handleAdminPortfolio(
           </select>
         </label>
         <label style="display:flex;flex-direction:column;gap:.3rem;font-size:.82rem;font-weight:600;color:#5c3d47;">
-          Image file
-          <input name="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required
+          Image files
+          <input id="imageInput" name="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple required
             style="font:inherit;font-size:.88rem;">
+          <span id="fileCount" style="font-size:.78rem;color:#8a7d72;min-height:1.2em;"></span>
         </label>
         <div>
-          <button type="submit"
+          <button id="uploadBtn" type="submit"
             style="font:inherit;font-weight:700;font-size:.88rem;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.52em 1.3em;cursor:pointer;">
             Upload
           </button>
         </div>
       </form>
     </div>
+    <script>
+      (function(){
+        var input = document.getElementById('imageInput');
+        var btn   = document.getElementById('uploadBtn');
+        var count = document.getElementById('fileCount');
+        var form  = document.getElementById('uploadForm');
+        if(!input) return;
+        input.addEventListener('change', function(){
+          var n = this.files ? this.files.length : 0;
+          count.textContent = n ? n + ' file' + (n !== 1 ? 's' : '') + ' selected' : '';
+        });
+        form.addEventListener('submit', function(){
+          var n = input.files ? input.files.length : 1;
+          btn.disabled = true;
+          btn.textContent = n > 1 ? 'Uploading ' + n + ' files…' : 'Uploading…';
+        });
+      })();
+    </script>
   `;
 
   const title = filterArtist && activeArtist
