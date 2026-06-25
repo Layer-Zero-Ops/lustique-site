@@ -173,6 +173,7 @@ html.js .ph.img-error .ph-img { opacity: 1; filter: none; }
 @media (max-width: 540px){ .artist-grid { grid-template-columns: 1fr; max-width: 340px; margin-inline:auto; } }
 .artist { text-align: center; }
 .artist .ph { aspect-ratio: 4/5; border-radius: 14px; margin-bottom: 1rem; }
+.artist-photo { width: 100%; aspect-ratio: 4/5; object-fit: cover; object-position: center top; border-radius: 14px; margin-bottom: 1rem; display: block; }
 .artist h3 { font-size: 1.5rem; margin-bottom: .2rem; }
 .artist .role { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--burgundy); font-weight: 600; }
 .artist p { font-size: .92rem; color:#5c5048; margin-top: .7rem; }
