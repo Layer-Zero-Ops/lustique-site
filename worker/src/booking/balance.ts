@@ -99,7 +99,7 @@ const balanceRecordedHtml = (b: ConfirmBookingRow) =>
 
 function fullyPaidEmailHtml(b: ConfirmBookingRow): string {
   return emailShell({
-    heading: `All settled, ${firstN(b.bride_name)}.`,
+    heading: `All settled, ${esc(firstN(b.bride_name))}.`,
     body: ep(`Your balance is in — ${em(fmtDate(b.wedding_date))} is fully paid and we are ready for your day. There&#8217;s nothing more to do.`) +
       emailTable([
         { key: "Date", val: fmtDate(b.wedding_date) },
@@ -161,7 +161,7 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 function balanceReminderEmailHtml(eft: EftSettings, b: ConfirmBookingRow, dueDateIso: string): string {
   return emailShell({
-    heading: `Your balance is due, ${firstN(b.bride_name)}.`,
+    heading: `Your balance is due, ${esc(firstN(b.bride_name))}.`,
     body: ep(`Your wedding on ${em(fmtDate(b.wedding_date))} is almost here. Your balance is due by ${em(fmtDate(dueDateIso))} — please pay by EFT using the details below.`) +
       emailTable([
         { key: "Balance due", val: fmtZAR(b.balance_net_cents), bold: true },

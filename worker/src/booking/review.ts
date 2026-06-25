@@ -118,7 +118,7 @@ t&&t.addEventListener('input',u);
 
 function declineEmailHtml(b: ReviewBookingRow): string {
   return emailShell({
-    heading: `Thank you for thinking of us, ${firstN(b.bride_name)}.`,
+    heading: `Thank you for thinking of us, ${esc(firstN(b.bride_name))}.`,
     body: ep(`We&#8217;re so grateful you considered Lustique for ${em(fmtDate(b.wedding_date))}. Sadly, we&#8217;re not able to take this booking — most often because the date is already fully committed with our artists.`) +
       ep(`We&#8217;re truly sorry to miss your day.`),
     btnZone: emailNote(`If your plans change or another date opens up, we&#8217;d love to hear from you.`),
@@ -236,7 +236,7 @@ export async function handleReview(
       { email: b.bride_email, name: b.bride_name },
       `Your Lustique quote is ready — ${fmtDate(b.wedding_date)}`,
       emailShell({
-        heading: `Your quote is ready, ${firstN(b.bride_name)}.`,
+        heading: `Your quote is ready, ${esc(firstN(b.bride_name))}.`,
         body: ep(`Good news — we&#8217;ve reviewed your request and we&#8217;re delighted to hold ${em(fmtDate(b.wedding_date))} for you.`) +
           emailTable([
             { key: "Date", val: fmtDate(b.wedding_date) },

@@ -109,7 +109,7 @@ export async function renderConfirmPage(
 
 function confirmEmailHtml(eft: EftSettings, b: ConfirmBookingRow): string {
   return emailShell({
-    heading: `Your date is available, ${firstN(b.bride_name)}.`,
+    heading: `Your date is available, ${esc(firstN(b.bride_name))}.`,
     body: ep(`Wonderful news — ${em(fmtDate(b.wedding_date))} is available! To secure your date, please pay your deposit by EFT using the details below. As soon as it reflects, we&#8217;ll send your booking confirmation.`) +
       emailTable([
         { key: "Date", val: fmtDate(b.wedding_date) },
@@ -126,7 +126,7 @@ function confirmEmailHtml(eft: EftSettings, b: ConfirmBookingRow): string {
 
 function declineEmailHtml(b: ConfirmBookingRow): string {
   return emailShell({
-    heading: `Thank you for thinking of us, ${firstN(b.bride_name)}.`,
+    heading: `Thank you for thinking of us, ${esc(firstN(b.bride_name))}.`,
     body: ep(`We&#8217;re so grateful you considered Lustique for ${em(fmtDate(b.wedding_date))}. Sadly, we&#8217;re not able to take this booking — most often because the date is already fully committed with our artists.`) +
       ep(`We&#8217;re truly sorry to miss your day.`),
     btnZone: emailNote(`If your plans change or another date opens up, we&#8217;d love to hear from you.`),
@@ -229,7 +229,7 @@ const depositRecordedHtml = (b: ConfirmBookingRow) =>
 
 function depositSecuredEmailHtml(b: ConfirmBookingRow): string {
   return emailShell({
-    heading: `Your date is secured, ${firstN(b.bride_name)}.`,
+    heading: `Your date is secured, ${esc(firstN(b.bride_name))}.`,
     body: ep(`Your deposit is in — ${em(fmtDate(b.wedding_date))} is officially yours. We can&#8217;t wait to be part of your day.`) +
       emailTable([
         { key: "Date", val: fmtDate(b.wedding_date) },

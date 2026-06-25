@@ -62,9 +62,9 @@ export function emailTable(rows: TableRow[]): string {
 export const emailBtn = (href: string, label: string) =>
   `<a href="${esc(href)}" style="display:inline-block;background-color:#EFD2C5;color:#5C4332;text-decoration:none;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;padding:14px 40px;border-radius:24px;border:1px solid #5C4332;font-family:Arial,sans-serif;font-weight:500;">${esc(label)}</a>`;
 
-/** Secondary muted text link below the main button. */
+/** Secondary muted text link below the main button. label is trusted HTML; callers must esc() any user data inside it. */
 export const emailBtnLink = (href: string, label: string) =>
-  `<p style="margin:18px 0 0;"><a href="${esc(href)}" style="font-size:12px;font-family:Arial,sans-serif;color:#8A7060;text-decoration:none;">${esc(label)}</a></p>`;
+  `<p style="margin:18px 0 0;"><a href="${esc(href)}" style="font-size:12px;font-family:Arial,sans-serif;color:#8A7060;text-decoration:none;">${label}</a></p>`;
 
 /** Quiet italic note — for informational emails with no CTA. Accepts raw HTML. */
 export const emailNote = (html: string) =>
@@ -94,7 +94,7 @@ export function emailShell({
 <div style="text-align:center;padding-bottom:40px;"><img src="${LOGO}" alt="Lustique Cosmetology" width="108" style="display:block;margin:0 auto;" /></div>
 <div style="height:1px;background:#E8D5B7;"></div>
 <div style="padding:44px 0 40px;border-bottom:1px solid #E8D5B7;">
-<h1 style="margin:0 0 20px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:400;font-style:italic;color:#5C4332;line-height:1.3;">${esc(heading)}</h1>
+<h1 style="margin:0 0 20px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:400;font-style:italic;color:#5C4332;line-height:1.3;">${heading}</h1>
 ${body}
 </div>
 <div style="padding:44px 0 40px;text-align:center;border-bottom:1px solid #E8D5B7;">${btnZone}</div>

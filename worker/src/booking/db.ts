@@ -200,13 +200,14 @@ export interface ConfirmBookingRow {
   wave_invoice_id: string | null;
   quote_sent_at: string | null;
   accepted_at: string | null;
+  quote_lines: Array<{ label: string; amount: number }> | null;
 }
 
 const CONFIRM_COLS =
   "id,reference,status,bride_name,bride_email,wedding_date,venue,town,province," +
   "party_size,total_cents,deposit_pct,deposit_net_cents,balance_net_cents," +
   "confirm_token_expires_at,confirm_token_used_at,wave_customer_id,wave_invoice_id," +
-  "quote_sent_at,accepted_at";
+  "quote_sent_at,accepted_at,quote_lines";
 
 /** Look a booking up by its stored confirm_token_hash. Returns null if none. */
 export async function getBookingByTokenHash(
@@ -377,16 +378,15 @@ export async function isDateBlocked(
   return rows.length > 0;
 }
 
-/** S9: invoice page needs quote_lines + all confirm fields. */
+/** S9: invoice page — quote_lines now included in CONFIRM_COLS. */
 export async function getBookingByIdForInvoice(
   env: DbEnv,
   id: string,
   f: typeof fetch = fetch,
-): Promise<(ConfirmBookingRow & { quote_lines: Array<{ label: string; amount: number }> }) | null> {
-  const cols = CONFIRM_COLS + ",quote_lines";
-  const r = await f(rest(env, `bookings?id=eq.${encodeURIComponent(id)}&select=${cols}`), { headers: headers(env) });
+): Promise<ConfirmBookingRow | null> {
+  const r = await f(rest(env, `bookings?id=eq.${encodeURIComponent(id)}&select=${CONFIRM_COLS}`), { headers: headers(env) });
   if (!r.ok) throw new Error(`getBookingByIdForInvoice ${r.status}`);
-  const rows = (await r.json()) as Array<ConfirmBookingRow & { quote_lines: Array<{ label: string; amount: number }> }>;
+  const rows = (await r.json()) as ConfirmBookingRow[];
   return rows.length ? rows[0]! : null;
 }
 

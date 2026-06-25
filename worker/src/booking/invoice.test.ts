@@ -114,7 +114,7 @@ describe("invoice content", () => {
   it("renders the wedding date and venue", async () => {
     const r = await renderInvoicePage(makeEnv(), get(await validToken()), makeDbFetch());
     const html = await r.text();
-    expect(html).toContain("2026-09-15");
+    expect(html).toContain("15 September 2026");
     expect(html).toContain("Red Ivory Estate");
   });
 

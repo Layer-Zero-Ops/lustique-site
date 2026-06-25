@@ -22,8 +22,9 @@ const party4 = {
 };
 
 describe("travelForKm", () => {
-  it("is free within 30 km", () => expect(travelForKm(30)).toBe(0));
-  it("charges round-trip distance * R7 beyond 30 km", () => expect(travelForKm(50)).toBe(700));
+  it("is free when round-trip is within FREE_KM (15 km one-way = 30 km return)", () => expect(travelForKm(15)).toBe(0));
+  it("charges beyond the free zone: Big Red Barn 22 km one-way = 44 km return = R308", () => expect(travelForKm(22)).toBe(308));
+  it("charges full round-trip × R7 for 50 km one-way", () => expect(travelForKm(50)).toBe(700));
 });
 
 describe("travel bands (fallback, re-derived from R7/km round-trip)", () => {
@@ -82,11 +83,11 @@ describe("computeEstimate — wedding", () => {
     expect(after.total - before.total).toBe(250);
   });
 
-  it("under-12 flower girls are never the promo's free look", () => {
-    // bride + 1 bridesmaid (mk 550) + 1 guest (mk 550) + 1 flower-girl<12 (mk 250) = 4240
-    // promo frees the cheapest ELIGIBLE (a 550 adult), not the 250 flower girl → 3690
+  it("partial-service adults (makeup only) and under-12 flower girls never qualify for the free look", () => {
+    // bride + 1 bridesmaid (mk only, no hair) + 1 guest (mk only) + 1 flower-girl<12 (mk only) = 4240
+    // 4 paid looks → promo threshold met, but nobody has a full look (hair+makeup) → no discount
     const r = computeEstimate({ ...base, bmMakeup: 1, guestMakeup: 1, fgMakeup: 1 });
-    expect(r.total).toBe(3690);
+    expect(r.total).toBe(4240);
   });
 
   it("additional artists are added only when the bride requests them (R850 each)", () => {
@@ -97,12 +98,13 @@ describe("computeEstimate — wedding", () => {
 
   it("mixed party-hair lengths price each adult head at its own length", () => {
     // 4 bridesmaids one of each length + 1 makeup-only mother, no flower girl, no assistant.
-    // bride 2890 + adult hair (395+495+595+695=2180) + 4×550 makeup + 500 mom = 7770; promo frees mom (500) → 7270
+    // bride 2890 + adult hair (395+495+595+695=2180) + 4×550 makeup + 500 mom = 7770
+    // Promo: mom is makeup-only (no "look") → cheapest full look = bridesmaid (short): 550+395=945 → 7770-945=6825
     const r = computeEstimate({
       ...base, bmMakeup: 4, bmHair: 4, momMakeup: 1, momHair: 0,
       partyHair: { short: 1, medium: 1, long: 1, xlong: 1 },
     });
-    expect(r.total).toBe(7270);
+    expect(r.total).toBe(6825);
     expect(r.heads).toBe(6);
   });
 });

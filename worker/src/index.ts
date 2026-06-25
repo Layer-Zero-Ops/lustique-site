@@ -36,6 +36,7 @@ import {
   handleAdminDeclineBooking,
   handleAdminMarkDepositPaid,
   handleAdminMarkBalancePaid,
+  handleAdminResendInvoice,
 } from "./booking/admin-actions";
 import { handleCalendarFeed } from "./booking/calendar";
 import { persistEnquiry, insertNotification } from "./booking/db";
@@ -404,6 +405,11 @@ export default {
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/mark-balance")) {
         const id = url.pathname.slice("/api/admin/booking/".length, -"/mark-balance".length);
         if (id) return await handleAdminMarkBalancePaid(req, dashEnv, id);
+      }
+      // POST /api/admin/booking/:id/resend-invoice — re-send invoice link (any post-quote status)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/resend-invoice")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/resend-invoice".length);
+        if (id) return await handleAdminResendInvoice(req, dashEnv, id);
       }
       // POST /api/admin/booking/:id/artists — assign artist to booking (D4)
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/artists")) {

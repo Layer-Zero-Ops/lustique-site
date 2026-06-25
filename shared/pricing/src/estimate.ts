@@ -4,9 +4,11 @@ import type { EstimateInput, EstimateResult, EstimateLine, HairBuckets, HairLeng
 const LENGTHS: readonly HairLength[] = ["short", "medium", "long", "xlong"];
 const LEN_LABEL: Record<HairLength, string> = { short: "short", medium: "medium", long: "long", xlong: "x-long" };
 
-/** Round-trip travel cost: free within 30 km, else round-trip distance × R7. */
-export const travelForKm = (km: number): number =>
-  km <= FREE_KM ? 0 : Math.round(km * 2 * RATE_PER_KM);
+/** Round-trip travel cost: free when the ROUND TRIP is within FREE_KM, else full round-trip × R7. */
+export const travelForKm = (km: number): number => {
+  const roundTrip = km * 2;
+  return roundTrip <= FREE_KM ? 0 : Math.round(roundTrip * RATE_PER_KM);
+};
 
 /** Flatten a length distribution into an ordered list (short→x-long), one entry per head. */
 function expandBuckets(b: HairBuckets): HairLength[] {
@@ -88,10 +90,13 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
     const heads = Math.max(mk, hr);
     let mkSub = 0, hrSub = 0;
     for (let i = 0; i < heads; i++) {
+      const hasMakeup = i < mk;
+      const hasHair = i < hr;
       let lookCost = 0;
-      if (i < mk) { mkSub += mkPrice; lookCost += mkPrice; }
-      if (i < hr) { const hc = hairCost(); hrSub += hc; lookCost += hc; }
-      if (lookCost > 0) { paid.push(lookCost); if (eligible) freebie.push(lookCost); }
+      if (hasMakeup) { mkSub += mkPrice; lookCost += mkPrice; }
+      if (hasHair) { const hc = hairCost(); hrSub += hc; lookCost += hc; }
+      // A "look" at Lustique means both hair AND makeup — partial services never qualify.
+      if (lookCost > 0) { paid.push(lookCost); if (eligible && hasMakeup && hasHair) freebie.push(lookCost); }
     }
     if (mkSub > 0) { total += mkSub; lines.push({ label: `${label} Makeup × ${mk}`, amount: mkSub }); }
     if (hrSub > 0) { total += hrSub; lines.push({ label: `${label} Hair Styling × ${hr}`, amount: hrSub }); }

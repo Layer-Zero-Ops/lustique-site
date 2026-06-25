@@ -121,7 +121,7 @@ interface YocoPaymentEvent {
 
 function depositSecuredEmailHtml(brideName: string, weddingDate: string, depositCents: number, balanceCents: number, reference: string): string {
   return emailShell({
-    heading: `Your date is secured, ${firstN(brideName)}.`,
+    heading: `Your date is secured, ${esc(firstN(brideName))}.`,
     body: ep(`Your deposit is in — ${em(fmtDate(weddingDate))} is officially yours. We can&#8217;t wait to be part of your day.`) +
       emailTable([
         { key: "Date", val: fmtDate(weddingDate) },
@@ -135,7 +135,7 @@ function depositSecuredEmailHtml(brideName: string, weddingDate: string, deposit
 
 function fullyPaidEmailHtml(brideName: string, weddingDate: string, balanceCents: number, reference: string): string {
   return emailShell({
-    heading: `All settled, ${firstN(brideName)}.`,
+    heading: `All settled, ${esc(firstN(brideName))}.`,
     body: ep(`Your balance is in — ${em(fmtDate(weddingDate))} is fully paid and we are ready for your day. There&#8217;s nothing more to do.`) +
       emailTable([
         { key: "Date", val: fmtDate(weddingDate) },
@@ -154,7 +154,7 @@ function paymentFailedBrideEmailHtml(
   reference: string,
 ): string {
   return emailShell({
-    heading: `Your payment didn&#8217;t go through, ${firstN(brideName)}.`,
+    heading: `Your payment didn&#8217;t go through, ${esc(firstN(brideName))}.`,
     body: ep(`Your card payment wasn&#8217;t processed. No need to worry — your date for ${em(fmtDate(weddingDate))} is still held. Please complete your payment by EFT using the details below.`) +
       emailTable([
         { key: "Amount due", val: fmtZAR(amountCents), bold: true },

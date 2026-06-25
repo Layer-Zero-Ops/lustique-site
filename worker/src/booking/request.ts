@@ -250,7 +250,7 @@ ${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
       { email: body.brideEmail!.trim(), name: body.brideName!.trim() },
       "Your booking request is with us — Lustique Co.",
       emailShell({
-        heading: `We have your request, ${firstN(body.brideName!.trim())}.`,
+        heading: `We have your request, ${esc(firstN(body.brideName!.trim()))}.`,
         body: ep(`Your booking request for ${em(fmtDate(body.weddingDate!))} is with us. Our team will review artist availability and come back to you within 24 hours.`) +
           emailTable(tableRows),
         btnZone: emailNote("No action needed from you right now — we&#8217;ll be in touch."),

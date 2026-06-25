@@ -39,8 +39,8 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         <div id="mapHint" style="display:none;margin-top:.75rem;background:rgba(138,90,74,.07);border:1px solid rgba(138,90,74,.18);border-radius:10px;padding:.65rem 1rem;font-size:.88rem;color:#5c5048;">
           <strong style="color:var(--mocha);">📍 Drag the pin to your exact venue.</strong> The pin shows where we found your venue — move it if it needs adjusting. Travel cost updates instantly.
         </div>
-        <p class="note" id="travelResult" style="margin:.85rem 0 0;">We travel from La Montagne, Pretoria — free within 30 km, then R7/km round trip.</p>
-        <div class="field" id="bandWrap" style="display:none;margin-top:1rem;"><label for="travelBand">Distance band (fallback)</label><select id="travelBand"><option value="studio">Within 30 km (free)</option><option value="mid">30–80 km</option><option value="far">80–150 km</option><option value="veryfar">150–200 km</option><option value="destination">Over 200 km / destination</option></select></div>
+        <p class="note" id="travelResult" style="margin:.85rem 0 0;">We travel from La Montagne, Pretoria — first 30 km round trip is free, then R7/km.</p>
+        <div class="field" id="bandWrap" style="display:none;margin-top:1rem;"><label for="travelBand">Distance band (fallback)</label><select id="travelBand"><option value="studio">Within 15 km one-way / 30 km round trip (free)</option><option value="mid">30–80 km</option><option value="far">80–150 km</option><option value="veryfar">150–200 km</option><option value="destination">Over 200 km / destination</option></select></div>
       </div>
       <div id="weddingFields">
       <div class="form-step reveal"><h3>The bride</h3><p class="step-sub">Your trial and wedding-day hair &amp; makeup — lashes and a touch-up kit included.</p>
@@ -84,7 +84,7 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
           </label>
         </div>
         <div class="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} style="margin:1rem 0;"></div>
-        <button type="button" class="btn btn-primary" id="sendEnquiry" style="width:100%;justify-content:center;">Request my quote</button>
+        <button type="button" class="btn btn-primary" id="sendEnquiry" style="width:100%;justify-content:center;">Request to Book</button>
         <noscript><p class="note center" style="margin-top:1rem;">This live form needs JavaScript to send. To enquire right now, email <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a> with your date, venue and party — we reply within 24 hours.</p></noscript>
         <p class="note center" id="enquiryStatus" role="alert" style="margin-top:1rem;color:var(--burgundy);"></p>
         <p class="note center" style="margin-top:1rem;">We reply within 24 hours, often sooner. <strong>Blessings, The Lustique Cosmetology Team.</strong></p>

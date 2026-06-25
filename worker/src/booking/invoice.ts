@@ -9,7 +9,7 @@
 
 import { getBookingByIdForInvoice, transitionBooking, insertNotification } from "./db";
 import { writeAudit } from "./audit";
-import { verifyActionToken } from "./token";
+import { verifyActionToken, signActionToken } from "./token";
 import { sendEmail, esc as emailEsc } from "../lib/email";
 import type { AuditEnv } from "./audit";
 
@@ -33,6 +33,13 @@ function statusBadge(status: string): string {
   return `<span class="badge pending">Awaiting deposit</span>`;
 }
 
+/** Format an ISO date string ("2026-09-24") as "24 September 2026" without timezone drift. */
+function fmtDateStr(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
 function invoicePage(b: {
   reference: string;
   bride_name: string;
@@ -43,16 +50,21 @@ function invoicePage(b: {
   province: string | null;
   party_size: number;
   total_cents: number;
-  deposit_pct: number;
+  deposit_pct: number | null;
   deposit_net_cents: number;
   balance_net_cents: number;
   status: string;
-  quote_lines: Array<{ label: string; amount: number }>;
-}, invoiceToken: string): string {
+  quote_lines: Array<{ label: string; amount: number }> | null;
+  quote_sent_at: string | null;
+}, invoiceToken: string, acceptUrl?: string): string {
   const today = new Date();
-  const due = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
   const fmtDate = (d: Date) =>
     d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
+  // Due date anchored to quote_sent_at + 14 days, not today + 7.
+  const dueDateMs = b.quote_sent_at
+    ? new Date(b.quote_sent_at).getTime() + 14 * 24 * 60 * 60 * 1000
+    : today.getTime() + 14 * 24 * 60 * 60 * 1000;
+  const due = new Date(dueDateMs);
 
   const venue = [b.venue, b.town, b.province].filter(Boolean).join(", ") || "—";
 
@@ -145,6 +157,11 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
 .footer{margin-top:2.4rem;padding-top:1.4rem;border-top:1.5px solid #E8D5B7;font-size:.87rem;color:#8a7d72;text-align:center;line-height:1.9;}
 .footer a{color:#7A2E3A;text-decoration:none;}
 
+/* ── Secure your date CTA ── */
+.secure-cta{display:block;text-align:center;margin-top:1.8rem;padding:1.4rem;background:#FDF7F4;border:1px solid #E8D5B7;border-radius:6px;}
+.secure-cta p{font-size:.88rem;color:#6b5d52;margin:0 0 1rem;}
+.secure-btn{display:inline-block;background:#EFD2C5;color:#5C4332;text-decoration:none;font-size:.82rem;letter-spacing:.2em;text-transform:uppercase;padding:13px 36px;border-radius:24px;border:1px solid #5C4332;font-family:Arial,sans-serif;font-weight:500;}
+
 /* ── Print button ── */
 .print-btn{display:block;width:100%;margin-top:2rem;font:inherit;font-size:.88rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #E8D5B7;border-radius:4px;padding:.75em;cursor:pointer;background:none;color:#7A2E3A;transition:background .15s;}
 .print-btn:hover{background:#FAF6F0;}
@@ -211,7 +228,7 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
   <div class="section">
     <div class="section-label">Event details</div>
     <div class="detail-grid">
-      <span class="dk">Event date</span><span>${esc(b.wedding_date)}</span>
+      <span class="dk">Event date</span><span>${fmtDateStr(b.wedding_date)}</span>
       <span class="dk">Venue</span><span>${esc(venue)}</span>
       <span class="dk">Party size</span><span>${b.party_size} look${b.party_size !== 1 ? "s" : ""}</span>
     </div>
@@ -241,7 +258,7 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
     <ul class="terms-list">
       <li>A deposit of 30% of the total invoice amount is required to confirm and secure your booking date. The deposit is <strong>non-refundable</strong> after 30 days from the booking date.</li>
       <li>The remaining balance is due <strong>14 business days before your event date</strong>. Non-payment by this date may result in automatic cancellation.</li>
-      <li>Travel is complimentary for venues within 30 km of our La Montagne studio. Venues beyond 30 km are charged at <strong>R7/km (round trip)</strong>.</li>
+      <li>Travel is complimentary for venues within 15 km one-way (30 km round trip) from our La Montagne studio. Venues beyond this are charged at <strong>R7/km (round trip)</strong>.</li>
       <li>Cancellations made within 30 days of booking qualify for a full refund. After 30 days, the booking deposit is forfeited.</li>
       <li>All services are provided on-location unless otherwise agreed in writing.</li>
     </ul>
@@ -259,6 +276,13 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
     <div>Thank you for your business. We look forward to being part of your special day.</div>
     <div>Questions? <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a></div>
   </div>
+
+${b.status === "quote_sent" && acceptUrl ? `
+  <div class="secure-cta">
+    <p>Ready to lock in your date? Choose your booking fee to confirm.</p>
+    <a class="secure-btn" href="${esc(acceptUrl)}">Secure your date →</a>
+  </div>
+` : ""}
 
   <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
 
@@ -349,7 +373,20 @@ export async function renderInvoicePage(
     }
   } catch { /* non-fatal — page still renders without bank details */ }
 
-  const html = invoicePage(booking, token).replace(">Loading…</div>", `>${bankHtml}</div>`);
+  // For quote_sent bookings, generate a fresh accept token so the invoice page has a "Secure your date" CTA.
+  let acceptUrl: string | undefined;
+  if (booking.status === "quote_sent") {
+    const origin = new URL(req.url).origin;
+    const acceptToken = await signActionToken(
+      booking.id,
+      new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      env.SIGNING_SECRET,
+      "accept",
+    );
+    acceptUrl = `${origin}/api/booking/accept?token=${encodeURIComponent(acceptToken)}`;
+  }
+
+  const html = invoicePage(booking, token, acceptUrl).replace(">Loading…</div>", `>${bankHtml}</div>`);
   return new Response(html, {
     status: 200,
     headers: {

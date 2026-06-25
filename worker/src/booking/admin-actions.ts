@@ -20,6 +20,7 @@ import {
   emailNote,
   firstN,
   sendEmail,
+  type TableRow,
 } from "../lib/email";
 
 export interface AdminActionsEnv {
@@ -75,17 +76,26 @@ function depositInvoiceEmailHtml(
   const dep25 = fmtZAR(Math.round(b.total_cents * 0.25));
   const dep50 = fmtZAR(Math.round(b.total_cents * 0.50));
   const depFull = fmtZAR(b.total_cents);
+
+  // Service rows: use quote_lines if populated, else a single summary line.
+  const serviceRows: TableRow[] = (b.quote_lines ?? []).length > 0
+    ? b.quote_lines!.map((l) => ({ key: l.label, val: fmtZAR(Math.round(Number(l.amount) * 100)) }))
+    : [{ key: `Wedding hair & makeup (${b.party_size} look${b.party_size !== 1 ? "s" : ""})`, val: fmtZAR(b.total_cents) }];
+
+  const venue = [b.venue, b.town, b.province].filter(Boolean).join(", ");
+
   return emailShell({
-    heading: `You&#8217;re all set to secure your date, ${firstN(b.bride_name)}.`,
+    heading: `You&#8217;re all set to secure your date, ${esc(firstN(b.bride_name))}.`,
     body:
-      ep(
-        `We&#8217;ve reviewed your request and we&#8217;re delighted to hold ${em(fmtDate(b.wedding_date))} for you. Choose your deposit on the next step to lock it in.`,
-      ) +
+      ep(`We&#8217;ve reviewed your request and we&#8217;re delighted to hold ${em(fmtDate(b.wedding_date))} for you. Your quote is below — choose your deposit on the next step to lock it in.`) +
       emailTable([
-        { key: "Date", val: fmtDate(b.wedding_date) },
-        { key: "Bridal party", val: `${b.party_size} look${b.party_size !== 1 ? "s" : ""}` },
+        ...serviceRows,
         { key: "Total", val: fmtZAR(b.total_cents), bold: true },
-        { key: "Booking fee options", val: `25% · ${dep25}  ·  50% · ${dep50}  ·  Full · ${depFull}` },
+        { key: "Date", val: fmtDate(b.wedding_date) },
+        ...(venue ? [{ key: "Location", val: venue }] : []),
+        { key: "25% booking fee", val: dep25 },
+        { key: "50% booking fee", val: dep50 },
+        { key: "Full payment", val: depFull },
         { key: "Your reference", val: b.reference, ref: true },
       ]),
     btnZone:
@@ -95,9 +105,17 @@ function depositInvoiceEmailHtml(
   });
 }
 
+function invoiceLinkEmailHtml(b: ConfirmBookingRow, invoiceUrl: string): string {
+  return emailShell({
+    heading: `Your invoice, ${esc(firstN(b.bride_name))}.`,
+    body: ep(`Here&#8217;s your invoice for your bridal event on ${em(fmtDate(b.wedding_date))}. You can view, print, or save it as a PDF using the button below.`),
+    btnZone: emailBtn(invoiceUrl, "View your invoice →"),
+  });
+}
+
 function declineEmailHtml(b: ConfirmBookingRow): string {
   return emailShell({
-    heading: `Thank you for thinking of us, ${firstN(b.bride_name)}.`,
+    heading: `Thank you for thinking of us, ${esc(firstN(b.bride_name))}.`,
     body:
       ep(
         `We&#8217;re so grateful you considered Lustique for ${em(fmtDate(b.wedding_date))}. Sadly, we&#8217;re not able to take this booking &#8212; most often because the date is already fully committed with our artists.`,
@@ -109,7 +127,7 @@ function declineEmailHtml(b: ConfirmBookingRow): string {
 
 function depositSecuredEmailHtml(b: ConfirmBookingRow): string {
   return emailShell({
-    heading: `Your date is secured, ${firstN(b.bride_name)}.`,
+    heading: `Your date is secured, ${esc(firstN(b.bride_name))}.`,
     body:
       ep(
         `Your booking fee is in &#8212; ${em(fmtDate(b.wedding_date))} is officially yours. We can&#8217;t wait to be part of your day.`,
@@ -126,7 +144,7 @@ function depositSecuredEmailHtml(b: ConfirmBookingRow): string {
 
 function fullyPaidEmailHtml(b: ConfirmBookingRow): string {
   return emailShell({
-    heading: `All settled, ${firstN(b.bride_name)}.`,
+    heading: `All settled, ${esc(firstN(b.bride_name))}.`,
     body:
       ep(
         `Your balance is in &#8212; ${em(fmtDate(b.wedding_date))} is fully paid and we are ready for your day. There&#8217;s nothing more to do.`,
@@ -411,6 +429,62 @@ export async function handleAdminMarkBalancePaid(
       { bookingId: booking.id, eventType: "admin.balance-email-failed", payload: { reference: booking.reference } },
       fetchFn,
     ).catch(() => {});
+  }
+
+  return successRedirect(bookingId);
+}
+
+/** POST /api/admin/booking/:id/resend-invoice — re-send invoice link to bride (any post-quote status). */
+export async function handleAdminResendInvoice(
+  req: Request,
+  env: AdminActionsEnv,
+  bookingId: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  const session = await authedSession(req, env, fetchFn);
+  if (session instanceof Response) return session;
+
+  let booking: ConfirmBookingRow | null;
+  try {
+    booking = await getBookingById(env, bookingId, fetchFn);
+  } catch {
+    return errorRedirect(bookingId, "Could not fetch booking");
+  }
+  if (!booking) return errorRedirect(bookingId, "Booking not found");
+
+  const validStatuses = ["quote_sent", "accepted", "confirmed", "deposit_paid", "settled"];
+  if (!validStatuses.includes(booking.status)) {
+    return errorRedirect(bookingId, `Cannot resend invoice — status is ${booking.status}`);
+  }
+
+  const origin = env.ALLOWED_ORIGIN || "";
+  const invoiceToken = await signActionToken(
+    booking.id,
+    new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000),
+    env.SIGNING_SECRET,
+    "invoice",
+  );
+  const invoiceUrl = `${origin}/api/booking/invoice?token=${encodeURIComponent(invoiceToken)}`;
+
+  try {
+    await sendEmail(
+      env,
+      { email: booking.bride_email, name: booking.bride_name },
+      `Your Lustique invoice — ${booking.reference}`,
+      invoiceLinkEmailHtml(booking, invoiceUrl),
+      fetchFn,
+    );
+    await writeAudit(env, {
+      bookingId: booking.id,
+      eventType: "admin.invoice-resent",
+      payload: { reference: booking.reference, sentBy: session.email },
+    }, fetchFn);
+  } catch {
+    await writeAudit(env, {
+      bookingId: booking.id,
+      eventType: "admin.invoice-resend-failed",
+      payload: { reference: booking.reference },
+    }, fetchFn).catch(() => {});
   }
 
   return successRedirect(bookingId);

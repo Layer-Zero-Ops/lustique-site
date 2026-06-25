@@ -121,18 +121,18 @@ describe("handleAdminSendQuote", () => {
     expect(res.headers.get("Location")).toContain("Booking%20not%20found");
   });
 
-  it("redirects with error when status is not 'requested'", async () => {
+  it("redirects with error when status is not 'requested' or 'quote_sent'", async () => {
     const token = await validAdminJwt();
     const f = vi.fn((url: string) => {
       if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
       if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
-      if (url.includes("&select=")) return Promise.resolve(json([{ ...requestedBooking, status: "quote_sent" }]));
+      if (url.includes("&select=")) return Promise.resolve(json([{ ...requestedBooking, status: "accepted" }]));
       return Promise.resolve(json([]));
     });
     const res = await handleAdminSendQuote(postReq("/api/admin/booking/bk1/send-quote", token), env, "bk1", f as unknown as typeof fetch);
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toContain("error=");
-    expect(res.headers.get("Location")).toContain("quote_sent");
+    expect(res.headers.get("Location")).toContain("accepted");
   });
 
   it("redirects with error when transition returns null (already handled)", async () => {

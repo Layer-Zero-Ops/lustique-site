@@ -1033,6 +1033,13 @@ export async function handleAdminBookingDetail(
     ${assignFormHtml}`;
 
   const actionsHtml = (() => {
+    const resendInvoiceBtn = `
+          <form method="POST" action="/api/admin/booking/${esc(id)}/resend-invoice">
+            <button type="submit" style="font:inherit;font-weight:600;background:#fff;color:#8a3a52;border:1.5px solid #8a3a52;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Resend the invoice link to ${esc(b.bride_name.replace(/'/g, "\\'"))}? She will receive an email with a link to view and print her invoice.')">
+              Resend Invoice →
+            </button>
+          </form>`;
     if (b.status === "quote_sent") {
       return `<h2>Actions</h2>
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
@@ -1042,6 +1049,7 @@ export async function handleAdminBookingDetail(
               Resend Deposit Invoice →
             </button>
           </form>
+          ${resendInvoiceBtn}
           <form method="POST" action="/api/admin/booking/${esc(id)}/decline-booking">
             <button type="submit" style="font:inherit;font-weight:700;background:#c53030;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
               onclick="return confirm('Decline this booking? This emails ${esc(b.bride_name.replace(/'/g, "\\'"))} a polite decline — this cannot be undone.')">
@@ -1076,6 +1084,7 @@ export async function handleAdminBookingDetail(
               Mark EFT Booking Fee Paid
             </button>
           </form>
+          ${resendInvoiceBtn}
         </div>`;
     }
     if (b.status === "deposit_paid") {
@@ -1087,6 +1096,13 @@ export async function handleAdminBookingDetail(
               Mark EFT Balance Paid
             </button>
           </form>
+          ${resendInvoiceBtn}
+        </div>`;
+    }
+    if (b.status === "settled") {
+      return `<h2>Actions</h2>
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
+          ${resendInvoiceBtn}
         </div>`;
     }
     return "";

@@ -4,14 +4,13 @@
    shared with the future Worker. Map uses free Photon/OSRM.
    ============================================================ */
 import {
-  computeEstimate, travelForKm, DEST_KM, ACTIVE_PROMO,
+  computeEstimate, travelForKm, DEST_KM, FREE_KM, ACTIVE_PROMO,
   type EstimateInput, type EstimateLine, type HairBuckets, type HairLength, type Occasion, type TravelBand,
 } from "@lustique/pricing";
 
 declare const L: any; // Leaflet global (loaded via the CDN <script> on the quote page)
 
 const STUDIO = { lat: -25.7986, lng: 28.3127 }; // 242 Frangipani St, La Montagne (approx)
-const FREE_KM = 30;
 
 let travelOverride: { km: number; cost: number; destination: boolean } | null = null;
 let foundLabel = "";
@@ -167,12 +166,13 @@ function routeFrom(lat: number, lng: number) {
       const m = r.routes && r.routes[0] && r.routes[0].distance;
       if (m == null) throw new Error("no route");
       const km = Math.round(m / 1000);
+      const roundTrip = km * 2;
       const destination = km > DEST_KM;
       travelOverride = { km, cost: destination ? 0 : travelForKm(km), destination };
       if (res) {
-        if (destination) res.textContent = `📍 ≈ ${km} km away — a destination wedding. We’ll tailor travel + accommodation in your quote.`;
-        else if (km <= FREE_KM) res.textContent = `📍 ${foundLabel ? foundLabel + " · " : ""}≈ ${km} km from our studio — travel is free (within 30 km). ✓ Drag the pin if this isn’t your exact venue.`;
-        else res.textContent = `📍 ${foundLabel ? foundLabel + " · " : ""}≈ ${km} km from our studio — travel ≈ R ${rand(travelOverride.cost)} round trip. ✓ Drag the pin if this isn’t your exact venue.`;
+        if (destination) res.textContent = `📍 ≈ ${km} km one-way — a destination wedding. We’ll tailor travel + accommodation in your quote.`;
+        else if (roundTrip <= FREE_KM) res.textContent = `📍 ${foundLabel ? foundLabel + " · " : ""}≈ ${km} km one-way (${roundTrip} km round trip) — travel is included free. ✓ Drag the pin if this isn’t your exact venue.`;
+        else res.textContent = `📍 ${foundLabel ? foundLabel + " · " : ""}≈ ${km} km one-way (${roundTrip} km round trip) — travel ≈ R ${rand(travelOverride.cost)}. ✓ Drag the pin if this isn’t your exact venue.`;
       }
       setBand(false);
       renderEstimate();
@@ -214,13 +214,17 @@ async function lookupTravel() {
   // Lean on the venue name first (most specific) — a lodge can be far from its nearest town.
   const q = [venue, town, provPart, "South Africa"].filter(Boolean).join(", ");
   try {
-    const g = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lat=${STUDIO.lat}&lon=${STUDIO.lng}&lang=en`).then((r) => r.json());
+    // Nominatim with countrycodes=za gives far better SA venue accuracy than Photon.
+    const g = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=geojson&limit=1&countrycodes=za`,
+      { headers: { "User-Agent": "Lustique-Estimator/1.0" } },
+    ).then((r) => r.json());
     const f = g.features && g.features[0];
     if (!f) throw new Error("no geocode");
     const c = f.geometry.coordinates;
     const center = { lat: c[1], lng: c[0] };
-    const p = f.properties || {};
-    foundLabel = [p.name, p.city || p.county, p.state].filter(Boolean).join(", ");
+    const parts = ((f.properties || {}).display_name as string || "").split(",").slice(0, 3).map((s: string) => s.trim()).filter(Boolean);
+    foundLabel = parts.join(", ");
     initMap(center);
     routeFrom(center.lat, center.lng);
   } catch {
