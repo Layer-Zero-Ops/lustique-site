@@ -157,6 +157,14 @@ export async function handleAdminPortfolio(
       });
     }
 
+    // JSON mode — browser JS uploads one file at a time and reads results directly
+    if (url.searchParams.has("json")) {
+      return new Response(
+        JSON.stringify({ ok: successCount > 0, saved: successCount, failed: failCount }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+
     const qs = new URLSearchParams();
     if (successCount > 0) qs.set("saved", String(successCount));
     if (failCount > 0) qs.set("failed", String(failCount));
@@ -360,29 +368,50 @@ export async function handleAdminPortfolio(
             style="font:inherit;font-size:.88rem;">
           <span id="fileCount" style="font-size:.78rem;color:#8a7d72;min-height:1.2em;"></span>
         </label>
-        <div>
+        <div style="display:flex;align-items:center;gap:1rem;">
           <button id="uploadBtn" type="submit"
             style="font:inherit;font-weight:700;font-size:.88rem;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.52em 1.3em;cursor:pointer;">
             Upload
           </button>
+          <span id="uploadProgress" style="font-size:.82rem;color:#8a7d72;"></span>
         </div>
       </form>
     </div>
     <script>
       (function(){
+        var form  = document.getElementById('uploadForm');
         var input = document.getElementById('imageInput');
         var btn   = document.getElementById('uploadBtn');
         var count = document.getElementById('fileCount');
-        var form  = document.getElementById('uploadForm');
-        if(!input) return;
+        var prog  = document.getElementById('uploadProgress');
+        if(!form || !input) return;
+
         input.addEventListener('change', function(){
           var n = this.files ? this.files.length : 0;
           count.textContent = n ? n + ' file' + (n !== 1 ? 's' : '') + ' selected' : '';
         });
-        form.addEventListener('submit', function(){
-          var n = input.files ? input.files.length : 1;
+
+        form.addEventListener('submit', async function(e){
+          e.preventDefault();
+          var files = Array.from(input.files || []);
+          if(!files.length) return;
+          var artistId = form.querySelector('[name="artist_id"]').value;
           btn.disabled = true;
-          btn.textContent = n > 1 ? 'Uploading ' + n + ' files…' : 'Uploading…';
+          var ok = 0, fail = 0;
+          for(var i = 0; i < files.length; i++){
+            prog.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + '…';
+            var fd = new FormData();
+            fd.append('image', files[i]);
+            fd.append('artist_id', artistId);
+            try {
+              var res = await fetch('/api/admin/portfolio?json=1', { method: 'POST', body: fd });
+              var data = res.ok ? await res.json() : null;
+              if(data && data.saved > 0) ok += data.saved; else fail++;
+            } catch(err) { fail++; }
+          }
+          prog.textContent = ok + ' uploaded' + (fail ? ', ' + fail + ' failed' : '') + '. Reloading…';
+          var qs = '?saved=' + ok + (fail ? '&failed=' + fail : '') + (artistId ? '&artist=' + encodeURIComponent(artistId) : '');
+          setTimeout(function(){ window.location.href = '/api/admin/portfolio' + qs; }, 1000);
         });
       })();
     </script>
