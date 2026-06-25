@@ -225,12 +225,19 @@ export async function handleAdminPortfolio(
     });
   }
 
-  // Sort objects by their assigned position
-  const sortedObjects = [...objects].sort((a, b) => {
-    const posA = posMap.get(a.name)?.position ?? 999999;
-    const posB = posMap.get(b.name)?.position ?? 999999;
-    return posA - posB;
-  });
+  // On the All tab, Storage list only returns root-level items and misses artist subfolders.
+  // Use DB records as the source of truth there; use Storage list only for per-artist tabs
+  // (which also enables auto-seeding of newly-uploaded files that may lack a DB record).
+  const sortedObjects: Array<{ name: string; created_at: string; metadata: { size: number; mimetype: string } | null }> =
+    filterArtist
+      ? [...objects].sort((a, b) => {
+          const posA = posMap.get(a.name)?.position ?? 999999;
+          const posB = posMap.get(b.name)?.position ?? 999999;
+          return posA - posB;
+        })
+      : [...dbRecords]
+          .sort((a, b) => (a.position ?? 999999) - (b.position ?? 999999))
+          .map((r) => ({ name: r.storage_path, created_at: "", metadata: null }));
 
   const savedCount = parseInt(url.searchParams.get("saved") ?? "0", 10);
   const failedCount = parseInt(url.searchParams.get("failed") ?? "0", 10);
