@@ -122,14 +122,14 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   ];
 
   const nav = [
+    navGroup("Admin",    adminLinks,    adminLinks.some((_, i) =>
+      isActive(["/api/admin/dashboard", "/api/admin/staffing", "/api/admin/templates"][i]!))),
     navGroup("Bookings", bookingsLinks, bookingsLinks.some((_, i) =>
       isActive(["/api/admin/calendar", "/api/admin/quotes", "/api/admin/rejections"][i]!))),
     navGroup("Clients",  clientsLinks,  clientsLinks.some((_, i) =>
       isActive(["/api/admin/forms", "/api/admin/contacts", "/api/admin/enquiries"][i]!))),
     navGroup("Content",  contentLinks,  contentLinks.some((_, i) =>
       isActive(["/api/admin/portfolio", "/api/admin/website", "/api/admin/blog"][i]!))),
-    navGroup("Admin",    adminLinks,    adminLinks.some((_, i) =>
-      isActive(["/api/admin/dashboard", "/api/admin/staffing", "/api/admin/templates"][i]!))),
   ].join("\n");
 
   return `<!doctype html><html lang="en"><head>

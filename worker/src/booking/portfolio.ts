@@ -261,29 +261,25 @@ export async function handleAdminPortfolio(
   // Strip artist-prefix from displayed filename
   const displayName = (name: string) => name.includes("/") ? name.split("/").slice(1).join("/") : name;
 
-  const orderNote = !filterArtist
-    ? `<p style="font-size:.82rem;color:#8a7d72;margin:-1rem 0 1.2rem;">Select an artist tab to reorder images.</p>`
-    : "";
-
-  const btnStyle = `font:inherit;font-size:.9rem;background:#f7f3ef;color:#5c3d47;border:1px solid #ede7e0;border-radius:5px;padding:.15em .45em;cursor:pointer;line-height:1;`;
 
   const thStyle = `font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8a7d72;padding:.5rem .75rem;border-bottom:2px solid #ede7e0;text-align:left;`;
 
   const gallery = sortedObjects.length
-    ? orderNote + `
+    ? `
       <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.8rem;">
         <button id="batchDeleteBtn" disabled onclick="batchDelete()"
           style="font:inherit;font-size:.82rem;font-weight:700;color:#c53030;background:none;border:1px solid #f5c6c6;border-radius:6px;padding:.3em .8em;cursor:pointer;opacity:.4;">
           Delete selected (<span id="selCount">0</span>)
         </button>
         <span id="batchProg" style="font-size:.82rem;color:#8a7d72;"></span>
+        <span id="orderSaveMsg" style="font-size:.82rem;margin-left:auto;"></span>
       </div>
       <table style="border-collapse:collapse;width:100%;margin-bottom:2rem;">
         <thead><tr>
           <th style="${thStyle}width:36px;">
             <input type="checkbox" id="selectAll" title="Select all" style="cursor:pointer;">
           </th>
-          ${filterArtist ? `<th style="${thStyle}width:56px;"></th>` : ""}
+          <th style="${thStyle}width:28px;" title="Drag to reorder"></th>
           <th style="${thStyle}width:72px;">Preview</th>
           <th style="${thStyle}">Filename</th>
           ${!filterArtist ? `<th style="${thStyle}">Artist</th>` : ""}
@@ -291,35 +287,18 @@ export async function handleAdminPortfolio(
           <th style="${thStyle}">Uploaded</th>
           <th style="${thStyle}"></th>
         </tr></thead>
-        <tbody>
-          ${sortedObjects.map((obj, idx) => {
+        <tbody id="sortTbody">
+          ${sortedObjects.map((obj) => {
             const imgUrl = `${publicBase}/${esc(obj.name)}`;
             const kbSize = obj.metadata?.size ? Math.round(obj.metadata.size / 1024) : null;
             const uploadedDate = obj.created_at ? obj.created_at.slice(0, 10) : "—";
             const objArtistId = obj.name.includes("/") ? obj.name.split("/")[0] : null;
             const artistName = objArtistId ? (artists.find((a) => a.id === objArtistId)?.name ?? objArtistId.slice(0, 8) + "…") : "—";
-            const isFirst = idx === 0;
-            const isLast = idx === sortedObjects.length - 1;
-            const reorderBtns = filterArtist ? `
-              <td style="padding:.5rem .5rem;white-space:nowrap;">
-                <form method="POST" action="/api/admin/portfolio/reorder" style="display:inline;">
-                  <input type="hidden" name="path" value="${esc(obj.name)}">
-                  <input type="hidden" name="direction" value="up">
-                  <input type="hidden" name="artist" value="${esc(filterArtist)}">
-                  <button type="submit" ${isFirst ? "disabled" : ""} style="${btnStyle}${isFirst ? "opacity:.3;cursor:default;" : ""}">↑</button>
-                </form>
-                <form method="POST" action="/api/admin/portfolio/reorder" style="display:inline;margin-left:2px;">
-                  <input type="hidden" name="path" value="${esc(obj.name)}">
-                  <input type="hidden" name="direction" value="down">
-                  <input type="hidden" name="artist" value="${esc(filterArtist)}">
-                  <button type="submit" ${isLast ? "disabled" : ""} style="${btnStyle}${isLast ? "opacity:.3;cursor:default;" : ""}">↓</button>
-                </form>
-              </td>` : "";
-            return `<tr style="border-bottom:1px solid #f3ede8;">
+            return `<tr draggable="true" data-path="${esc(obj.name)}" style="border-bottom:1px solid #f3ede8;">
               <td style="padding:.5rem .75rem;">
                 <input type="checkbox" class="row-check" value="${esc(obj.name)}" style="cursor:pointer;">
               </td>
-              ${reorderBtns}
+              <td style="padding:.5rem .25rem;text-align:center;color:#c0b4aa;font-size:.95rem;cursor:grab;user-select:none;" class="drag-handle">⠿</td>
               <td style="padding:.5rem .75rem;">
                 <a href="${imgUrl}" target="_blank" rel="noopener">
                   <img src="${imgUrl}" alt="${esc(displayName(obj.name))}" loading="lazy"
@@ -390,7 +369,51 @@ export async function handleAdminPortfolio(
           prog.textContent = ok + ' deleted. Reloading…';
           setTimeout(function(){ location.reload(); }, 800);
         }
-      </script>`
+              (function(){
+          var tbody=document.getElementById('sortTbody');
+          if(!tbody)return;
+          var dragSrc=null;
+          function clearHL(){tbody.querySelectorAll('tr').forEach(function(r){r.style.borderTop=r.style.borderBottom='';});}
+          tbody.addEventListener('dragstart',function(e){
+            dragSrc=e.target.closest('tr[draggable]');
+            if(!dragSrc)return;
+            dragSrc.style.opacity='.4';
+            e.dataTransfer.effectAllowed='move';
+          });
+          tbody.addEventListener('dragover',function(e){
+            e.preventDefault();
+            e.dataTransfer.dropEffect='move';
+            var row=e.target.closest('tr[draggable]');
+            if(!row||row===dragSrc)return;
+            clearHL();
+            var rect=row.getBoundingClientRect();
+            if(e.clientY<rect.top+rect.height/2)row.style.borderTop='2px solid #8a3a52';
+            else row.style.borderBottom='2px solid #8a3a52';
+          });
+          tbody.addEventListener('dragleave',function(e){if(!tbody.contains(e.relatedTarget))clearHL();});
+          tbody.addEventListener('drop',function(e){
+            e.preventDefault();clearHL();
+            var row=e.target.closest('tr[draggable]');
+            if(!row||row===dragSrc)return;
+            var rect=row.getBoundingClientRect();
+            if(e.clientY<rect.top+rect.height/2)tbody.insertBefore(dragSrc,row);
+            else tbody.insertBefore(dragSrc,row.nextSibling);
+            saveOrder();
+          });
+          tbody.addEventListener('dragend',function(){if(dragSrc)dragSrc.style.opacity='';dragSrc=null;clearHL();});
+          function saveOrder(){
+            var paths=Array.from(tbody.querySelectorAll('tr[data-path]')).map(function(r){return r.dataset.path;});
+            var msg=document.getElementById('orderSaveMsg');
+            if(msg){msg.textContent='Saving…';msg.style.color='#8a7d72';}
+            fetch('/api/admin/portfolio/positions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({paths:paths})})
+              .then(function(r){return r.json();})
+              .then(function(d){
+                if(msg){msg.textContent=d.ok?'Order saved ✓':'Save failed';msg.style.color=d.ok?'#276749':'#c53030';}
+                setTimeout(function(){if(msg)msg.textContent='';},2000);
+              }).catch(function(){if(msg){msg.textContent='Save failed';msg.style.color='#c53030';}});
+          }
+        })();
+</script>`
     : `<p style="color:#8a7d72;font-style:italic;margin-bottom:1rem;">${filterArtist ? `No images yet for ${esc(activeArtist?.name ?? "this artist")}.` : "No images yet."}</p>`;
 
   const artistOptions = artists.map((a) =>
@@ -616,4 +639,59 @@ export async function handleAdminPortfolioReorder(
   ]);
 
   return redirect(`/api/admin/portfolio${artist ? `?artist=${encodeURIComponent(artist)}` : ""}`);
+}
+
+// ── Bulk position save (drag-and-drop) ───────────────────────────────────────
+
+/** POST /api/admin/portfolio/positions — save an ordered list of storage_paths */
+export async function handleAdminPortfolioPositions(
+  req: Request,
+  env: PortfolioEnv,
+  f: typeof fetch = fetch,
+): Promise<Response> {
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+  const user = await getAdminSession(req, env, f);
+  if (!user) return json({ ok: false, error: "unauthorized" }, 401);
+
+  let paths: string[] = [];
+  try {
+    const body = (await req.json()) as { paths?: unknown };
+    paths = Array.isArray(body.paths)
+      ? (body.paths as unknown[]).filter((p): p is string => typeof p === "string")
+      : [];
+  } catch {
+    return json({ ok: false, error: "bad-json" }, 400);
+  }
+  if (paths.length === 0) return json({ ok: false, error: "no-paths" }, 400);
+
+  // Validate: only allow uuid/filename or plain filename, no traversal
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  for (const p of paths) {
+    const parts = p.split("/");
+    if (parts.length > 2 || p.includes("..") || (parts.length === 2 && !uuidRe.test(parts[0]!))) {
+      return json({ ok: false, error: "bad-path" }, 400);
+    }
+  }
+
+  const hdr = {
+    apikey: env.SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+    "content-type": "application/json",
+    prefer: "return=minimal",
+  };
+
+  // Assign position = index * 10 for each path in the new order, in parallel
+  await Promise.all(
+    paths.map((path, i) =>
+      f(`${env.SUPABASE_URL}/rest/v1/portfolio_images?storage_path=eq.${encodeURIComponent(path)}`, {
+        method: "PATCH",
+        headers: hdr,
+        body: JSON.stringify({ position: (i + 1) * 10 }),
+      }),
+    ),
+  );
+
+  return json({ ok: true });
 }

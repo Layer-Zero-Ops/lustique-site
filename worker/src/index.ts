@@ -43,7 +43,7 @@ import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquir
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
 import { handleAdminStaffing } from "./booking/staffing";
-import { handleAdminPortfolio, handleAdminPortfolioDelete, handleAdminPortfolioReorder } from "./booking/portfolio";
+import { handleAdminPortfolio, handleAdminPortfolioDelete, handleAdminPortfolioReorder, handleAdminPortfolioPositions } from "./booking/portfolio";
 import {
   handleAdminBlog,
   handleAdminBlogNew,
@@ -506,9 +506,13 @@ export default {
       if (req.method === "POST" && url.pathname === "/api/admin/portfolio/delete") {
         return handleAdminPortfolioDelete(req, env as Parameters<typeof handleAdminPortfolioDelete>[1]);
       }
-      // POST /api/admin/portfolio/reorder — swap image positions (↑/↓)
+      // POST /api/admin/portfolio/reorder — swap image positions (↑/↓) — kept for future use
       if (req.method === "POST" && url.pathname === "/api/admin/portfolio/reorder") {
         return handleAdminPortfolioReorder(req, env as Parameters<typeof handleAdminPortfolioReorder>[1]);
+      }
+      // POST /api/admin/portfolio/positions — save drag-and-drop order
+      if (req.method === "POST" && url.pathname === "/api/admin/portfolio/positions") {
+        return handleAdminPortfolioPositions(req, env as Parameters<typeof handleAdminPortfolioPositions>[1]);
       }
 
       // ── Blog ──────────────────────────────────────────────────────────────
