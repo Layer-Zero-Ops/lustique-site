@@ -11,9 +11,14 @@ type Artist = {
   specialisms: string[];
 };
 
-const artists = await supabaseGet<Artist>(
-  "artists?select=id,name,specialisms&active=eq.true&order=name.asc"
+const rawArtists = await supabaseGet<Artist>(
+  "artists?select=id,name,specialisms&active=eq.true"
 );
+// Zandeline (founder) always first, rest alphabetical
+const artists = [
+  ...rawArtists.filter(a => a.name.toLowerCase() === "zandeline"),
+  ...rawArtists.filter(a => a.name.toLowerCase() !== "zandeline").sort((a, b) => a.name.localeCompare(b.name)),
+];
 
 function specialismLabel(specialisms: string[]): string {
   const has = (s: string) => specialisms?.includes(s);
@@ -34,7 +39,7 @@ function specialismLabel(specialisms: string[]): string {
     </p>
   </section>
 
-  <section class="section"><div class="wrap">
+  <section class="section" style="padding-top:3rem"><div class="wrap">
     <div class="artist-grid">
       {artists.map((a, i) => (
         <div class={`artist reveal${["", " d1", " d2"][i % 3]}`}>
