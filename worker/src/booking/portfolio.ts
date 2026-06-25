@@ -391,12 +391,18 @@ export async function handleAdminPortfolio(
           count.textContent = n ? n + ' file' + (n !== 1 ? 's' : '') + ' selected' : '';
         });
 
+        var uploading = false;
+        window.addEventListener('beforeunload', function(e){
+          if(uploading){ e.preventDefault(); e.returnValue = ''; }
+        });
+
         form.addEventListener('submit', async function(e){
           e.preventDefault();
           var files = Array.from(input.files || []);
           if(!files.length) return;
           var artistId = form.querySelector('[name="artist_id"]').value;
           btn.disabled = true;
+          uploading = true;
           var ok = 0, fail = 0;
           for(var i = 0; i < files.length; i++){
             prog.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + '…';
@@ -409,6 +415,7 @@ export async function handleAdminPortfolio(
               if(data && data.saved > 0) ok += data.saved; else fail++;
             } catch(err) { fail++; }
           }
+          uploading = false;
           prog.textContent = ok + ' uploaded' + (fail ? ', ' + fail + ' failed' : '') + '. Reloading…';
           var qs = '?saved=' + ok + (fail ? '&failed=' + fail : '') + (artistId ? '&artist=' + encodeURIComponent(artistId) : '');
           setTimeout(function(){ window.location.href = '/api/admin/portfolio' + qs; }, 1000);
