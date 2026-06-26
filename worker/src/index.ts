@@ -12,7 +12,7 @@ import { handleAdminBlockedDates } from "./booking/admin";
 import { handleAdminAccounting } from "./booking/accounting";
 import { handleAdminInvoices } from "./booking/invoices";
 import { handleAdminQuotePdf } from "./booking/quote-pdf";
-import { renderInvoicePage, handleInvoiceReject } from "./booking/invoice";
+import { renderInvoicePage, handleInvoiceReject, handleInvoicePay } from "./booking/invoice";
 import {
   handleAdminLogin,
   handleAdminPasswordLogin,
@@ -323,9 +323,14 @@ export default {
       return withSec(await renderInvoicePage(env, req), { html: true, noindex: true });
     }
 
-    // POST /api/booking/invoice/reject?token= — bride declines the invoice (TASK-D)
+    // POST /api/booking/invoice/reject?token= — bride declines the invoice
     if (req.method === "POST" && url.pathname === "/api/booking/invoice/reject") {
       return withSec(await handleInvoiceReject(env, req), { noindex: true });
+    }
+
+    // POST /api/booking/invoice/pay?token= — TASK-D: bride selects deposit %, creates Yoco checkout
+    if (req.method === "POST" && url.pathname === "/api/booking/invoice/pay") {
+      return withSec(await handleInvoicePay(env, req), { noindex: true });
     }
 
     // Wave D3: single RL_ADMIN check covers all /api/admin/* (JWT-gated AND legacy routes).

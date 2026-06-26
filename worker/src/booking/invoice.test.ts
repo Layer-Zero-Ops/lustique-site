@@ -1,6 +1,6 @@
-// worker/src/booking/invoice.test.ts — S9 invoice page + TASK-D reject handler
+// worker/src/booking/invoice.test.ts — S9 invoice page + reject handler + TASK-D pay handler
 import { describe, it, expect, vi } from "vitest";
-import { renderInvoicePage, handleInvoiceReject } from "./invoice";
+import { renderInvoicePage, handleInvoiceReject, handleInvoicePay } from "./invoice";
 import { signActionToken } from "./token";
 
 const SECRET = "test-signing-secret";
@@ -251,5 +251,141 @@ describe("handleInvoiceReject", () => {
       new Request("https://worker.dev/api/booking/invoice/reject", { method: "GET" }),
     );
     expect(r.status).toBe(405);
+  });
+});
+
+// ── handleInvoicePay ──────────────────────────────────────────────────────────
+
+function makePayEnv() {
+  return {
+    ...makeEnv(),
+    YOCO_SECRET_KEY: "sk_test_abc",
+    ALLOWED_ORIGIN: "https://lustiqueco.co.za",
+  };
+}
+
+const QUOTE_SENT_BOOKING = { ...BOOKING, status: "quote_sent" };
+
+function postPay(token: string, depositPct: number): Request {
+  return new Request(
+    `https://worker.dev/api/booking/invoice/pay?token=${encodeURIComponent(token)}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ depositPct }),
+    },
+  );
+}
+
+function makePayFetch(
+  booking = QUOTE_SENT_BOOKING,
+  yocoOk = true,
+): typeof fetch {
+  const yocoResp = yocoOk
+    ? { ok: true, json: async () => ({ id: "chk_123", redirectUrl: "https://pay.yoco.com/chk_123" }), text: async () => "" }
+    : { ok: false, status: 500, text: async () => "Yoco error" };
+  return vi.fn().mockImplementation(async (url: string) => {
+    if (String(url).includes("business_settings")) {
+      return { ok: true, json: async () => EFT_ROWS };
+    }
+    if (String(url).includes("payments.yoco.com")) return yocoResp;
+    if (String(url).includes("/bookings?id=") && String(url).includes("status=eq.quote_sent")) {
+      // transitionBooking PATCH — returns updated row
+      return { ok: true, json: async () => [{ ...booking, status: "accepted" }] };
+    }
+    if (String(url).includes("/bookings")) {
+      return { ok: true, json: async () => [booking] };
+    }
+    // payments insert, audit
+    return { ok: true, json: async () => [{ id: "pay-1" }] };
+  }) as unknown as typeof fetch;
+}
+
+describe("handleInvoicePay", () => {
+  it("405 on GET", async () => {
+    const r = await handleInvoicePay(
+      makePayEnv(),
+      new Request("https://worker.dev/api/booking/invoice/pay", { method: "GET" }),
+    );
+    expect(r.status).toBe(405);
+  });
+
+  it("400 with no token", async () => {
+    const r = await handleInvoicePay(
+      makePayEnv(),
+      new Request("https://worker.dev/api/booking/invoice/pay", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }),
+    );
+    expect(r.status).toBe(400);
+    const body = await r.json() as { ok: boolean; error: string };
+    expect(body.error).toBe("missing_token");
+  });
+
+  it("400 for invalid token", async () => {
+    const r = await handleInvoicePay(makePayEnv(), postPay("bad-token", 25), makePayFetch());
+    expect(r.status).toBe(400);
+    const body = await r.json() as { ok: boolean; error: string };
+    expect(body.error).toBe("invalid_token");
+  });
+
+  it("400 for invalid depositPct", async () => {
+    const r = await handleInvoicePay(makePayEnv(), postPay(await validToken(), 33), makePayFetch());
+    expect(r.status).toBe(400);
+    const body = await r.json() as { ok: boolean; error: string };
+    expect(body.error).toBe("invalid_deposit_pct");
+  });
+
+  it("409 when booking is not quote_sent", async () => {
+    const f = makePayFetch({ ...BOOKING, status: "accepted" });
+    const r = await handleInvoicePay(makePayEnv(), postPay(await validToken(), 25), f);
+    expect(r.status).toBe(409);
+    const body = await r.json() as { ok: boolean; already_handled: boolean };
+    expect(body.already_handled).toBe(true);
+  });
+
+  it("returns checkoutUrl on success", async () => {
+    const f = makePayFetch();
+    const r = await handleInvoicePay(makePayEnv(), postPay(await validToken(), 25), f);
+    expect(r.status).toBe(200);
+    const body = await r.json() as { ok: boolean; checkoutUrl: string };
+    expect(body.ok).toBe(true);
+    expect(body.checkoutUrl).toBe("https://pay.yoco.com/chk_123");
+  });
+
+  it("transitions booking with correct deposit amounts for 50%", async () => {
+    const f = makePayFetch();
+    await handleInvoicePay(makePayEnv(), postPay(await validToken(), 50), f);
+    const calls = (f as ReturnType<typeof vi.fn>).mock.calls;
+    const transitionCall = calls.find((c) =>
+      (c[0] as string).includes("status=eq.quote_sent"),
+    );
+    expect(transitionCall).toBeTruthy();
+    const patch = JSON.parse((transitionCall![1] as RequestInit).body as string);
+    expect(patch.status).toBe("accepted");
+    expect(patch.deposit_pct).toBe(50);
+    expect(patch.deposit_net_cents).toBe(250000); // 50% of 500000
+    expect(patch.balance_net_cents).toBe(250000);
+  });
+
+  it("inserts a payment row with the checkout id", async () => {
+    const f = makePayFetch();
+    await handleInvoicePay(makePayEnv(), postPay(await validToken(), 25), f);
+    const calls = (f as ReturnType<typeof vi.fn>).mock.calls;
+    const paymentCall = calls.find((c) => (c[0] as string).includes("/rest/v1/payments"));
+    expect(paymentCall).toBeTruthy();
+    const body = JSON.parse((paymentCall![1] as RequestInit).body as string);
+    expect(body.kind).toBe("deposit");
+    expect(body.yoco_checkout_id).toBe("chk_123");
+    expect(body.status).toBe("pending");
+  });
+
+  it("returns eftOnly when Yoco checkout fails", async () => {
+    const f = makePayFetch(QUOTE_SENT_BOOKING, false);
+    const r = await handleInvoicePay(makePayEnv(), postPay(await validToken(), 25), f);
+    expect(r.status).toBe(200);
+    const body = await r.json() as { ok: boolean; eftOnly: boolean; eft: { bank: string; reference: string } };
+    expect(body.ok).toBe(true);
+    expect(body.eftOnly).toBe(true);
+    expect(body.eft.bank).toBe("FNB");
+    expect(body.eft.reference).toBe("LQ-0001");
   });
 });
