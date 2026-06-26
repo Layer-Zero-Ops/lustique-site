@@ -85,6 +85,7 @@ function depositInvoiceEmailHtml(
   const venue = [b.venue, b.town, b.province].filter(Boolean).join(", ");
 
   return emailShell({
+    preheader: `Your quote is ready — secure ${fmtDate(b.wedding_date)} with a deposit to lock in your date.`,
     heading: `You&#8217;re all set to secure your date, ${esc(firstN(b.bride_name))}.`,
     body:
       ep(`We&#8217;ve reviewed your request and we&#8217;re delighted to hold ${em(fmtDate(b.wedding_date))} for you. Your quote is below — choose your deposit on the next step to lock it in.`) +
@@ -107,6 +108,7 @@ function depositInvoiceEmailHtml(
 
 function invoiceLinkEmailHtml(b: ConfirmBookingRow, invoiceUrl: string): string {
   return emailShell({
+    preheader: `Your Lustique Co. invoice for ${fmtDate(b.wedding_date)} — view, print, or save as PDF.`,
     heading: `Your invoice, ${esc(firstN(b.bride_name))}.`,
     body: ep(`Here&#8217;s your invoice for your bridal event on ${em(fmtDate(b.wedding_date))}. You can view, print, or save it as a PDF using the button below.`),
     btnZone: emailBtn(invoiceUrl, "View your invoice →"),
@@ -115,6 +117,7 @@ function invoiceLinkEmailHtml(b: ConfirmBookingRow, invoiceUrl: string): string 
 
 function declineEmailHtml(b: ConfirmBookingRow): string {
   return emailShell({
+    preheader: `An update on your booking enquiry — we're truly sorry we can't be there for ${fmtDate(b.wedding_date)}.`,
     heading: `Thank you for thinking of us, ${esc(firstN(b.bride_name))}.`,
     body:
       ep(
@@ -127,6 +130,7 @@ function declineEmailHtml(b: ConfirmBookingRow): string {
 
 function depositSecuredEmailHtml(b: ConfirmBookingRow): string {
   return emailShell({
+    preheader: `Your booking fee is in — ${fmtDate(b.wedding_date)} is officially yours.`,
     heading: `Your date is secured, ${esc(firstN(b.bride_name))}.`,
     body:
       ep(
@@ -144,6 +148,7 @@ function depositSecuredEmailHtml(b: ConfirmBookingRow): string {
 
 function fullyPaidEmailHtml(b: ConfirmBookingRow): string {
   return emailShell({
+    preheader: `You're all settled — ${fmtDate(b.wedding_date)} is fully paid and we're ready for your day.`,
     heading: `All settled, ${esc(firstN(b.bride_name))}.`,
     body:
       ep(

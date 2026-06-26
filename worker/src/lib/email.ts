@@ -76,34 +76,62 @@ export function emailShell({
   heading,
   body,
   btnZone,
+  preheader = "",
   footerNote = `Questions? Write to us at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>.`,
 }: {
   heading: string;
   body: string;
   btnZone: string;
+  preheader?: string;
   footerNote?: string;
 }): string {
+  const preheaderHtml = preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#FAF6F0;mso-hide:all;">
+${esc(preheader)}&nbsp;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;
+</div>` : "";
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#FAF6F0;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF6F0;padding:52px 16px;">
-<tr><td align="center">
-<table width="500" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border:1px solid #E8D5B7;">
-<tr><td style="padding:60px 56px;">
-<div style="text-align:center;padding-bottom:40px;"><img src="${LOGO}" alt="Lustique Cosmetology" width="108" style="display:block;margin:0 auto;" /></div>
-<div style="height:1px;background:#E8D5B7;"></div>
-<div style="padding:44px 0 40px;border-bottom:1px solid #E8D5B7;">
-<h1 style="margin:0 0 20px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:400;font-style:italic;color:#5C4332;line-height:1.3;">${heading}</h1>
-${body}
-</div>
-<div style="padding:44px 0 40px;text-align:center;border-bottom:1px solid #E8D5B7;">${btnZone}</div>
-<div style="padding-top:28px;">
-<p style="margin:0 0 16px;font-size:11px;color:#8A7060;line-height:1.75;font-family:Arial,sans-serif;">${footerNote}</p>
-<p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:14px;color:#5C4332;">Lustique Co.</p>
-</div>
-<div style="text-align:center;padding-top:32px;"><p style="margin:0;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;color:#C8B8AC;font-family:Arial,sans-serif;">Pretoria &middot; South Africa</p></div>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Lustique Co.</title>
+</head>
+<body style="margin:0;padding:0;background-color:#FAF6F0;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+${preheaderHtml}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FAF6F0;">
+<tr><td align="center" style="padding:44px 16px 56px;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;background:#FFFFFF;border-top:3px solid #C4877A;border-left:1px solid #E8D5B7;border-right:1px solid #E8D5B7;border-bottom:1px solid #E8D5B7;border-collapse:collapse;">
+
+<tr><td align="center" style="padding:44px 48px 32px 48px;">
+<img src="${LOGO}" alt="Lustique Co." width="100" height="auto" style="display:block;border:0;max-width:100px;" />
 </td></tr>
+
+<tr><td style="padding:0 48px;"><div style="height:1px;background:#EDE0D4;"></div></td></tr>
+
+<tr><td style="padding:44px 48px 36px 48px;">
+<h1 style="margin:0 0 22px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:400;font-style:italic;color:#5C4332;line-height:1.4;">${heading}</h1>
+${body}
+</td></tr>
+
+<tr><td style="padding:0 48px;"><div style="height:1px;background:#EDE0D4;"></div></td></tr>
+
+<tr><td align="center" style="padding:40px 48px;">
+${btnZone}
+</td></tr>
+
+<tr><td style="padding:0 48px;"><div style="height:1px;background:#EDE0D4;"></div></td></tr>
+
+<tr><td style="padding:32px 48px 40px 48px;">
+<p style="margin:0 0 14px;font-size:11px;color:#8A7060;line-height:1.8;font-family:Arial,sans-serif;">${footerNote}</p>
+<p style="margin:0 0 24px;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:14px;color:#5C4332;">Lustique Co.</p>
+<p style="margin:0;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#BFA99A;font-family:Arial,sans-serif;">
+242 Frangipani Street, La Montagne &middot; Pretoria 0184<br>
+<a href="https://lustiqueco.co.za" style="color:#BFA99A;text-decoration:none;">lustiqueco.co.za</a>
+</p>
+</td></tr>
+
 </table>
 </td></tr>
 </table>

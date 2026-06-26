@@ -121,6 +121,7 @@ interface YocoPaymentEvent {
 
 function depositSecuredEmailHtml(brideName: string, weddingDate: string, depositCents: number, balanceCents: number, reference: string): string {
   return emailShell({
+    preheader: `Your deposit is in — ${fmtDate(weddingDate)} is officially yours.`,
     heading: `Your date is secured, ${esc(firstN(brideName))}.`,
     body: ep(`Your deposit is in — ${em(fmtDate(weddingDate))} is officially yours. We can&#8217;t wait to be part of your day.`) +
       emailTable([
@@ -135,6 +136,7 @@ function depositSecuredEmailHtml(brideName: string, weddingDate: string, deposit
 
 function fullyPaidEmailHtml(brideName: string, weddingDate: string, balanceCents: number, reference: string): string {
   return emailShell({
+    preheader: `You're all settled — ${fmtDate(weddingDate)} is fully paid and we're ready for your day.`,
     heading: `All settled, ${esc(firstN(brideName))}.`,
     body: ep(`Your balance is in — ${em(fmtDate(weddingDate))} is fully paid and we are ready for your day. There&#8217;s nothing more to do.`) +
       emailTable([
@@ -154,6 +156,7 @@ function paymentFailedBrideEmailHtml(
   reference: string,
 ): string {
   return emailShell({
+    preheader: `Your card payment didn't go through — your date is still held, please complete by EFT.`,
     heading: `Your payment didn&#8217;t go through, ${esc(firstN(brideName))}.`,
     body: ep(`Your card payment wasn&#8217;t processed. No need to worry — your date for ${em(fmtDate(weddingDate))} is still held. Please complete your payment by EFT using the details below.`) +
       emailTable([

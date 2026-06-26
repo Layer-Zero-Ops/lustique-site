@@ -25,6 +25,7 @@ async function getGoogleReviewUrl(env: DbEnv, f: typeof fetch): Promise<string> 
 
 function reviewEmailHtml(b: { bride_name: string; wedding_date: string }, googleUrl: string): string {
   return emailShell({
+    preheader: `It was an honour to be there on ${fmtDate(b.wedding_date)} — a quick review would mean the world to us.`,
     heading: `Thank you, ${firstN(b.bride_name)}.`,
     body: ep(`It was an honour to be part of ${em(fmtDate(b.wedding_date))} — we hope your day was everything you dreamed of. If you have a moment, it would mean the world to us to hear about your experience.`) +
       ep(`Reviews help other brides find us, and every word of feedback helps us grow.`),

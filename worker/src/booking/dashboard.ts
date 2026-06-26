@@ -2136,6 +2136,7 @@ export async function handleAdminQuoteComposer(
     const eventDateDisplay = eventDate ? emFn(eventDate) : "";  // emFn = em from lib/email (italic serif span)
 
     const emailHtml = emailShell({
+      preheader: `Your personalised Lustique quote${eventDate ? ` for ${eventDate}` : ""} is ready — valid for 7 days.`,
       heading: `Your Lustique quote, ${esc(clientName.split(" ")[0] ?? clientName)}.`,
       body: ep(`Thank you for your interest in Lustique. Here is your personalised quote${eventDateDisplay ? ` for your ${esc(eventLabel)} on ${eventDateDisplay}` : ` for your ${esc(eventLabel)}`}.`)
         + lineTable
