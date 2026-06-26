@@ -1,0 +1,27 @@
+# Local dev secrets — copy to .dev.vars and fill in real test values.
+# .dev.vars is gitignored. NEVER put live keys here.
+# Used by: wrangler dev (reads this file automatically)
+
+# Supabase local instance (from `supabase start` output)
+SUPABASE_URL=http://localhost:54321
+SUPABASE_SERVICE_KEY=<local service_role key from supabase start>
+SUPABASE_JWT_SECRET=<local JWT secret from supabase start>
+
+# Yoco — TEST key only (sk_test_*)
+YOCO_SECRET_KEY=sk_test_REPLACE_ME
+YOCO_WEBHOOK_SECRET=test_webhook_secret_local
+
+# Turnstile always-pass test key (never triggers CAPTCHA in dev)
+TURNSTILE_SECRET=1x0000000000000000000000000000000AA
+
+# Brevo — use a test list or any valid key; emails go to Brevo sandbox
+BREVO_API_KEY=REPLACE_ME
+
+# Admin notifications
+NOTIFY_EMAIL=pieter@layerzerostudios.co.za
+
+# Signing secret for webhook/admin tokens (any random string for local)
+SIGNING_SECRET=local_dev_signing_secret_change_me
+
+# iCal feed key (any string for local)
+ICAL_KEY=local_ical_key

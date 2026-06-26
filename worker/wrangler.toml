@@ -102,3 +102,61 @@ namespace_id = "1005"
 
 [triggers]
 crons = ["0 6 * * *"]   # 06:00 UTC ≈ 08:00 SAST — keep-warm now; balance sweep in S5
+
+# ─── Staging environment ───────────────────────────────────────────────────────
+# Deploy with: wrangler deploy --env staging
+# Secrets: wrangler secret put <NAME> --env staging (use TEST values — see .dev.vars.example)
+# Pieter must create before first staging deploy:
+#   1. R2 bucket: CF dashboard → R2 → Create bucket "lustique-audit-staging"
+#   2. DNS CNAME: staging.lustiqueco.co.za → lustique-form-handler-staging.<account>.workers.dev
+#      (or skip the route and use the workers.dev URL for staging smoke tests)
+
+[env.staging]
+name = "lustique-form-handler-staging"
+routes = [{ pattern = "staging.lustiqueco.co.za/api/*", zone_name = "lustiqueco.co.za" }]
+
+[env.staging.vars]
+ALLOWED_ORIGIN = "https://staging.lustiqueco.co.za"
+YOCO_FEE_PCT = "2.95"
+
+# Staging R2 — separate bucket so audit logs don't mix with prod
+[[env.staging.r2_buckets]]
+binding = "AUDIT"
+bucket_name = "lustique-audit-staging"
+
+# Staging rate limits — separate namespace IDs (2001–2005) so staging traffic
+# doesn't consume prod rate limit counters
+[[env.staging.ratelimits]]
+name         = "RL_LOGIN"
+namespace_id = "2001"
+  [env.staging.ratelimits.simple]
+    limit  = 5
+    period = 60
+
+[[env.staging.ratelimits]]
+name         = "RL_LOGIN_EMAIL"
+namespace_id = "2002"
+  [env.staging.ratelimits.simple]
+    limit  = 5
+    period = 60
+
+[[env.staging.ratelimits]]
+name         = "RL_BOOKING"
+namespace_id = "2003"
+  [env.staging.ratelimits.simple]
+    limit  = 3
+    period = 60
+
+[[env.staging.ratelimits]]
+name         = "RL_ENQUIRY"
+namespace_id = "2004"
+  [env.staging.ratelimits.simple]
+    limit  = 10
+    period = 60
+
+[[env.staging.ratelimits]]
+name         = "RL_ADMIN"
+namespace_id = "2005"
+  [env.staging.ratelimits.simple]
+    limit  = 60
+    period = 60

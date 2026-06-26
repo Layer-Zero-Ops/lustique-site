@@ -1,4 +1,103 @@
-# Lustique Cosmetology — Phase 1 Setup Runbook
+# Lustique — Local Dev Bring-Up
+
+**Day-to-day reference for spinning up the full local stack.**
+Branch model: `feature/* → dev (staging) → PR → main (prod)`. Work on feature branches; never commit app code directly to `main`.
+
+## Prerequisites
+- Node LTS (`node -v` ≥ 20) + npm
+- [Supabase CLI](https://supabase.com/docs/guides/cli) (`supabase --version`)
+- [Wrangler](https://developers.cloudflare.com/workers/wrangler/) (`wrangler --version`)
+- Docker running (required by `supabase start`)
+
+## 1. Start the local Supabase instance
+
+```bash
+# From project root — starts local Postgres + auth + storage + APIs
+supabase start
+
+# Output includes:
+#   API URL: http://localhost:54321
+#   anon key: eyJ…
+#   service_role key: eyJ…
+#   JWT secret: super-secret-jwt-token-with-at-least-32-characters-long
+```
+
+Apply any pending migrations (first time and after pulling new ones):
+```bash
+supabase db push          # or: supabase migration up
+```
+
+## 2. Configure worker secrets
+
+```bash
+cd worker
+cp .dev.vars.example .dev.vars
+# Edit .dev.vars — paste the supabase start output values, Yoco test key, etc.
+```
+
+Key values for `.dev.vars`:
+| Key | Value |
+|---|---|
+| `SUPABASE_URL` | `http://localhost:54321` |
+| `SUPABASE_SERVICE_KEY` | service_role key from `supabase start` |
+| `SUPABASE_JWT_SECRET` | JWT secret from `supabase start` |
+| `YOCO_SECRET_KEY` | `sk_test_*` key from Yoco test dashboard |
+| `TURNSTILE_SECRET` | `1x0000000000000000000000000000000AA` (always-pass) |
+
+## 3. Start the Worker (local API)
+
+```bash
+cd worker
+wrangler dev
+# Listens on http://localhost:8787 — proxies /api/* requests
+```
+
+## 4. Configure site env (first time only)
+
+```bash
+cd site
+cp .env.local.example .env.local
+# Edit .env.local — paste supabase start anon key + URL
+```
+
+## 5. Start the Astro dev server
+
+```bash
+cd site
+npm run dev
+# Listens on http://localhost:4321
+```
+
+The Astro dev server talks to the Worker at `localhost:8787` for API calls and to the local Supabase at `localhost:54321` for public data queries.
+
+## Staging deployment (smoke test before prod)
+
+```bash
+# Deploy staging Worker (uses [env.staging] in wrangler.toml)
+cd worker
+wrangler deploy --env staging
+
+# Staging Worker URL: staging.lustiqueco.co.za/api/*
+# Staging site: auto-built by CF Pages on every push to `dev` branch
+# Staging secrets: must be pre-loaded — wrangler secret put <NAME> --env staging
+```
+
+## Supabase staging schema (hosted staging — Rung 2)
+
+The hosted staging Worker needs a staging DB. Use the `lustique_staging` schema inside the same Supabase project (free, no 2nd project needed):
+
+```sql
+-- Run once in Supabase SQL editor to create the staging schema
+CREATE SCHEMA IF NOT EXISTS lustique_staging;
+-- Then apply all migrations with search_path set to lustique_staging.
+-- See: supabase/migrations/ — run them in order against lustique_staging.
+```
+
+> For local dev (TASK-D, payment flows): `supabase start` gives you a fully isolated local DB. The `lustique_staging` schema is only needed for the hosted staging environment.
+
+---
+
+# Lustique Cosmetology — Phase 1 Setup Runbook (historical)
 
 **Status:** Ready to execute
 **Last updated:** 2026-06-01
