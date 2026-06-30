@@ -211,20 +211,17 @@ async function lookupTravel() {
   if (res) res.textContent = "Finding your venue…";
   const prov = val("provinceInput");
   const provPart = prov && prov.indexOf("Other") === -1 ? prov : "";
-  // Lean on the venue name first (most specific) — a lodge can be far from its nearest town.
   const q = [venue, town, provPart, "South Africa"].filter(Boolean).join(", ");
   try {
-    // Nominatim with countrycodes=za gives far better SA venue accuracy than Photon.
+    const apiKey = (import.meta.env.PUBLIC_HERE_API_KEY as string) || "";
     const g = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=geojson&limit=1&countrycodes=za`,
-      { headers: { "User-Agent": "Lustique-Estimator/1.0" } },
+      `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(q)}&in=countryCode:ZAF&limit=1&apiKey=${encodeURIComponent(apiKey)}`,
     ).then((r) => r.json());
-    const f = g.features && g.features[0];
-    if (!f) throw new Error("no geocode");
-    const c = f.geometry.coordinates;
-    const center = { lat: c[1], lng: c[0] };
-    const parts = ((f.properties || {}).display_name as string || "").split(",").slice(0, 3).map((s: string) => s.trim()).filter(Boolean);
-    foundLabel = parts.join(", ");
+    const item = g.items && g.items[0];
+    if (!item) throw new Error("no geocode");
+    const center = { lat: item.position.lat, lng: item.position.lng };
+    const label: string = (item.address && item.address.label) || item.title || "";
+    foundLabel = label.split(",").slice(0, 3).map((s: string) => s.trim()).filter(Boolean).join(", ");
     initMap(center);
     routeFrom(center.lat, center.lng);
   } catch {
