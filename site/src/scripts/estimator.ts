@@ -226,8 +226,9 @@ async function lookupTravel() {
     routeFrom(center.lat, center.lng);
   } catch {
     travelOverride = null;
-    if (res) res.textContent = "We couldn’t pin that automatically — pick a distance band below and we’ll confirm travel personally.";
-    setBand(true);
+    initMap(STUDIO);
+    if (res) res.textContent = "Couldn’t find that venue automatically — drag the pin on the map to your venue and we’ll calculate the drive.";
+    setBand(false);
     renderEstimate();
   }
 }
@@ -243,6 +244,7 @@ function applyOccasion() {
   show("eventFields", !isWedding && !isLessons);  // events: faces + hair
   show("lessonsFields", isLessons);               // group lessons: attendee count
   show("promoRow", isWedding);                    // the "book 4+ free" offer only computes for weddings
+  if (isWedding) initMap(STUDIO);                 // pre-show map so bride can drag pin without geocoding
 }
 
 document.addEventListener("DOMContentLoaded", () => {
