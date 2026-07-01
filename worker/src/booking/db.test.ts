@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, listBookingsDueForBalanceReminder } from "./db";
+import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, listBookingsDueForBalanceReminder, getBusinessSetting, setBusinessSetting } from "./db";
 
 const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc" };
 const res = (body: unknown, status = 200) =>
@@ -156,5 +156,38 @@ describe("listBookingsDueForBalanceReminder", () => {
   it("returns [] when nothing is due", async () => {
     const f = vi.fn().mockResolvedValue(res([]));
     expect(await listBookingsDueForBalanceReminder(env, "2026-06-13", "2026-07-04", f as unknown as typeof fetch)).toEqual([]);
+  });
+});
+
+describe("getBusinessSetting", () => {
+  it("returns the value when the key exists", async () => {
+    const f = vi.fn().mockResolvedValue(res([{ value: "cheapest-look-free" }]));
+    expect(await getBusinessSetting(env, "active_promo_id", f as unknown as typeof fetch)).toBe("cheapest-look-free");
+    const url = f.mock.calls[0]![0] as string;
+    expect(url).toContain("business_settings?key=eq.active_promo_id");
+  });
+  it("returns null when the key is unset", async () => {
+    const f = vi.fn().mockResolvedValue(res([]));
+    expect(await getBusinessSetting(env, "active_promo_id", f as unknown as typeof fetch)).toBeNull();
+  });
+  it("returns null on a non-OK response rather than throwing", async () => {
+    const f = vi.fn().mockResolvedValue(res({ message: "boom" }, 500));
+    expect(await getBusinessSetting(env, "active_promo_id", f as unknown as typeof fetch)).toBeNull();
+  });
+});
+
+describe("setBusinessSetting", () => {
+  it("upserts key/value via on_conflict + merge-duplicates", async () => {
+    const f = vi.fn().mockResolvedValue(res([], 201));
+    await setBusinessSetting(env, "active_promo_id", "flat-1000-off", f as unknown as typeof fetch);
+    const [url, init] = f.mock.calls[0]!;
+    expect(url as string).toContain("business_settings?on_conflict=key");
+    expect((init as RequestInit).headers).toMatchObject({ prefer: "resolution=merge-duplicates" });
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toMatchObject({ key: "active_promo_id", value: "flat-1000-off" });
+  });
+  it("throws on a non-OK response", async () => {
+    const f = vi.fn().mockResolvedValue(res({ message: "boom" }, 500));
+    await expect(setBusinessSetting(env, "k", "v", f as unknown as typeof fetch)).rejects.toThrow(/500/);
   });
 });

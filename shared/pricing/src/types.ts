@@ -9,13 +9,30 @@ export type Occasion =
 export type TravelBand = "studio" | "mid" | "far" | "veryfar" | "destination";
 
 /**
- * A configurable promotion. Zandeline rotates the *active* promo (later CMS-driven); the
- * estimator and the quote both apply whatever is active — never a hardcoded rule.
- * Extend with new kinds (percentOff, amountOff…) as she defines them.
+ * A configurable promotion. Zandeline picks the *active* promo from the curated
+ * library (`promoPresets.ts`) via the admin dashboard; the estimator and the quote
+ * both apply whatever is active — never a hardcoded rule. A milestone tier's perk
+ * fields are all optional — only set the ones that tier actually grants.
  */
 export type Promo =
   | { kind: "none" }
-  | { kind: "cheapestLookFree"; minPeople: number };
+  | { kind: "cheapestLookFree"; minPeople: number }
+  | { kind: "flatCreditOnMinParty"; minPeople: number; amount: number }
+  | {
+      kind: "milestoneTiers";
+      tiers: Array<{
+        minPeople: number;
+        freeLookPercent?: number; // 0-100 — % off the cheapest eligible look
+        travelWaived?: boolean;   // waives travel entirely, any distance
+        perkLabel?: string;       // informational only — no price effect (e.g. "Free touch-up kit")
+      }>;
+    }
+  // Date-aware kinds read caller-derived facts (weddingDayOfWeek/weddingMonth/monthsUntilWedding)
+  // on EstimateInput rather than calling Date.now() themselves, so computeEstimate stays pure.
+  | { kind: "weekdayDiscount"; applyOnDays: number[]; amount: number; travelWaived?: boolean } // 0=Sun..6=Sat
+  | { kind: "seasonalWindow"; startMonth: number; endMonth: number; amount: number } // 1-12, inclusive
+  | { kind: "earlyBirdLeadTime"; minMonthsAhead: number; amount: number }
+  | { kind: "bundledValueAdd"; minPeople: number; perkLabel: string }; // zero price effect — badge only
 
 /** One itemised line of an estimate/quote — what contributes to the price. */
 export interface EstimateLine {
@@ -50,6 +67,15 @@ export interface EstimateInput {
   promo: Promo;
   /** Either a named band, or an exact override from the map-pin route. */
   travel: { band: TravelBand } | { cost: number; destination: boolean };
+  /**
+   * Wedding-date facts for date-aware promos — computed by the CALLER (from the
+   * bride's chosen date) rather than read via Date.now() inside computeEstimate,
+   * so the pricing function stays pure and deterministic for tests. Omit any/all
+   * when no date has been chosen yet; those promo kinds simply won't apply.
+   */
+  weddingDayOfWeek?: number;   // 0=Sun..6=Sat
+  weddingMonth?: number;       // 1-12
+  monthsUntilWedding?: number; // floor'd whole months from "today" to the wedding date
 }
 
 export interface EstimateResult {
@@ -59,4 +85,6 @@ export interface EstimateResult {
   occasion: Occasion;
   /** Itemised breakdown (bride, each role, travel, requested artists, promo discount). */
   lines: EstimateLine[];
+  /** Zero-price-effect promo perks to badge/display (e.g. "Free touch-up kit included"). */
+  perks: string[];
 }

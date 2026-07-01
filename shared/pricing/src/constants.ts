@@ -11,7 +11,7 @@ export const PRICING = {
   makeup: { bridesmaid: 550, mother: 500, guest: 550, fgUnder: 250, fgOver: 500 },
   hairAdult: { short: 395, medium: 495, long: 595, xlong: 695 } as LenMap,
   hairFgUnder: { short: 200, medium: 250, long: 300, xlong: 400 } as LenMap,
-  // studio: ≤30 km free · mid: ~55 km → 770 · far: ~115 km → 1610 · veryfar: ~175 km → 2450 · destination: custom
+  // studio: ≤40 km round trip free · mid: ~55 km → 770 · far: ~115 km → 1610 · veryfar: ~175 km → 2450 · destination: custom
   travel: { studio: 0, mid: 770, far: 1610, veryfar: 2450, destination: null } as Record<TravelBand, number | null>,
 };
 
@@ -26,8 +26,16 @@ export const ASSISTANT_RATE = 850;
 export const ACTIVE_PROMO: Promo = { kind: "cheapestLookFree", minPeople: 4 };
 
 export const RATE_PER_KM = 7;
-export const FREE_KM = 30;
+export const FREE_KM = 40;
 export const DEST_KM = 200;
+
+// Destination-wedding overnight artist accommodation (PRICING.md §4/§5) —
+// R1000 per artist per night, client covers a minimum of 2 nights. This is
+// used for the *indicative* destination estimate only (estimateDestinationExtras);
+// computeEstimate() still zeroes travel and returns destination:true for the
+// official quoted total, which stays a personally-confirmed number.
+export const OVERNIGHT_RATE_PER_ARTIST = 1000;
+export const DEST_MIN_NIGHTS = 2;
 
 // Non-wedding per-face base prices (PRICING.md §6).
 export const EVENT_BASE: Record<string, number> = {
