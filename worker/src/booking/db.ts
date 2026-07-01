@@ -15,6 +15,24 @@ export const headers = (env: DbEnv): HeadersInit => ({
   "content-type": "application/json",
 });
 
+/** Read one business_settings value by key, or null if unset/unreadable. */
+export async function getBusinessSetting(env: DbEnv, key: string, f: typeof fetch = fetch): Promise<string | null> {
+  const r = await f(rest(env, `business_settings?key=eq.${encodeURIComponent(key)}&select=value`), { headers: headers(env) });
+  if (!r.ok) return null;
+  const rows = (await r.json()) as Array<{ value: string }>;
+  return rows[0]?.value ?? null;
+}
+
+/** Upsert one business_settings key/value pair. */
+export async function setBusinessSetting(env: DbEnv, key: string, value: string, f: typeof fetch = fetch): Promise<void> {
+  const r = await f(rest(env, "business_settings?on_conflict=key"), {
+    method: "POST",
+    headers: { ...headers(env), prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
+  });
+  if (!r.ok) throw new Error(`setBusinessSetting ${r.status}: ${await r.text()}`);
+}
+
 /** Insert a booking; on idempotency_key conflict, return the existing row (no duplicate). */
 export async function insertBooking(
   env: DbEnv,

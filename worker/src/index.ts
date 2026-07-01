@@ -262,6 +262,18 @@ export default {
       return handleNewsletter(req, env);
     }
 
+    // POST /api/venue-match-log — anonymous telemetry: how the quote-page venue matcher resolved
+    if (req.method === "POST" && url.pathname === "/api/venue-match-log") {
+      const { handleVenueMatchLog } = await import("./booking/venueMatchLog");
+      return handleVenueMatchLog(req, env, origin);
+    }
+
+    // GET /api/promo/active — public: which promo (if any) Zandeline has live right now
+    if (req.method === "GET" && url.pathname === "/api/promo/active") {
+      const { handlePublicActivePromo } = await import("./booking/promos");
+      return handlePublicActivePromo(req, env, origin);
+    }
+
     // GET /api/calendar.ics — iCal feed of active bookings (key-protected)
     if (req.method === "GET" && url.pathname === "/api/calendar.ics") {
       return handleCalendarFeed(req, env);
@@ -483,6 +495,12 @@ export default {
         return handleAdminStaffing(req, env as Parameters<typeof handleAdminStaffing>[1], adminShell);
       }
 
+      // GET/POST /api/admin/promos — Zandeline's promo library + which one is currently running
+      if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/admin/promos") {
+        const { handleAdminPromos } = await import("./booking/promos");
+        return handleAdminPromos(req, env as Parameters<typeof handleAdminPromos>[1], adminShell);
+      }
+
       // ── Forms ─────────────────────────────────────────────────────────────
       // GET /api/admin/forms — unified inbox (enquiries + booking requests)
       if (req.method === "GET" && url.pathname === "/api/admin/forms") {
@@ -572,6 +590,12 @@ export default {
     // GET /api/admin/accounting — accounting dashboard: revenue by month, outstanding, pipeline, CSV export
     if (url.pathname === "/api/admin/accounting" && env.ADMIN_SECRET) {
       return withSec(await handleAdminAccounting({ ...env, ADMIN_SECRET: env.ADMIN_SECRET }, req), { html: true, noindex: true });
+    }
+
+    // GET /api/admin/venue-match-stats — venue-matcher first-time accuracy summary (JSON; token-protected)
+    if (req.method === "GET" && url.pathname === "/api/admin/venue-match-stats" && env.ADMIN_SECRET) {
+      const { handleVenueMatchStats } = await import("./booking/venueMatchLog");
+      return handleVenueMatchStats(req, { ...env, ADMIN_SECRET: env.ADMIN_SECRET }, origin);
     }
 
     // GET /api/admin/invoices — invoice listing with pre-signed per-booking invoice links

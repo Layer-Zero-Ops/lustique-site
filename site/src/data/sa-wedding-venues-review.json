@@ -1,0 +1,1420 @@
+{
+  "location_conflicts_auto_corrected": [
+    {
+      "name": "Welgelegen Cherry Estate",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -28.62013,
+        "lng": 28.21055,
+        "address": "Union House Guest Farm, Heyns St, Fouriesburg, 9725, South Africa"
+      },
+      "new": {
+        "lat": -28.60245,
+        "lng": 28.05475,
+        "address": "Welgelegen Cherry Estate, Dihlabeng, South Africa"
+      },
+      "distance_km": 15.3,
+      "similarity": 1.0
+    },
+    {
+      "name": "Oakfield Farm",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.0988,
+        "lng": 28.00214,
+        "address": "Oakfield, Randburg, 2194, South Africa"
+      },
+      "new": {
+        "lat": -26.13214,
+        "lng": 27.97336,
+        "address": "Oakfield Farm, 262 Beyers Naude Dr, Johannesburg, 2194, South Africa"
+      },
+      "distance_km": 4.7,
+      "similarity": 1.0
+    },
+    {
+      "name": "Memoire Wedding and Conference Venue",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.04845,
+        "lng": 27.80607,
+        "address": "Bergvallei Wedding and Conference Centre, 82 Hendrik Potgieter Rd, Krugersdorp, 1752, South Africa"
+      },
+      "new": {
+        "lat": -25.99485,
+        "lng": 27.83016,
+        "address": "Memoire Wedding and Function Venue, Mogale City, 1752, South Africa"
+      },
+      "distance_km": 6.4,
+      "similarity": 0.83
+    },
+    {
+      "name": "Waterfall Cove River Edge Venue",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.01268,
+        "lng": 27.86882,
+        "address": "Muldersdrift, Mogale City, Gauteng, South Africa"
+      },
+      "new": {
+        "lat": -26.04323,
+        "lng": 27.84679,
+        "address": "Waterfall Cove, Krugersdorp, 1752, South Africa"
+      },
+      "distance_km": 4.0,
+      "similarity": 0.81
+    },
+    {
+      "name": "Voortrekker Monument Venue",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -25.77607,
+        "lng": 28.17361,
+        "address": "Voortrekker Monument, Tshwane, Gauteng, South Africa"
+      },
+      "new": {
+        "lat": -25.74639,
+        "lng": 28.18813,
+        "address": "Voortrekker Monument, Church Sq, Pretoria, 0002, South Africa"
+      },
+      "distance_km": 3.6,
+      "similarity": 0.87
+    },
+    {
+      "name": "Tres Jolie",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.07492,
+        "lng": 27.84959,
+        "address": "Ruimsig, Roodepoort, Gauteng, South Africa"
+      },
+      "new": {
+        "lat": -26.06824,
+        "lng": 27.89514,
+        "address": "Tres Jolie, Sweet Thorn Rd, Roodepoort, 1724, South Africa"
+      },
+      "distance_km": 4.6,
+      "similarity": 1.0
+    },
+    {
+      "name": "Chez Charlene",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.15031,
+        "lng": 27.86023,
+        "address": "Silver Lakes, Roodepoort, 1724, South Africa"
+      },
+      "new": {
+        "lat": -25.79753,
+        "lng": 28.39392,
+        "address": "Chez Charlene, Tshwane, 0081, South Africa"
+      },
+      "distance_km": 66.2,
+      "similarity": 1.0
+    },
+    {
+      "name": "Mount Edgecombe Conference Centre",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -29.73527,
+        "lng": 31.06843,
+        "address": "Mount Edgecombe Hwy, Umhlanga, 4319, South Africa"
+      },
+      "new": {
+        "lat": -29.72903,
+        "lng": 31.0374,
+        "address": "Mount Edgecombe Conference Centre, 5 Mountview Clos, Mount Edgecombe, 4302, South Africa"
+      },
+      "distance_km": 3.1,
+      "similarity": 1.0
+    },
+    {
+      "name": "The du Boirs Boutique Lodge",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -29.74972,
+        "lng": 30.81557,
+        "address": "Waterfall, eThekwini, Kwazulu Natal, South Africa"
+      },
+      "new": {
+        "lat": -29.85751,
+        "lng": 31.02739,
+        "address": "The du Boirs Boutique Lodge, Dr Pixley Kaseme St, Durban, 4091, South Africa"
+      },
+      "distance_km": 23.7,
+      "similarity": 1.0
+    },
+    {
+      "name": "Hannah Game Lodge",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -24.74487,
+        "lng": 30.56088,
+        "address": "Maoto Game Farm, R36, Ohrigstad, 1122, South Africa"
+      },
+      "new": {
+        "lat": -24.72001,
+        "lng": 30.50837,
+        "address": "Hannah Game Lodge, Greater Tubatse-Fetakgomo, South Africa"
+      },
+      "distance_km": 6.0,
+      "similarity": 1.0
+    },
+    {
+      "name": "Misty Mountain",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -25.09781,
+        "lng": 30.779,
+        "address": "Sabie, Mpumalanga, South Africa"
+      },
+      "new": {
+        "lat": -25.1749,
+        "lng": 30.65958,
+        "address": "Misty Mountain, Thaba Chweu, South Africa"
+      },
+      "distance_km": 14.8,
+      "similarity": 1.0
+    },
+    {
+      "name": "Green Leaves Country Lodge",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -25.81391,
+        "lng": 27.75146,
+        "address": "Skeerpoort, Madibeng, North West, South Africa"
+      },
+      "new": {
+        "lat": -25.76076,
+        "lng": 27.7693,
+        "address": "Green Leaves Country Lodge and Venue, R560, Madibeng, South Africa"
+      },
+      "distance_km": 6.2,
+      "similarity": 0.84
+    },
+    {
+      "name": "Rooftop on Bree",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -33.95272,
+        "lng": 18.38084,
+        "address": "Central Dr, Cape Town, 8005, South Africa"
+      },
+      "new": {
+        "lat": -33.92475,
+        "lng": 18.41401,
+        "address": "Rooftop on Bree, 170 Bree St, Cape Town, 8001, South Africa"
+      },
+      "distance_km": 4.4,
+      "similarity": 1.0
+    },
+    {
+      "name": "Steenberg Golf Club",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -34.02391,
+        "lng": 18.42018,
+        "address": "Steenberg Hotel, Domira Rd, Cape Town, 7806, South Africa"
+      },
+      "new": {
+        "lat": -34.07414,
+        "lng": 18.42833,
+        "address": "Steenberg Golf Estate, Steenberg Golf Estate, Cape Town, 7945, South Africa"
+      },
+      "distance_km": 5.6,
+      "similarity": 0.75
+    },
+    {
+      "name": "Togryersvlei Wedding Venue",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -32.97017,
+        "lng": 17.89165,
+        "address": "Jacobsbaai, Saldanha Bay, Western Cape, South Africa"
+      },
+      "new": {
+        "lat": -32.95327,
+        "lng": 17.92441,
+        "address": "Togryersvlei Wedding, Saldanha Bay, South Africa"
+      },
+      "distance_km": 3.6,
+      "similarity": 0.87
+    },
+    {
+      "name": "Bosduifklip Restaurant",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -32.09456,
+        "lng": 18.30495,
+        "address": "Lamberts Bay, Western Cape, South Africa"
+      },
+      "new": {
+        "lat": -32.08408,
+        "lng": 18.36488,
+        "address": "Bosduifklip Open Air Restaurant, Cederberg, South Africa"
+      },
+      "distance_km": 5.8,
+      "similarity": 0.83
+    },
+    {
+      "name": "Domaine Brahms",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -33.69698,
+        "lng": 18.99157,
+        "address": "Brahms St, Paarl, 7646, South Africa"
+      },
+      "new": {
+        "lat": -33.6743,
+        "lng": 18.89139,
+        "address": "Domaine Brahms, Drakenstein, South Africa"
+      },
+      "distance_km": 9.6,
+      "similarity": 1.0
+    },
+    {
+      "name": "Saronsberg Cellar Venue",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -33.28407,
+        "lng": 19.1388,
+        "address": "Saronsberg Theatre, Van der Stel Rd, Tulbagh, 6820, South Africa"
+      },
+      "new": {
+        "lat": -33.24636,
+        "lng": 19.11711,
+        "address": "Saronsberg Cellar, Witzenberg, South Africa"
+      },
+      "distance_km": 4.7,
+      "similarity": 0.85
+    },
+    {
+      "name": "Bredell Rainbow Party Venue",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.08669,
+        "lng": 28.30184,
+        "address": "2nd Avenue"
+      },
+      "new": {
+        "lat": -26.17641,
+        "lng": 28.0749,
+        "address": "Bredell Rainbow Party Venue, Innes St, Johannesburg, 2198, South Africa"
+      },
+      "distance_km": 24.8,
+      "similarity": 1.0
+    },
+    {
+      "name": "Stelo Events",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.08254,
+        "lng": 28.3036,
+        "address": "1st Avenue"
+      },
+      "new": {
+        "lat": -26.17174,
+        "lng": 28.09994,
+        "address": "Stelo Events, 23 Cooper St, Johannesburg, 2198, South Africa"
+      },
+      "distance_km": 22.6,
+      "similarity": 1.0
+    },
+    {
+      "name": "The Galleria",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.08637,
+        "lng": 28.08751,
+        "address": "Eastern Service"
+      },
+      "new": {
+        "lat": -26.14336,
+        "lng": 28.04107,
+        "address": "The Galleria, Bierman Ave, Randburg, 2196, South Africa"
+      },
+      "distance_km": 7.9,
+      "similarity": 1.0
+    },
+    {
+      "name": "Lekkeland Party Venue",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -25.70815,
+        "lng": 28.09447,
+        "address": "Hornsnek Road"
+      },
+      "new": {
+        "lat": -26.07857,
+        "lng": 28.30681,
+        "address": "Hee Haw Party Venue, Kempton Park, 1619, South Africa"
+      },
+      "distance_km": 46.3,
+      "similarity": 0.75
+    },
+    {
+      "name": "Bishop's Court",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.00114,
+        "lng": 28.01134,
+        "address": null
+      },
+      "new": {
+        "lat": -26.04903,
+        "lng": 28.05445,
+        "address": "Bishops Court, Bishops Court, Sandton, 2191, South Africa"
+      },
+      "distance_km": 6.8,
+      "similarity": 1.0
+    },
+    {
+      "name": "Fast5 Wedding and Conference Venue",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.38017,
+        "lng": 27.9279,
+        "address": null
+      },
+      "new": {
+        "lat": -26.20269,
+        "lng": 27.68535,
+        "address": "Wedding & Conference Venue, Main Rd, Randfontein, 1759, South Africa"
+      },
+      "distance_km": 31.2,
+      "similarity": 0.85
+    },
+    {
+      "name": "Lethabo",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -26.00044,
+        "lng": 28.01223,
+        "address": null
+      },
+      "new": {
+        "lat": -26.06938,
+        "lng": 28.2227,
+        "address": "Lethabo, Jonathon Rd, Kempton Park, 1618, South Africa"
+      },
+      "distance_km": 22.4,
+      "similarity": 1.0
+    },
+    {
+      "name": "Welbeloond",
+      "reason": "auto-corrected location",
+      "old": {
+        "lat": -33.80245,
+        "lng": 18.54073,
+        "address": "Potsdam Road"
+      },
+      "new": {
+        "lat": -33.85066,
+        "lng": 18.51146,
+        "address": "Welbeloond, Durbanville Cres, Milnerton, 7441, South Africa"
+      },
+      "distance_km": 6.0,
+      "similarity": 1.0
+    }
+  ],
+  "location_conflicts_needs_human_check": [
+    {
+      "name": "Umtali Country Inn",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -32.98887,
+        "lng": 27.86719,
+        "address": "Amalinda North, East London, Eastern Cape, South Africa"
+      },
+      "candidate": {
+        "lat": -30.71906,
+        "lng": 26.71098,
+        "address": "Umtali Country Inn, 47 Dan Pienaar Ave, Walter Sisulu, 9754, South Africa",
+        "title": "Umtali Country Inn"
+      },
+      "distance_km": 275.0,
+      "similarity": 1.0
+    },
+    {
+      "name": "Olivewood Estate",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -33.0164,
+        "lng": 27.8893,
+        "address": "Olive St, East London, 5209, South Africa"
+      },
+      "candidate": {
+        "lat": -32.98046,
+        "lng": 27.95328,
+        "address": "Olivewood Private Estate & Golf Club, Dunes Rd, East London, 5241, South Africa",
+        "title": "Olivewood Private Estate & Golf Club"
+      },
+      "distance_km": 7.2,
+      "similarity": 0.63
+    },
+    {
+      "name": "Tenahead Mountain Lodge & Spa",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -33.31633,
+        "lng": 26.51852,
+        "address": "Rhodes, Makana, Eastern Cape, South Africa"
+      },
+      "candidate": {
+        "lat": -30.70955,
+        "lng": 28.1369,
+        "address": "Tenahead Lodge & Spa, Senqu, South Africa",
+        "title": "Tenahead Lodge & Spa"
+      },
+      "distance_km": 327.6,
+      "similarity": 0.81
+    },
+    {
+      "name": "De Bron Wedding & Conference Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -26.16922,
+        "lng": 28.27312,
+        "address": "Summer Place Boksburg, Wedding & Conference Venue., 80 Elizabeth Rd, Boksburg, 1459, South Africa"
+      },
+      "candidate": {
+        "lat": -26.27756,
+        "lng": 28.35296,
+        "address": "Thabong Entertainment Wedding and Conference Venue, 22 Denne Rd, Brakpan, 1549, South Africa",
+        "title": "Thabong Entertainment Wedding and Conference Venue"
+      },
+      "distance_km": 14.4,
+      "similarity": 0.7
+    },
+    {
+      "name": "Oxbow Conference & Wedding Venues",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -25.80962,
+        "lng": 28.74239,
+        "address": "Bronkhorstspruit, Gauteng, South Africa"
+      },
+      "candidate": {
+        "lat": -26.34294,
+        "lng": 27.96897,
+        "address": "Eikenhof Conference & Wedding Venue, 25 Dan Pienaar Dr, Walkerville, 1876, South Africa",
+        "title": "Eikenhof Conference & Wedding Venue"
+      },
+      "distance_km": 97.4,
+      "similarity": 0.82
+    },
+    {
+      "name": "Cradle Boutique Function Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -25.9773,
+        "lng": 27.66414,
+        "address": "The Cradle of Humankind, Maropeng, Mogale City, South Africa"
+      },
+      "candidate": {
+        "lat": -25.9191,
+        "lng": 27.84684,
+        "address": "Cradle Boutique Hotel, Mogale City, South Africa",
+        "title": "Cradle Boutique Hotel"
+      },
+      "distance_km": 19.4,
+      "similarity": 0.71
+    },
+    {
+      "name": "Quiet Corner Function Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -26.08388,
+        "lng": 28.11933,
+        "address": "Linbro Park, Sandton, Gauteng, South Africa"
+      },
+      "candidate": {
+        "lat": -26.07351,
+        "lng": 28.03511,
+        "address": "The Madonna Function Venue, 2 St Audley Rd, Sandton, 2191, South Africa",
+        "title": "The Madonna Function Venue"
+      },
+      "distance_km": 8.5,
+      "similarity": 0.72
+    },
+    {
+      "name": "Rustic Country Function Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -26.08388,
+        "lng": 28.11933,
+        "address": "Linbro Park, Sandton, Gauteng, South Africa"
+      },
+      "candidate": {
+        "lat": -26.08131,
+        "lng": 28.29021,
+        "address": "Fantasy Function Venue, 100 Third Ave, Kempton Park, 1619, South Africa",
+        "title": "Fantasy Function Venue"
+      },
+      "distance_km": 17.1,
+      "similarity": 0.71
+    },
+    {
+      "name": "Casa Toscana Function Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -25.76482,
+        "lng": 28.26786,
+        "address": "Lynnwood, Tshwane, Gauteng, South Africa"
+      },
+      "candidate": {
+        "lat": -26.6132,
+        "lng": 28.00424,
+        "address": "Lions Creek, Iowa Rd, Meyerton, 1873, South Africa",
+        "title": "Lions Creek (Lion's Creek Functions Venue)"
+      },
+      "distance_km": 97.9,
+      "similarity": 0.58
+    },
+    {
+      "name": "Avianto Function Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -26.01268,
+        "lng": 27.86882,
+        "address": "Muldersdrift, Mogale City, Gauteng, South Africa"
+      },
+      "candidate": {
+        "lat": -26.05253,
+        "lng": 27.81255,
+        "address": "Usambara Lodge, Krugersdorp, 1752, South Africa",
+        "title": "Usambara Lodge (Usambara Function Venue)"
+      },
+      "distance_km": 7.2,
+      "similarity": 0.6
+    },
+    {
+      "name": "The Garden Venue Weddings and Functions",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -26.05504,
+        "lng": 27.9288,
+        "address": "The Garden Venue Johannesburg, 308 Boundary Rd, Randburg, 2188, South Africa"
+      },
+      "candidate": {
+        "lat": -26.10386,
+        "lng": 27.7998,
+        "address": "Lamori Weddings, 10 Dirkie Uys St, Krugersdorp, 1739, South Africa",
+        "title": "Lamori Weddings (Wedding and Functions Venue)"
+      },
+      "distance_km": 14.0,
+      "similarity": 0.61
+    },
+    {
+      "name": "Gather Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -26.15988,
+        "lng": 27.86915,
+        "address": "Roodepoort, Gauteng, South Africa"
+      },
+      "candidate": {
+        "lat": -26.14263,
+        "lng": 27.8391,
+        "address": "The Venue Center, 783 Vermooten Rd, Roodepoort, 1724, South Africa",
+        "title": "The Venue Center"
+      },
+      "distance_km": 3.6,
+      "similarity": 0.64
+    },
+    {
+      "name": "Silver Lakes Clubhouse",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -25.78496,
+        "lng": 28.35545,
+        "address": "Silver Lakes Rd, Tshwane, 0081, South Africa"
+      },
+      "candidate": {
+        "lat": -26.15015,
+        "lng": 27.86028,
+        "address": "Silver Lakes, Silver Lakes, Roodepoort, 1724, South Africa",
+        "title": "Silver Lakes"
+      },
+      "distance_km": 64.0,
+      "similarity": 0.71
+    },
+    {
+      "name": "Acorn Wedding Farm",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -26.06597,
+        "lng": 30.11484,
+        "address": "Carolina, Mpumalanga, South Africa"
+      },
+      "candidate": {
+        "lat": -26.0171,
+        "lng": 29.97748,
+        "address": "Acorn Guest Farm, Chief Albert Luthuli, South Africa",
+        "title": "Acorn Guest Farm"
+      },
+      "distance_km": 14.8,
+      "similarity": 0.71
+    },
+    {
+      "name": "Pepperclub Function Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -33.95272,
+        "lng": 18.38084,
+        "address": "Central Dr, Cape Town, 8005, South Africa"
+      },
+      "candidate": {
+        "lat": -33.92488,
+        "lng": 18.4155,
+        "address": "Pepperclub Hotel, 167 Loop St, Cape Town, 8001, South Africa",
+        "title": "Pepperclub Hotel"
+      },
+      "distance_km": 4.5,
+      "similarity": 0.63
+    },
+    {
+      "name": "Bloupunt Winery",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -33.3795,
+        "lng": 22.495,
+        "address": "Bloupunt, Prince Albert, South Africa"
+      },
+      "candidate": {
+        "lat": -33.79134,
+        "lng": 20.11133,
+        "address": "Booupunt Wines, 12 Booupunt, Montagu, 6720, South Africa",
+        "title": "Booupunt Wines"
+      },
+      "distance_km": 225.5,
+      "similarity": 0.83
+    },
+    {
+      "name": "Kwetu Function Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -34.01897,
+        "lng": 20.44373,
+        "address": "Function 31, 31 Veldkornet St, Swellendam, 6740, South Africa"
+      },
+      "candidate": {
+        "lat": -33.91284,
+        "lng": 18.41925,
+        "address": "Bennett St Function Venue, 15 Bennett St, Cape Town, 8001, South Africa",
+        "title": "Bennett St Function Venue"
+      },
+      "distance_km": 187.1,
+      "similarity": 0.76
+    },
+    {
+      "name": "Shambala Park",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -33.78884,
+        "lng": 18.54149,
+        "address": "Klein Visserhok Road"
+      },
+      "candidate": {
+        "lat": -26.2033,
+        "lng": 28.1111,
+        "address": "Shambala Game Reserve, 12 25th St, Johannesburg, 2094, South Africa",
+        "title": "Shambala Game Reserve"
+      },
+      "distance_km": 1248.1,
+      "similarity": 0.65
+    },
+    {
+      "name": "Tuscany Villa Hall",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -33.9742,
+        "lng": 18.52843,
+        "address": "Jane Avenue"
+      },
+      "candidate": {
+        "lat": -34.13906,
+        "lng": 18.42828,
+        "address": "A Tuscan Villa Guest House, 17 3rd Ave, Fish Hoek, 7975, South Africa",
+        "title": "A Tuscan Villa Guest House (A Tuscan Villa)"
+      },
+      "distance_km": 20.5,
+      "similarity": 0.58
+    },
+    {
+      "name": "Shiloh Wedding Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -25.55273,
+        "lng": 31.05231,
+        "address": "Uitkyk"
+      },
+      "candidate": {
+        "lat": -25.76391,
+        "lng": 28.36159,
+        "address": "The Venue, Mike Blvd, Tshwane, 0081, South Africa",
+        "title": "The Venue (The Wedding Venue)"
+      },
+      "distance_km": 270.7,
+      "similarity": 0.68
+    },
+    {
+      "name": "The Venue Summit Place",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -25.78554,
+        "lng": 28.27145,
+        "address": "Thys Street"
+      },
+      "candidate": {
+        "lat": -25.98257,
+        "lng": 28.11575,
+        "address": "Summit Place, Summit Pl, Midrand, 1686, South Africa",
+        "title": "Summit Place"
+      },
+      "distance_km": 26.9,
+      "similarity": 0.71
+    },
+    {
+      "name": "Centenary Hall",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -33.89546,
+        "lng": 25.59199,
+        "address": "Ntshekisa Road"
+      },
+      "candidate": {
+        "lat": -29.86413,
+        "lng": 31.04187,
+        "address": "Centenary Hall, Hospital Rd, Durban, 4001, South Africa",
+        "title": "Centenary Hall"
+      },
+      "distance_km": 682.2,
+      "similarity": 1.0
+    },
+    {
+      "name": "Conference & Function Hall",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -28.05729,
+        "lng": 32.29558,
+        "address": null
+      },
+      "candidate": {
+        "lat": -29.82286,
+        "lng": 31.01006,
+        "address": "Khayalembali Conference & Functions Centre, 15 Lumsden Cres, Durban, 4001, South Africa",
+        "title": "Khayalembali Conference & Functions Centre"
+      },
+      "distance_km": 232.8,
+      "similarity": 0.64
+    },
+    {
+      "name": "Grootvadersbosch Hall",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -33.98836,
+        "lng": 20.8138,
+        "address": null
+      },
+      "candidate": {
+        "lat": -34.00924,
+        "lng": 20.78424,
+        "address": "Grootvadersbosch Conservancy, Hessequa, South Africa",
+        "title": "Grootvadersbosch Conservancy"
+      },
+      "distance_km": 3.6,
+      "similarity": 0.73
+    },
+    {
+      "name": "Kanes Wedding & Conference Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -27.00314,
+        "lng": 26.20346,
+        "address": null
+      },
+      "candidate": {
+        "lat": -26.20269,
+        "lng": 27.68535,
+        "address": "Wedding & Conference Venue, Main Rd, Randfontein, 1759, South Africa",
+        "title": "Wedding & Conference Venue"
+      },
+      "distance_km": 172.1,
+      "similarity": 0.89
+    },
+    {
+      "name": "Ndaba Palace",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -26.00048,
+        "lng": 28.01248,
+        "address": null
+      },
+      "candidate": {
+        "lat": -26.27486,
+        "lng": 27.83411,
+        "address": "Beulah Beauty Palace, Ndaba St, Soweto, 1818, South Africa",
+        "title": "Beulah Beauty Palace"
+      },
+      "distance_km": 35.3,
+      "similarity": 0.62
+    },
+    {
+      "name": "Noupoort Mountain Estate",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -32.78813,
+        "lng": 18.64206,
+        "address": null
+      },
+      "candidate": {
+        "lat": -33.61662,
+        "lng": 19.44755,
+        "address": "Mountain View Estate, Mountain View Estate, Worcester, 6850, South Africa",
+        "title": "Mountain View Estate"
+      },
+      "distance_km": 118.8,
+      "similarity": 0.68
+    },
+    {
+      "name": "Old Station Building",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -33.31658,
+        "lng": 26.08061,
+        "address": null
+      },
+      "candidate": {
+        "lat": -29.85685,
+        "lng": 31.02468,
+        "address": "Old Station Building, Dr AB Xuma St, Durban, 4091, South Africa",
+        "title": "Old Station Building"
+      },
+      "distance_km": 605.9,
+      "similarity": 1.0
+    },
+    {
+      "name": "The Willows Function & Conference Centre",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -29.25414,
+        "lng": 26.06537,
+        "address": null
+      },
+      "candidate": {
+        "lat": -34.0441,
+        "lng": 25.61123,
+        "address": "The Willows, Gqeberha, 6070, South Africa",
+        "title": "The Willows (Thewillowsresort&Conferencecentre)"
+      },
+      "distance_km": 534.3,
+      "similarity": 0.75
+    },
+    {
+      "name": "Ursulas Events Venue",
+      "reason": "candidate match found but too far/dissimilar to auto-apply — needs human check",
+      "old": {
+        "lat": -25.84935,
+        "lng": 25.68541,
+        "address": null
+      },
+      "candidate": {
+        "lat": -33.87073,
+        "lng": 18.65833,
+        "address": "Ursula's Creative Events, 59 Panorama Dr, Bellville, 7550, South Africa",
+        "title": "Ursula's Creative Events"
+      },
+      "distance_km": 1119.4,
+      "similarity": 0.65
+    }
+  ],
+  "excluded_from_directory_no_context": [
+    {
+      "name": "Part-Inn",
+      "town": "Bredell",
+      "province": null,
+      "address": "Da Costa",
+      "lat": -26.07274,
+      "lng": 28.29835,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Blinkvosperd",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -25.77531,
+      "lng": 28.1772,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "D'Aria Function Venue",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -33.8413,
+      "lng": 18.6101,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Damas",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -33.61377,
+      "lng": 19.40815,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Esparanza Weekend Getaway",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -27.14937,
+      "lng": 27.10026,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "FAK House",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -25.77631,
+      "lng": 28.17688,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Four Fountains",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -25.71885,
+      "lng": 27.90209,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Ingidini",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -26.00134,
+      "lng": 28.01263,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Injabulo",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -26.00047,
+      "lng": 28.01292,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Jackal River Country Estate",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -34.20679,
+      "lng": 19.1364,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Rooi Deur Stoor",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -33.99933,
+      "lng": 22.41243,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Seva Samaj Hall",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -25.79204,
+      "lng": 28.10376,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Stokkiesdraai-lapa",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -25.77649,
+      "lng": 28.1765,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Waterfall Cathedral",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -32.5746,
+      "lng": 26.91537,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    },
+    {
+      "name": "Wedding Chapel",
+      "town": null,
+      "province": null,
+      "address": null,
+      "lat": -26.00247,
+      "lng": 28.01101,
+      "source": "openstreetmap",
+      "precision": "street",
+      "verified": false,
+      "_reason": "no town/province context and unverified — high false-match risk"
+    }
+  ],
+  "discovery_candidates_dropped_low_confidence": [
+    {
+      "name": "Pretoria Showgrounds",
+      "town": "Centurion",
+      "province": "Gauteng",
+      "address": "Pretoria Showgrounds, Kruger Ave, Centurion, 0157, South Africa",
+      "lat": -25.81491,
+      "lng": 28.20379,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "The Gentlemen's Cave",
+      "town": "Midrand",
+      "province": "Gauteng",
+      "address": "The Gentlemen's Cave, 8 Keeshond St, Midrand, 1685, South Africa",
+      "lat": -26.02961,
+      "lng": 28.156,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Rhuslancea",
+      "town": "Centurion",
+      "province": "Gauteng",
+      "address": "Rhuslancea, Centurion, South Africa",
+      "lat": -25.84858,
+      "lng": 27.99352,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "San Quentin Events",
+      "town": "Midrand",
+      "province": "Gauteng",
+      "address": "San Quentin Events, Main Rd, Midrand, 1684, South Africa",
+      "lat": -26.00279,
+      "lng": 28.04052,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "94.7 Cycle Challenge",
+      "town": "Waterfall",
+      "province": "Gauteng",
+      "address": "94.7 Cycle Challenge, Woodmead Dr, Waterfall, 1686, South Africa",
+      "lat": -26.04252,
+      "lng": 28.09099,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Die Boskapel",
+      "town": "Ekurhuleni",
+      "province": "Gauteng",
+      "address": "Die Boskapel, Ekurhuleni, South Africa",
+      "lat": -25.95525,
+      "lng": 28.39555,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Gathere",
+      "town": "Sandton",
+      "province": "Gauteng",
+      "address": "Gathere, Kramer Rd, Sandton, 2090, South Africa",
+      "lat": -26.09011,
+      "lng": 28.08307,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Mvno's Africa @the Maslow",
+      "town": "Sandton",
+      "province": "Gauteng",
+      "address": "Mvno's Africa @the Maslow, Sandton, 2196, South Africa",
+      "lat": -26.10168,
+      "lng": 28.0601,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Fogtech",
+      "town": "Randburg",
+      "province": "Gauteng",
+      "address": "Fogtech, Fabriek St, Randburg, 2194, South Africa",
+      "lat": -26.08799,
+      "lng": 27.97263,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Syringa MX Park",
+      "town": "Mogale City",
+      "province": "Gauteng",
+      "address": "Syringa MX Park, Mogale City, 1752, South Africa",
+      "lat": -26.01768,
+      "lng": 27.83553,
+      "categories": [
+        "Event Space",
+        "Park-Recreation Area"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Ellis Park Arena",
+      "town": "Johannesburg",
+      "province": "Gauteng",
+      "address": "Ellis Park Arena, Beit St, Johannesburg, 2094, South Africa",
+      "lat": -26.19615,
+      "lng": 28.0622,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "The Bird House Joburg",
+      "town": "Johannesburg",
+      "province": "Gauteng",
+      "address": "The Bird House Joburg, 25 Owl St, Johannesburg, 2001, South Africa",
+      "lat": -26.18446,
+      "lng": 28.02003,
+      "categories": [
+        "Event Space",
+        "Performing Arts Center"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Mount Nebo - Hillside Reserve",
+      "town": "Mogale City",
+      "province": "Gauteng",
+      "address": "Mount Nebo - Hillside Reserve, Swartbos Rd, Mogale City, 1752, South Africa",
+      "lat": -25.98513,
+      "lng": 27.81487,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Southern Masonic Centre",
+      "town": "Johannesburg",
+      "province": "Gauteng",
+      "address": "Southern Masonic Centre, East Ave, Johannesburg, 2197, South Africa",
+      "lat": -26.24413,
+      "lng": 28.07203,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Sheriff Alberton Auction Venue",
+      "town": "Alberton",
+      "province": "Gauteng",
+      "address": "Sheriff Alberton Auction Venue, Gerrit Maritz St, Alberton, 1449, South Africa",
+      "lat": -26.25647,
+      "lng": 28.12836,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Clubhouse",
+      "town": "Johannesburg",
+      "province": "Gauteng",
+      "address": "Clubhouse, Prinia Clos, Johannesburg, 2058, South Africa",
+      "lat": -26.30671,
+      "lng": 28.05005,
+      "categories": [
+        "Event Space",
+        "Clubhouse"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Vereeniging Kart Circuit",
+      "town": "Vereeniging",
+      "province": "Gauteng",
+      "address": "Vereeniging Kart Circuit, 37 Van Riebeeck St, Vereeniging, 1939, South Africa",
+      "lat": -26.67743,
+      "lng": 27.91805,
+      "categories": [
+        "Event Space",
+        "Leisure"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Dropaload Toilet Hire",
+      "town": "Randvaal",
+      "province": "Gauteng",
+      "address": "Dropaload Toilet Hire, Springbok St, Randvaal, 1961, South Africa",
+      "lat": -26.50539,
+      "lng": 28.05532,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Gladtidings Guesthouse",
+      "town": "eMalahleni",
+      "province": "Mpumalanga",
+      "address": "Gladtidings Guesthouse, 113 Merlin Cres, eMalahleni, 2271, South Africa",
+      "lat": -26.2448,
+      "lng": 29.27401,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Bolivia Confetence Centre",
+      "town": "Polokwane",
+      "province": "Limpopo",
+      "address": "Bolivia Confetence Centre, Polokwane, 0699, South Africa",
+      "lat": -23.88051,
+      "lng": 29.51621,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Mellow Stream",
+      "town": "Elias Motsoaledi",
+      "province": "Limpopo",
+      "address": "Mellow Stream, Elias Motsoaledi, South Africa",
+      "lat": -25.3682,
+      "lng": 29.87359,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Nomndeni",
+      "town": "Ermelo",
+      "province": "Mpumalanga",
+      "address": "Nomndeni, Rietbok St, Ermelo, 2351, South Africa",
+      "lat": -26.5485,
+      "lng": 29.98085,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Lappiesland, Klerksdorp",
+      "town": "Klerksdorp",
+      "province": "North West",
+      "address": "Lappiesland, Klerksdorp, Klerksdorp, 2571, South Africa",
+      "lat": -26.92666,
+      "lng": 26.67052,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Nampo",
+      "town": "Nala",
+      "province": "Free State",
+      "address": "Nampo, Nala, South Africa",
+      "lat": -27.23371,
+      "lng": 26.66707,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    },
+    {
+      "name": "Grootbosch",
+      "town": "Maquassi Hills",
+      "province": "North West",
+      "address": "Grootbosch, Maquassi Hills, South Africa",
+      "lat": -27.02022,
+      "lng": 26.22952,
+      "categories": [
+        "Event Space"
+      ],
+      "source": "here-discover"
+    }
+  ]
+}

@@ -104,7 +104,7 @@ These are the objective rules the estimator uses. Display them with a small diag
 ## 4. Travel (locked rate — one mechanic to confirm)
 
 - **Rate:** R7.00 per km, round trip *(increased from R5; Pieter, Jun 2026)*
-- **Free travel within 30 km** (round trip) of the studio
+- **Free travel within 40 km** (round trip) of the studio *(raised from 30 km; Pieter, Jul 2026)*
 - **Origin:** **242 Frangipani Street, La Montagne, Pretoria** *(confirmed; the live site's Doornpoort address is outdated — CONTENT.md C1)*
 - **Destination-wedding threshold:** more than **200 km one way** → custom quote (not auto-estimated)
 - **Overnight:** R1000 per artist per night when required (or client-provided 3-star)
@@ -250,7 +250,7 @@ Zandeline wants paid workshops but they're not yet defined. **Do not build a wor
 
 ## 10. Open pricing items (need answers before estimator ships)
 
-1. ~~Travel mechanic~~ ✅ **Resolved:** R7/km on **round-trip** distance, **free within 30 km**, from the La Montagne studio.
+1. ~~Travel mechanic~~ ✅ **Resolved:** R7/km on **round-trip** distance, **free within 40 km**, from the La Montagne studio.
 2. **New-service prices (§6)** — confirm or adjust the eight proposed numbers.
 3. **Editorial bump** — hold R750 or move to R850?
 4. ~~Promotions~~ ✅ **Resolved + implemented (2026-06-04):** the active promo is a **config object** (`ACTIVE_PROMO` in `shared/pricing`), never hardcoded — Zandeline rotates it (later via CMS). Current active promo = "4+ booked → least-expensive look free." **Under-12 flower girls are never the free look** (they're juniors), so adding one never steals the discount; the freed look is always a full party look. The bride is also never the freed look.
