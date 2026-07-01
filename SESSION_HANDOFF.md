@@ -153,10 +153,11 @@ Note: `invoice_rejected` is already called in `handleInvoiceReject` but migratio
 - Invoice page: deposit modal + `/api/booking/invoice/pay` (TASK-D ✅, in PR)
 - Review email cron: fully operational ✅
 
-### Supabase migrations applied (0001–0022)
+### Supabase migrations applied (0001–0023)
 - ⚠ 0018: public read policies — **NOT YET APPLIED**
 - ⚠ 0020: notification_type enum values — **NOT YET APPLIED**
 - ✅ 0022: venue_match_log table — **applied 2026-07-01**
+- ✅ 0023: promo_library defaults — **applied 2026-07-01**
 
 ### Site (Cloudflare Pages — auto-deploys from `main`)
 - Public site live at `lustiqueco.co.za` ✅
