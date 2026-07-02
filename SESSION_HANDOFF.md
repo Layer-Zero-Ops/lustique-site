@@ -1,19 +1,33 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** TASK-D ✅ → TASK-E next · **Updated:** 2026-07-01
+**Lane:** 🟢 Build (Sonnet) · **Phase:** TASK-D ✅ merged → Yoco staging verification in progress · **Updated:** 2026-07-02
 
 ---
 
-## ▶ NEXT (Sonnet, fresh session — BUILD)
+## ▶ NEXT (fresh session — BUILD)
 
-**Model:** Sonnet · **Lane:** Build · **Branch:** `dev` (always feature branches off `dev`)
+**Model:** Sonnet · **Branch:** `dev` (PR #1 already merged — TASK-D + venue directory + promo library are all live on `dev`/staging)
 
-### Pieter — merge TASK-D first
+### Immediate: finish the Yoco staging test (in progress, one click from done)
 
-1. **Review PR #1** → [feat(task-d): inline deposit selection modal on invoice page](https://github.com/Layer-Zero-Ops/lustique-site/pull/1)  
-   Branch: `feature/task-d-yoco-deposit` → base: `dev`
-2. **Merge to `dev`** — triggers CF Pages preview + staging Worker deploy
-3. **Test end-to-end:** open an invoice link for a `quote_sent` booking → click "Pay Deposit" → choose % → Yoco test checkout (requires `worker/.dev.vars` with `YOCO_SECRET_KEY=sk_test_*` + `supabase start`)
+A test booking is already seeded and ready — **don't recreate it**, just pick up here:
+
+1. Pieter (or you, once he shares the session) goes to:
+   `https://lustique-form-handler-staging.summer-cake-2b02.workers.dev/api/admin/booking/35dd00cc-7481-47e3-a814-87d7925ac08e`
+2. Click **"Send Quote"** — this mints the real invoice link and emails it to `pieter+yoco-test@layerzerostudios.com` (a Gmail `+`-alias test inbox, not a real bride)
+3. Open the invoice link from that email → click "Pay Deposit" → complete checkout with Yoco's **test card** (`4111 1111 1111 1111`, any future expiry, any 3-digit CVV — or pull the exact one from the Yoco App → Sales → Payment Gateway → Test card details)
+4. **Then verify the result via Supabase directly** (project `ywoovdpnphcogwgoqhst`, table `bookings`/`payments`) — don't just trust the UI:
+   ```sql
+   select status, deposit_pct, deposit_net_cents from bookings where id = '35dd00cc-7481-47e3-a814-87d7925ac08e';
+   select status, yoco_checkout_id, net_cents from payments where booking_id = '35dd00cc-7481-47e3-a814-87d7925ac08e';
+   ```
+   Expect: booking `status = deposit_paid`, payment `status = paid`. If the payment row stays `pending`, the webhook didn't fire/verify — check `worker/src/booking/yoco.ts` signature verification and confirm `YOCO_WEBHOOK_SECRET` on staging matches what's registered in the Yoco dashboard for this environment's webhook endpoint.
+5. **Once confirmed working**: this is what "lift the EFT main option, allow Yoco" was blocked on — go back to Pieter's original ask and change whatever UI/copy currently favors EFT (check `worker/src/booking/invoice.ts` — the deposit modal already tries Yoco first with EFT as fallback-on-failure, so "lifting EFT as main" may already effectively be the current behavior — confirm what Pieter actually wants changed before touching pricing/payment-flow code).
+
+### Known staging config gaps still open
+- `staging.lustiqueco.co.za` DNS CNAME still not created (Pieter's call — see `worker/wrangler.toml` comments). Currently using `lustique-form-handler-staging.summer-cake-2b02.workers.dev` instead (workers.dev subdomain enabled this session, with explicit approval — admin routes still gated by secrets, not open to the world, but worth revisiting once DNS exists properly).
+- Staging secrets now complete: `YOCO_SECRET_KEY` (test mode, `sk_test_...`), `YOCO_WEBHOOK_SECRET`, `SUPABASE_JWT_SECRET` all set this session, sourced from Supabase vault (`ywoovdpnphcogwgoqhst` project) where available, or set directly by Pieter for the ones not in vault.
+- A stray mis-named secret (webhook secret value used as the secret *name*) was created and deleted this session — cosmetic, cleaned up, no lasting issue.
 
 ### TASK-E — Dashboard notifications (remaining)
 
@@ -115,30 +129,34 @@ Note: `invoice_rejected` is already called in `handleInvoiceReject` but migratio
 
 ## Pieter actions still open
 
-1. **Review + merge PR #1** — TASK-D deposit modal + HERE geocoding fix (`feature/task-d-yoco-deposit → dev`)
+1. ~~Review + merge PR #1~~ ✅ **Merged 2026-07-01** — `dev` now has TASK-D + venue directory/matching + promo library, all fast-forwarded from `main` first to avoid conflicts (see git log for the merge commit).
 2. **CF Pages env var** — add `PUBLIC_HERE_API_KEY=-3XlCZXtw1RNbKmaw-F4w5nhn2TA8wuV3YCzjJsU_0Y` as a build env var in the CF Pages dashboard (Settings → Environment variables → Production). Also restrict the key in HERE developer dashboard to domain `lustiqueco.co.za/*`.
 3. **Worker local `.dev.vars`** — copy `.dev.vars.example`, fill in `YOCO_SECRET_KEY=sk_test_*` + Supabase keys from `supabase start`
 4. **Site local `.env.local`** — copy `site/.env.local.example`, fill in from `supabase start` + add `PUBLIC_HERE_API_KEY=`
 5. **Migration 0020** — `ALTER TYPE notification_type ADD VALUE` (blocks TASK-E)
 6. **Migration 0018** — apply `supabase/migrations/0018_public_read_policies.sql`
 7. **CF Pages env vars (Supabase)** — add `SUPABASE_URL` + `SUPABASE_ANON_KEY` as CF Pages build env vars
-8. **`SUPABASE_JWT_SECRET`** — `wrangler secret put SUPABASE_JWT_SECRET` → from Supabase → Settings → API → JWT Secret
-9. **Staging Worker secrets** — `wrangler secret put <NAME> --env staging` for all secrets (test values)
+8. ~~`SUPABASE_JWT_SECRET`~~ ✅ **Set on both production and staging** (staging done 2026-07-02)
+9. ~~Staging Worker secrets~~ ✅ **Done 2026-07-02** — `YOCO_SECRET_KEY` (test), `YOCO_WEBHOOK_SECRET`, `SUPABASE_JWT_SECRET` all set. `staging.lustiqueco.co.za` DNS still not created — using the `workers.dev` URL instead for now (see ▶ NEXT).
 10. **UptimeRobot** — free monitor on `https://lustiqueco.co.za`
 11. **CF Pages notifications** — email on deploy failures
 12. **Artist headshots** — Elria, Jana, Janeke, Marize, Maroné, Monique, René, Samantha
 13. **Brevo newsletter list ID** — create list → share numeric ID
+14. **NEW: finish the Yoco staging test** — see ▶ NEXT at the top of this doc, one click away from done
+15. **NEW: `staging.lustiqueco.co.za` DNS CNAME** — Cloudflare dashboard → DNS → add CNAME `staging` → `lustique-form-handler-staging.summer-cake-2b02.workers.dev` (proxied). Not urgent — `workers.dev` URL works for testing meanwhile.
+16. **NEW: decide "lift EFT as main option"** — once Yoco staging test passes, revisit what this actually means in the UI (`worker/src/booking/invoice.ts` deposit modal already tries Yoco first, EFT is shown only if Yoco checkout creation fails — clarify with Pieter whether more than that needs to change).
 
 ---
 
-## Current state (as-built, 2026-06-26)
+## Current state (as-built, 2026-07-02)
 
 **Promotion flow:** `feature/* → dev (CF Pages preview + staging Worker) → PR → main (prod)`
 
 ### Branch state
-- `main` — production, live at lustiqueco.co.za
-- `origin/dev` — staging, ENV-RETROFIT applied
-- `feature/task-d-yoco-deposit` — TASK-D, awaiting PR merge to dev
+- `main` — production, live at lustiqueco.co.za (unchanged this session — nothing has reached prod yet)
+- `origin/dev` — **now has everything**: TASK-D, venue directory + live search + matching telemetry, dashboard promo library, FREE_KM 30→40 change. Fast-forwarded to match `main` first, then PR #1 merged on top cleanly.
+- `feature/task-d-yoco-deposit` — merged into `dev`, can be deleted once confirmed no longer needed
+- **Staging Worker deployed** with all of the above (`lustique-form-handler-staging`, reachable at `lustique-form-handler-staging.summer-cake-2b02.workers.dev` — workers.dev subdomain explicitly enabled this session)
 
 ### Worker (`lustique-form-handler`) — on `main`
 - Booking flow end-to-end ✅
@@ -179,5 +197,5 @@ Note: `invoice_rejected` is already called in `handleInvoiceReject` but migratio
 - `shared/pricing/` — pricing logic (single source of truth)
 
 ## ⇄ Umbrella  (project ↔ Studio Manager · see _ops/BRIDGE-PROTOCOL.md)
-**⬆ To umbrella / Pieter:** TASK-D complete — PR #1 awaiting review. TASK-E unblocked once Pieter applies migration 0020.
+**⬆ To umbrella / Pieter:** PR #1 merged into `dev` 2026-07-01 — TASK-D + venue directory/matching + promo library all on staging now. Yoco staging payment test in progress (one click from done — see ▶ NEXT). Nothing has reached `main`/production yet; deploy-protection intact. TASK-E still unblocked-pending on migration 0020.
 **⬇ From umbrella:** ✅ 2026-06-30 — TASK-D ⬆ folded. Umbrella confirms deploy-protection is holding (work is on `feature/task-d-yoco-deposit` + `dev`, not `main`); site at `lustiqueco.co.za` unaffected. TASK-E unblocked once Pieter applies migration 0020.
