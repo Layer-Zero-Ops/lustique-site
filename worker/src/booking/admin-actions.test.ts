@@ -188,8 +188,8 @@ describe("handleAdminSendQuote", () => {
       return Promise.resolve(json([]));
     });
     await handleAdminSendQuote(postReq("/api/admin/booking/bk1/send-quote", token), env, "bk1", f as unknown as typeof fetch);
-    expect(capturedBrideHtml).toContain("/api/booking/accept");
     expect(capturedBrideHtml).toContain("/api/booking/invoice");
+    expect(capturedBrideHtml).not.toContain("/api/booking/accept");
     expect(capturedBrideHtml).not.toContain("/api/booking/reject");
   });
 });

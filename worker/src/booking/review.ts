@@ -16,7 +16,7 @@ import { getBookingByTokenHashForReview, transitionRequestedBooking, updateBooki
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken } from "./token";
 import { createCustomer, createInvoice, type WaveEnv } from "../lib/wave";
-import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailBtn, emailBtnLink, emailNote, firstN, sendEmail } from "../lib/email";
+import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailBtn, emailNote, firstN, sendEmail } from "../lib/email";
 
 export interface BookingReviewEnv extends AuditEnv, WaveEnv {
   BREVO_API_KEY: string;
@@ -218,14 +218,8 @@ export async function handleReview(
     }
   }
 
-  // Accept/reject tokens — HMAC-signed, no DB column needed; status guards idempotency.
-  const QUOTE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-  const acceptToken = await signActionToken(b.id, new Date(Date.now() + QUOTE_TTL_MS), env.SIGNING_SECRET, "accept");
-  const rejectToken = await signActionToken(b.id, new Date(Date.now() + QUOTE_TTL_MS), env.SIGNING_SECRET, "reject");
-  const acceptUrl = `${origin}/api/booking/accept?token=${encodeURIComponent(acceptToken)}`;
-  const rejectUrl = `${origin}/api/booking/reject?token=${encodeURIComponent(rejectToken)}`;
-
-  // Invoice link (2-year TTL, stateless)
+  // Invoice link (2-year TTL, stateless) — the invoice page itself has Accept/Reject
+  // built in, so this is the single link the bride needs (no separate accept/reject tokens).
   const INVOICE_TTL_MS = 2 * 365 * 24 * 60 * 60 * 1000;
   const invoiceToken = await signActionToken(b.id, new Date(Date.now() + INVOICE_TTL_MS), env.SIGNING_SECRET, "invoice");
   const invoiceUrl = `${origin}/api/booking/invoice?token=${encodeURIComponent(invoiceToken)}`;
@@ -246,10 +240,8 @@ export async function handleReview(
             { key: "Quote total", val: fmtZAR(finalTotalCents), bold: true },
             { key: "Your reference", val: b.reference, ref: true },
           ]),
-        btnZone: emailBtn(acceptUrl, "Accept quote") +
-          emailBtnLink(invoiceUrl, "View & print your quote") +
-          emailBtnLink(rejectUrl, "I’d like to decline this booking"),
-        footerNote: `This quote is valid for 7 days. Questions? Write to us at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>.`,
+        btnZone: emailBtn(invoiceUrl, "View quote & respond →"),
+        footerNote: `Questions? Write to us at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>.`,
       }),
       fetchImpl,
     );

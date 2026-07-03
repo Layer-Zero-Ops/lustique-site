@@ -114,6 +114,10 @@ crons = ["0 6 * * *"]   # 06:00 UTC ≈ 08:00 SAST — keep-warm now; balance sw
 [env.staging]
 name = "lustique-form-handler-staging"
 routes = [{ pattern = "staging.lustiqueco.co.za/api/*", zone_name = "lustiqueco.co.za" }]
+# workers.dev fallback stays enabled until the staging.lustiqueco.co.za DNS CNAME exists —
+# without this, a plain `wrangler deploy` silently disables the *.workers.dev endpoint,
+# which is currently the ONLY reachable URL for staging (see comment above).
+workers_dev = true
 
 [env.staging.vars]
 ALLOWED_ORIGIN = "https://staging.lustiqueco.co.za"

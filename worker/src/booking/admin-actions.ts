@@ -16,7 +16,6 @@ import {
   emailShell,
   emailTable,
   emailBtn,
-  emailBtnLink,
   emailNote,
   firstN,
   sendEmail,
@@ -70,7 +69,6 @@ async function authedSession(
 
 function depositInvoiceEmailHtml(
   b: ConfirmBookingRow,
-  secureUrl: string,
   invoiceUrl: string,
 ): string {
   const dep25 = fmtZAR(Math.round(b.total_cents * 0.25));
@@ -99,9 +97,7 @@ function depositInvoiceEmailHtml(
         { key: "Full payment", val: depFull },
         { key: "Your reference", val: b.reference, ref: true },
       ]),
-    btnZone:
-      emailBtn(secureUrl, "Secure your date →") +
-      emailBtnLink(invoiceUrl, "View &amp; print your invoice"),
+    btnZone: emailBtn(invoiceUrl, "Secure your date →"),
     footerNote: `This link is valid for 14 days. Questions? Write to us at <a href="mailto:info@lustiqueco.co.za" style="color:#5C4332;text-decoration:none;">info@lustiqueco.co.za</a>.`,
   });
 }
@@ -165,7 +161,6 @@ function fullyPaidEmailHtml(b: ConfirmBookingRow): string {
 
 // ── Handler constants ─────────────────────────────────────────────────────────
 
-const QUOTE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days — bumped from 7 (no quote-urgency pressure)
 const INVOICE_TTL_MS = 2 * 365 * 24 * 60 * 60 * 1000;
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -206,19 +201,12 @@ export async function handleAdminSendQuote(
   }
 
   const origin = env.ALLOWED_ORIGIN || "";
-  const acceptToken = await signActionToken(
-    booking.id,
-    new Date(Date.now() + QUOTE_TTL_MS),
-    env.SIGNING_SECRET,
-    "accept",
-  );
   const invoiceToken = await signActionToken(
     booking.id,
     new Date(Date.now() + INVOICE_TTL_MS),
     env.SIGNING_SECRET,
     "invoice",
   );
-  const acceptUrl = `${origin}/api/booking/accept?token=${encodeURIComponent(acceptToken)}`;
   const invoiceUrl = `${origin}/api/booking/invoice?token=${encodeURIComponent(invoiceToken)}`;
 
   try {
@@ -226,7 +214,7 @@ export async function handleAdminSendQuote(
       env,
       { email: booking.bride_email, name: booking.bride_name },
       `Secure your date — ${fmtDate(booking.wedding_date)} · Lustique Co.`,
-      depositInvoiceEmailHtml(booking, acceptUrl, invoiceUrl),
+      depositInvoiceEmailHtml(booking, invoiceUrl),
       fetchFn,
     );
     await sendEmail(

@@ -9,11 +9,12 @@
  * Pay transitions quote_sent → accepted then creates a Yoco checkout (same logic as accept.ts).
  */
 
-import { getBookingByIdForInvoice, transitionBooking, insertNotification, insertPayment } from "./db";
+import { getBookingByIdForInvoice, getBusinessSetting, transitionBooking, insertNotification, insertPayment } from "./db";
 import { writeAudit } from "./audit";
 import { verifyActionToken } from "./token";
 import { sendEmail, esc as emailEsc } from "../lib/email";
 import { splitDeposit } from "@lustique/pricing";
+import { contractBodyText, sha256Hex, CONTRACT_VERSION } from "./contract";
 import type { AuditEnv } from "./audit";
 
 export interface InvoiceEnv extends AuditEnv {
@@ -64,7 +65,7 @@ function invoicePage(b: {
   status: string;
   quote_lines: Array<{ label: string; amount: number }> | null;
   quote_sent_at: string | null;
-}, invoiceToken: string): string {
+}, invoiceToken: string, contractEnabled: boolean): string {
   const today = new Date();
   const fmtDate = (d: Date) =>
     d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
@@ -87,7 +88,9 @@ function invoicePage(b: {
         .join("")
     : `<tr><td class="desc">Wedding hair &amp; makeup services</td><td class="amt">${zar(b.total_cents)}</td></tr>`;
 
-  const depositLabel = b.deposit_pct ? `Deposit (${b.deposit_pct}%)` : "Deposit";
+  const depositLabel = b.deposit_pct ? `Booking fee (${b.deposit_pct}%)` : "Booking fee";
+  // Terms wording: once a pct is chosen it's fixed; beforehand, name all three options the bride can pick.
+  const bookingFeeTermsPhrase = b.deposit_pct ? `${b.deposit_pct}% (as selected)` : "25%, 50%, or 100% (as selected at checkout)";
 
   return `<!doctype html>
 <html lang="en">
@@ -169,6 +172,8 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
 .secure-cta{display:block;text-align:center;margin-top:1.8rem;padding:1.4rem;background:#FDF7F4;border:1px solid #E8D5B7;border-radius:6px;}
 .secure-cta p{font-size:.88rem;color:#6b5d52;margin:0 0 1rem;}
 .secure-btn{display:inline-block;background:#EFD2C5;color:#5C4332;text-decoration:none;font-size:.82rem;letter-spacing:.2em;text-transform:uppercase;padding:13px 36px;border-radius:24px;border:1px solid #5C4332;font-family:Arial,sans-serif;font-weight:500;cursor:pointer;}
+.reject-btn{display:inline-block;background:none;color:#7A2E3A;text-decoration:none;font-size:.82rem;letter-spacing:.2em;text-transform:uppercase;padding:13px 36px;border-radius:24px;border:1px solid #E8D5B7;font-family:Arial,sans-serif;font-weight:500;cursor:pointer;}
+.reject-btn:hover{background:#FAF6F0;}
 
 /* ── Deposit selection options ── */
 .dep-opts{display:flex;flex-direction:column;gap:.5rem;margin:.8rem 0;}
@@ -181,10 +186,6 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
 /* ── Print button ── */
 .print-btn{display:block;width:100%;margin-top:2rem;font:inherit;font-size:.88rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #E8D5B7;border-radius:4px;padding:.75em;cursor:pointer;background:none;color:#7A2E3A;transition:background .15s;}
 .print-btn:hover{background:#FAF6F0;}
-
-/* ── Decline link ── */
-.decline-link{display:block;text-align:center;margin-top:1rem;font-size:.82rem;color:#b08a8a;cursor:pointer;background:none;border:none;text-decoration:underline;font:inherit;}
-.decline-link:hover{color:#7A2E3A;}
 
 /* ── Decline modal ── */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;}
@@ -205,7 +206,6 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
   body{background:#fff;padding:0;}
   .page{box-shadow:none;padding:1.5rem 2rem;}
   .print-btn{display:none;}
-  .decline-link{display:none;}
 }
 </style>
 </head>
@@ -272,10 +272,10 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
   <div class="section">
     <div class="section-label">Terms &amp; Conditions</div>
     <ul class="terms-list">
-      <li>A deposit of 30% of the total invoice amount is required to confirm and secure your booking date. The deposit is <strong>non-refundable</strong> after 30 days from the booking date.</li>
+      <li>A booking fee of ${bookingFeeTermsPhrase} of the total invoice amount is required to confirm and secure your booking date. The booking fee is <strong>non-refundable</strong> after 30 days from the booking date.</li>
       <li>The remaining balance is due <strong>14 business days before your event date</strong>. Non-payment by this date may result in automatic cancellation.</li>
       <li>Travel is complimentary for venues within 15 km one-way (30 km round trip) from our La Montagne studio. Venues beyond this are charged at <strong>R7/km (round trip)</strong>.</li>
-      <li>Cancellations made within 30 days of booking qualify for a full refund. After 30 days, the booking deposit is forfeited.</li>
+      <li>Cancellations made within 30 days of booking qualify for a full refund. After 30 days, the booking fee is forfeited.</li>
       <li>All services are provided on-location unless otherwise agreed in writing.</li>
     </ul>
   </div>
@@ -295,14 +295,17 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
 
 ${b.status === "quote_sent" ? `
   <div class="secure-cta">
-    <p>Ready to lock in your date? Choose your deposit to secure it now.</p>
-    <button class="secure-btn" id="payDepositBtn" type="button">Pay Deposit &rarr;</button>
+    <p>Ready to lock in your date? Accept this invoice to choose your booking fee, or let us know if it's not a fit.</p>
+    <div style="display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap;">
+      <button class="secure-btn" id="acceptBtn" type="button">Accept &rarr;</button>
+      <button class="reject-btn" id="rejectBtn" type="button">Reject</button>
+    </div>
   </div>
 
   <!-- Deposit selection modal -->
   <div class="modal-overlay" id="depositModal" role="dialog" aria-modal="true" aria-labelledby="depositTitle">
     <div class="modal-box">
-      <h2 id="depositTitle">Choose your deposit</h2>
+      <h2 id="depositTitle">Choose your booking fee</h2>
       <p>Select how much you&#8217;d like to pay now &#8212; the balance is due closer to your day.</p>
       <div class="dep-opts">
         <label class="dep-opt">
@@ -318,10 +321,32 @@ ${b.status === "quote_sent" ? `
           <div><div class="dep-opt-label">Pay in full &mdash; ${zar(b.total_cents)}</div><div class="dep-opt-sub">Nothing more to pay &#10003;</div></div>
         </label>
       </div>
+      ${contractEnabled ? `
+      <div style="margin-top:1.1rem;padding-top:1rem;border-top:1px solid #f0e8de;">
+        <label style="display:block;font-size:.83rem;color:#6b5d52;margin-bottom:.4rem;">Type your full name to sign</label>
+        <input type="text" id="signerName" placeholder="Full name" value="${esc(b.bride_name)}" style="width:100%;border:1.5px solid #E8D5B7;border-radius:6px;padding:.55rem .7rem;font:inherit;font-size:.9rem;color:#3A2E26;margin-bottom:.7rem;">
+        <label class="dep-opt" style="cursor:pointer;">
+          <input type="checkbox" id="agreeContract">
+          <div class="dep-opt-sub">I have read and agree to the <a href="/api/booking/contract?token=${esc(invoiceToken)}" target="_blank" style="color:#7A2E3A;">Client Agreement</a> for this booking, and my typed name above is my electronic signature.</div>
+        </label>
+      </div>` : ""}
       <p id="depositErr" style="display:none;color:#7A2E3A;font-size:.88rem;margin:.4rem 0 0;"></p>
       <div class="modal-actions">
         <button class="btn-cancel" id="cancelDeposit">Cancel</button>
-        <button class="btn-decline" id="submitDeposit">Continue to payment &rarr;</button>
+        <button class="btn-decline" id="submitDeposit"${contractEnabled ? " disabled" : ""}>Continue to payment &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reject / decline modal -->
+  <div class="modal-overlay" id="declineModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-box">
+      <h2 id="modalTitle">Reject this invoice</h2>
+      <p>We're sorry it didn't work out. If you'd like to let us know why — amount, date, or anything else — please share below.</p>
+      <textarea id="declineReason" placeholder="Optional — any feedback is welcome" rows="4"></textarea>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="cancelDecline">Cancel</button>
+        <button class="btn-decline" id="submitDecline">Reject invoice</button>
       </div>
     </div>
   </div>
@@ -341,31 +366,73 @@ ${b.status === "quote_sent" ? `
 
   <script>
   (function(){
-    var payBtn=document.getElementById('payDepositBtn');
+    var acceptBtn=document.getElementById('acceptBtn');
+    var rejectBtn=document.getElementById('rejectBtn');
     var depModal=document.getElementById('depositModal');
     var cancelDep=document.getElementById('cancelDeposit');
     var submitDep=document.getElementById('submitDeposit');
     var depErr=document.getElementById('depositErr');
+    var signerName=document.getElementById('signerName');
+    var agreeContract=document.getElementById('agreeContract');
     var eftModal=document.getElementById('eftModal');
     var eftGrid=document.getElementById('eftGrid');
     var eftRefNote=document.getElementById('eftRefNote');
     var closeEft=document.getElementById('closeEft');
+    var declineModal=document.getElementById('declineModal');
+    var cancelDecline=document.getElementById('cancelDecline');
+    var submitDecline=document.getElementById('submitDecline');
+    var declineReason=document.getElementById('declineReason');
 
-    payBtn.addEventListener('click',function(){depModal.classList.add('open');});
+    acceptBtn.addEventListener('click',function(){depModal.classList.add('open');});
+    rejectBtn.addEventListener('click',function(){declineModal.classList.add('open');declineReason.focus();});
     cancelDep.addEventListener('click',function(){depModal.classList.remove('open');});
     depModal.addEventListener('click',function(e){if(e.target===depModal)depModal.classList.remove('open');});
     closeEft.addEventListener('click',function(){eftModal.classList.remove('open');});
     eftModal.addEventListener('click',function(e){if(e.target===eftModal)eftModal.classList.remove('open');});
+    cancelDecline.addEventListener('click',function(){declineModal.classList.remove('open');});
+    declineModal.addEventListener('click',function(e){if(e.target===declineModal)declineModal.classList.remove('open');});
+
+    ${contractEnabled ? `
+    function refreshGate(){
+      submitDep.disabled=!(signerName.value.trim().length>1 && agreeContract.checked);
+    }
+    signerName.addEventListener('input',refreshGate);
+    agreeContract.addEventListener('change',refreshGate);
+    ` : ""}
+
+    submitDecline.addEventListener('click',function(){
+      submitDecline.disabled=true;submitDecline.textContent='Rejecting…';
+      var body=new URLSearchParams();
+      body.set('reason',declineReason.value.trim());
+      fetch('/api/booking/invoice/reject?token=${esc(invoiceToken)}',{
+        method:'POST',
+        headers:{'content-type':'application/x-www-form-urlencoded'},
+        body:body.toString()
+      }).then(function(r){
+        if(r.ok){
+          declineModal.classList.remove('open');
+          document.querySelector('.page').innerHTML='<div style="text-align:center;padding:3rem 1rem;"><p style="font-size:1.1rem;color:#3A2E26;margin-bottom:.8rem;">Thank you for letting us know.</p><p style="color:#6b5d52;font-size:.95rem;">We appreciate you taking the time to get back to us. If circumstances change, please don\\'t hesitate to reach out at <a href="mailto:info@lustiqueco.co.za" style="color:#7A2E3A;">info@lustiqueco.co.za</a>.</p></div>';
+        } else {
+          submitDecline.disabled=false;submitDecline.textContent='Reject invoice';
+          alert('Something went wrong — please try again or email us at info@lustiqueco.co.za');
+        }
+      }).catch(function(){
+        submitDecline.disabled=false;submitDecline.textContent='Reject invoice';
+        alert('Something went wrong — please try again or email us at info@lustiqueco.co.za');
+      });
+    });
 
     submitDep.addEventListener('click',function(){
       var sel=document.querySelector('input[name="depositPct"]:checked');
       if(!sel){depErr.textContent='Please choose a deposit amount.';depErr.style.display='';return;}
       depErr.style.display='none';
       submitDep.disabled=true;submitDep.textContent='Processing…';
+      var payload={depositPct:Number(sel.value)};
+      ${contractEnabled ? "payload.signerName=signerName.value.trim();payload.agreedToContract=!!agreeContract.checked;" : ""}
       fetch('/api/booking/invoice/pay?token=${esc(invoiceToken)}',{
         method:'POST',
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({depositPct:Number(sel.value)})
+        body:JSON.stringify(payload)
       }).then(function(r){return r.json();}).then(function(d){
         if(d.ok&&d.checkoutUrl){
           window.location.href=d.checkoutUrl;
@@ -387,7 +454,7 @@ ${b.status === "quote_sent" ? `
         }
         if(d.already_handled){window.location.reload();return;}
         submitDep.disabled=false;submitDep.textContent='Continue to payment →';
-        depErr.textContent='Something went wrong — please try again or email info@lustiqueco.co.za.';
+        depErr.textContent=(d.error==='contract_not_signed'?'Please type your name and agree to the Client Agreement.':'Something went wrong — please try again or email info@lustiqueco.co.za.');
         depErr.style.display='';
       }).catch(function(){
         submitDep.disabled=false;submitDep.textContent='Continue to payment →';
@@ -400,56 +467,6 @@ ${b.status === "quote_sent" ? `
 ` : ""}
 
   <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
-
-${b.status === "quote_sent" ? `
-  <button class="decline-link" id="declineBtn">I want to decline this invoice</button>
-
-  <div class="modal-overlay" id="declineModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <div class="modal-box">
-      <h2 id="modalTitle">Decline this invoice</h2>
-      <p>We're sorry it didn't work out. If you'd like to let us know why, please share any feedback below — it helps us improve.</p>
-      <textarea id="declineReason" placeholder="Optional — any feedback is welcome" rows="4"></textarea>
-      <div class="modal-actions">
-        <button class="btn-cancel" id="cancelDecline">Cancel</button>
-        <button class="btn-decline" id="submitDecline">Decline invoice</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-  (function(){
-    var btn=document.getElementById('declineBtn');
-    var modal=document.getElementById('declineModal');
-    var cancel=document.getElementById('cancelDecline');
-    var submit=document.getElementById('submitDecline');
-    var reason=document.getElementById('declineReason');
-    btn.addEventListener('click',function(){modal.classList.add('open');reason.focus();});
-    cancel.addEventListener('click',function(){modal.classList.remove('open');});
-    modal.addEventListener('click',function(e){if(e.target===modal)modal.classList.remove('open');});
-    submit.addEventListener('click',function(){
-      submit.disabled=true;submit.textContent='Declining…';
-      var body=new URLSearchParams();
-      body.set('reason',reason.value.trim());
-      fetch('/api/booking/invoice/reject?token=${esc(invoiceToken)}',{
-        method:'POST',
-        headers:{'content-type':'application/x-www-form-urlencoded'},
-        body:body.toString()
-      }).then(function(r){
-        if(r.ok){
-          modal.classList.remove('open');
-          document.querySelector('.page').innerHTML='<div style="text-align:center;padding:3rem 1rem;"><p style="font-size:1.1rem;color:#3A2E26;margin-bottom:.8rem;">Thank you for letting us know.</p><p style="color:#6b5d52;font-size:.95rem;">We appreciate you taking the time to get back to us. If circumstances change, please don\'t hesitate to reach out at <a href="mailto:info@lustiqueco.co.za" style="color:#7A2E3A;">info@lustiqueco.co.za</a>.</p></div>';
-        } else {
-          submit.disabled=false;submit.textContent='Decline invoice';
-          alert('Something went wrong — please try again or email us at info@lustiqueco.co.za');
-        }
-      }).catch(function(){
-        submit.disabled=false;submit.textContent='Decline invoice';
-        alert('Something went wrong — please try again or email us at info@lustiqueco.co.za');
-      });
-    });
-  }());
-  </script>
-` : ""}
 
 </div>
 </body>
@@ -470,10 +487,11 @@ export async function renderInvoicePage(
   const booking = await getBookingByIdForInvoice(env, v.bookingId, fetchImpl);
   if (!booking) return new Response("Invoice not found", { status: 404, headers: { "content-type": "text/plain" } });
 
-  // Fetch EFT settings server-side so banking details are embedded in the HTML (no client XHR).
+  // Fetch EFT + contract settings server-side so they're embedded in the HTML (no client XHR).
   let bankHtml = "Contact info@lustiqueco.co.za for bank details.";
+  let contractEnabled = false;
   try {
-    const url = `${env.SUPABASE_URL}/rest/v1/business_settings?key=in.(eft_bank_name,eft_account_holder,eft_account_number,eft_branch_code)&select=key,value`;
+    const url = `${env.SUPABASE_URL}/rest/v1/business_settings?key=in.(eft_bank_name,eft_account_holder,eft_account_number,eft_branch_code,contract_enabled)&select=key,value`;
     const r = await fetchImpl(url, {
       headers: { apikey: env.SUPABASE_SERVICE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
     });
@@ -485,10 +503,11 @@ export async function renderInvoicePage(
 <span>Account name</span><span>${esc(m["eft_account_holder"] ?? "")}</span>
 <span>Account no.</span><span><strong>${esc(m["eft_account_number"] ?? "")}</strong></span>
 <span>Branch code</span><span>${esc(m["eft_branch_code"] ?? "")}</span>`;
+      contractEnabled = m["contract_enabled"] === "true";
     }
-  } catch { /* non-fatal — page still renders without bank details */ }
+  } catch { /* non-fatal — page still renders without bank details, contract gate off */ }
 
-  const html = invoicePage(booking, token).replace(">Loading…</div>", `>${bankHtml}</div>`);
+  const html = invoicePage(booking, token, contractEnabled).replace(">Loading…</div>", `>${bankHtml}</div>`);
   return new Response(html, {
     status: 200,
     headers: {
@@ -643,9 +662,13 @@ export async function handleInvoicePay(
   if (!v) return jsonResp({ ok: false, error: "invalid_token" }, 400);
 
   let depositPct: number | null = null;
+  let signerName = "";
+  let agreedToContract = false;
   try {
-    const body = await req.json() as { depositPct?: unknown };
+    const body = await req.json() as { depositPct?: unknown; signerName?: unknown; agreedToContract?: unknown };
     depositPct = Number(body.depositPct);
+    signerName = typeof body.signerName === "string" ? body.signerName.trim() : "";
+    agreedToContract = body.agreedToContract === true;
   } catch { /* non-JSON body */ }
 
   if (!([25, 50, 100] as number[]).includes(depositPct ?? 0)) {
@@ -659,16 +682,34 @@ export async function handleInvoicePay(
     return jsonResp({ ok: false, already_handled: true }, 409);
   }
 
+  // Contract signature gate — only enforced once Zandeline's approved wording is live
+  // (business_settings.contract_enabled = 'true'). See contract.ts for the legal basis.
+  const contractEnabled = (await getBusinessSetting(env, "contract_enabled", fetchImpl)) === "true";
+  if (contractEnabled && (signerName.length < 2 || !agreedToContract)) {
+    return jsonResp({ ok: false, error: "contract_not_signed" }, 400);
+  }
+
   const { depositNetCents, balanceNetCents } = splitDeposit(booking.total_cents, pct);
   const now = new Date().toISOString();
 
-  const updated = await transitionBooking(env, booking.id, "quote_sent", {
+  const patch: Record<string, unknown> = {
     status: "accepted",
     accepted_at: now,
     deposit_pct: pct,
     deposit_net_cents: depositNetCents,
     balance_net_cents: balanceNetCents,
-  }, fetchImpl);
+  };
+  if (contractEnabled) {
+    const contractText = contractBodyText({ ...booking, deposit_pct: pct });
+    patch.contract_signed_at = now;
+    patch.contract_signer_name = signerName;
+    patch.contract_ip = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for") ?? "";
+    patch.contract_user_agent = req.headers.get("user-agent") ?? "";
+    patch.contract_content_hash = await sha256Hex(contractText);
+    patch.contract_version = CONTRACT_VERSION;
+  }
+
+  const updated = await transitionBooking(env, booking.id, "quote_sent", patch, fetchImpl);
 
   if (!updated) return jsonResp({ ok: false, already_handled: true }, 409);
 
@@ -687,7 +728,10 @@ export async function handleInvoicePay(
       headers: {
         Authorization: `Bearer ${env.YOCO_SECRET_KEY}`,
         "Content-Type": "application/json",
-        "Idempotency-Key": `${booking.id}-deposit`,
+        // Fresh key per attempt — a fixed key would make Yoco reject any retry whose
+        // amount differs from the first attempt (e.g. after a booking-fee change or a
+        // failed-then-retried payment), even though it's a legitimately new checkout.
+        "Idempotency-Key": crypto.randomUUID(),
       },
       body: JSON.stringify({
         amount: depositNetCents,

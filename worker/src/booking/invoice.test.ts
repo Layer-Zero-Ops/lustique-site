@@ -169,16 +169,20 @@ describe("invoice content", () => {
     expect(r.status).toBe(200);
   });
 
-  it("shows decline button for quote_sent status", async () => {
+  it("shows accept/reject buttons for quote_sent status", async () => {
     const f = makeDbFetch({ ...BOOKING, status: "quote_sent" });
     const r = await renderInvoicePage(makeEnv(), get(await validToken()), f);
-    expect(await r.text()).toContain("declineBtn");
+    const html = await r.text();
+    expect(html).toContain("acceptBtn");
+    expect(html).toContain("rejectBtn");
   });
 
-  it("hides decline button when booking is already paid", async () => {
+  it("hides accept/reject buttons when booking is already paid", async () => {
     const f = makeDbFetch({ ...BOOKING, status: "deposit_paid" });
     const r = await renderInvoicePage(makeEnv(), get(await validToken()), f);
-    expect(await r.text()).not.toContain("declineBtn");
+    const html = await r.text();
+    expect(html).not.toContain("acceptBtn");
+    expect(html).not.toContain("rejectBtn");
   });
 });
 
@@ -266,13 +270,13 @@ function makePayEnv() {
 
 const QUOTE_SENT_BOOKING = { ...BOOKING, status: "quote_sent" };
 
-function postPay(token: string, depositPct: number): Request {
+function postPay(token: string, depositPct: number, extra: Record<string, unknown> = {}): Request {
   return new Request(
     `https://worker.dev/api/booking/invoice/pay?token=${encodeURIComponent(token)}`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ depositPct }),
+      body: JSON.stringify({ depositPct, ...extra }),
     },
   );
 }
@@ -297,6 +301,24 @@ function makePayFetch(
       return { ok: true, json: async () => [booking] };
     }
     // payments insert, audit
+    return { ok: true, json: async () => [{ id: "pay-1" }] };
+  }) as unknown as typeof fetch;
+}
+
+function makePayFetchContractEnabled(booking = QUOTE_SENT_BOOKING): typeof fetch {
+  return vi.fn().mockImplementation(async (url: string) => {
+    if (String(url).includes("business_settings")) {
+      return { ok: true, json: async () => [{ key: "contract_enabled", value: "true" }] };
+    }
+    if (String(url).includes("payments.yoco.com")) {
+      return { ok: true, json: async () => ({ id: "chk_123", redirectUrl: "https://pay.yoco.com/chk_123" }) };
+    }
+    if (String(url).includes("/bookings?id=") && String(url).includes("status=eq.quote_sent")) {
+      return { ok: true, json: async () => [{ ...booking, status: "accepted" }] };
+    }
+    if (String(url).includes("/bookings")) {
+      return { ok: true, json: async () => [booking] };
+    }
     return { ok: true, json: async () => [{ id: "pay-1" }] };
   }) as unknown as typeof fetch;
 }
@@ -387,5 +409,42 @@ describe("handleInvoicePay", () => {
     expect(body.eftOnly).toBe(true);
     expect(body.eft.bank).toBe("FNB");
     expect(body.eft.reference).toBe("LQ-0001");
+  });
+
+  describe("contract signature gate (contract_enabled=true)", () => {
+    it("400 contract_not_signed when checkbox not agreed", async () => {
+      const f = makePayFetchContractEnabled();
+      const r = await handleInvoicePay(makePayEnv(), postPay(await validToken(), 25, { signerName: "Jane Bride", agreedToContract: false }), f);
+      expect(r.status).toBe(400);
+      const body = await r.json() as { ok: boolean; error: string };
+      expect(body.error).toBe("contract_not_signed");
+    });
+
+    it("400 contract_not_signed when signerName missing", async () => {
+      const f = makePayFetchContractEnabled();
+      const r = await handleInvoicePay(makePayEnv(), postPay(await validToken(), 25, { agreedToContract: true }), f);
+      expect(r.status).toBe(400);
+      const body = await r.json() as { ok: boolean; error: string };
+      expect(body.error).toBe("contract_not_signed");
+    });
+
+    it("succeeds and records signature fields when name + checkbox provided", async () => {
+      const f = makePayFetchContractEnabled();
+      const r = await handleInvoicePay(
+        makePayEnv(),
+        postPay(await validToken(), 25, { signerName: "Jane Bride", agreedToContract: true }),
+        f,
+      );
+      expect(r.status).toBe(200);
+      const calls = (f as ReturnType<typeof vi.fn>).mock.calls;
+      const transitionCall = calls.find((c) => (c[0] as string).includes("status=eq.quote_sent"));
+      expect(transitionCall).toBeTruthy();
+      const patch = JSON.parse((transitionCall![1] as RequestInit).body as string);
+      expect(patch.contract_signer_name).toBe("Jane Bride");
+      expect(patch.contract_signed_at).toBeTruthy();
+      expect(typeof patch.contract_content_hash).toBe("string");
+      expect(patch.contract_content_hash).toHaveLength(64); // sha256 hex
+      expect(patch.contract_version).toBeTruthy();
+    });
   });
 });

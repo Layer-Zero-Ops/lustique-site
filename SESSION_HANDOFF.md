@@ -1,201 +1,144 @@
 # SESSION_HANDOFF — Lustique
 
-**Lane:** 🟢 Build (Sonnet) · **Phase:** TASK-D ✅ merged → Yoco staging verification in progress · **Updated:** 2026-07-02
+**Lane:** 🟢 Build (Sonnet) · **Phase:** Yoco live on staging + production; contract e-sign built but gated off; GoDaddy→Workspace email migration in progress · **Updated:** 2026-07-03
 
 ---
 
 ## ▶ NEXT (fresh session — BUILD)
 
-**Model:** Sonnet · **Branch:** `dev` (PR #1 already merged — TASK-D + venue directory + promo library are all live on `dev`/staging)
+**Model:** Sonnet · **Branch:** `dev` (today's work committed here — see commit for full diff; deployed to both staging and production Workers)
 
-### Immediate: finish the Yoco staging test (in progress, one click from done)
+### Immediate: finish the live Yoco payment test on production
 
-A test booking is already seeded and ready — **don't recreate it**, just pick up here:
+Pieter was mid-way through a real R5 live Yoco charge to confirm the whole flow end-to-end on production. Status unknown at session close — pick up here:
 
-1. Pieter (or you, once he shares the session) goes to:
-   `https://lustique-form-handler-staging.summer-cake-2b02.workers.dev/api/admin/booking/35dd00cc-7481-47e3-a814-87d7925ac08e`
-2. Click **"Send Quote"** — this mints the real invoice link and emails it to `pieter+yoco-test@layerzerostudios.com` (a Gmail `+`-alias test inbox, not a real bride)
-3. Open the invoice link from that email → click "Pay Deposit" → complete checkout with Yoco's **test card** (`4111 1111 1111 1111`, any future expiry, any 3-digit CVV — or pull the exact one from the Yoco App → Sales → Payment Gateway → Test card details)
-4. **Then verify the result via Supabase directly** (project `ywoovdpnphcogwgoqhst`, table `bookings`/`payments`) — don't just trust the UI:
+1. Booking `35dd00cc-7481-47e3-a814-87d7925ac08e` (ref `LUS-2026-35DD00`) is the standing test booking — `total_cents` was set to `2000` (R20) so a 25% booking fee = R5, safely above Yoco's R2 minimum. Check its current status:
    ```sql
-   select status, deposit_pct, deposit_net_cents from bookings where id = '35dd00cc-7481-47e3-a814-87d7925ac08e';
-   select status, yoco_checkout_id, net_cents from payments where booking_id = '35dd00cc-7481-47e3-a814-87d7925ac08e';
+   select status, deposit_pct, total_cents from bookings where id = '35dd00cc-7481-47e3-a814-87d7925ac08e';
+   select event_type, payload, created_at from audit_log where booking_id = '35dd00cc-7481-47e3-a814-87d7925ac08e' order by created_at desc limit 5;
    ```
-   Expect: booking `status = deposit_paid`, payment `status = paid`. If the payment row stays `pending`, the webhook didn't fire/verify — check `worker/src/booking/yoco.ts` signature verification and confirm `YOCO_WEBHOOK_SECRET` on staging matches what's registered in the Yoco dashboard for this environment's webhook endpoint.
-5. **Once confirmed working**: this is what "lift the EFT main option, allow Yoco" was blocked on — go back to Pieter's original ask and change whatever UI/copy currently favors EFT (check `worker/src/booking/invoice.ts` — the deposit modal already tries Yoco first with EFT as fallback-on-failure, so "lifting EFT as main" may already effectively be the current behavior — confirm what Pieter actually wants changed before touching pricing/payment-flow code).
+2. If the last `invoice-pay.checkout-failed` audit event shows `Yoco 403: Forbidden` on **production** — that's a different, unresolved issue from the earlier staging 403 (which was a wrong secret *value* and is fixed). Production's `YOCO_SECRET_KEY` may not be a valid/permissioned live key, or the Yoco live account may need Checkouts API explicitly enabled. **Do not test the live key value via curl without Pieter's explicit go-ahead** — he declined that once already this session (real financial credential). Ask him directly, or have him check the Yoco Business Portal for the account's live-mode/API status.
+3. If it succeeded: confirm `status = deposit_paid`, refund the R5 via the Yoco Business Portal (Payments → find transaction → Refund), and reset the booking back to a clean `quote_sent` + restore `total_cents` to its original `498000`-equivalent value if it's going to be reused for anything else (currently sits at `2000`/R20 from the test — restore before reusing for a real quote).
 
-### Known staging config gaps still open
-- `staging.lustiqueco.co.za` DNS CNAME still not created (Pieter's call — see `worker/wrangler.toml` comments). Currently using `lustique-form-handler-staging.summer-cake-2b02.workers.dev` instead (workers.dev subdomain enabled this session, with explicit approval — admin routes still gated by secrets, not open to the world, but worth revisiting once DNS exists properly).
-- Staging secrets now complete: `YOCO_SECRET_KEY` (test mode, `sk_test_...`), `YOCO_WEBHOOK_SECRET`, `SUPABASE_JWT_SECRET` all set this session, sourced from Supabase vault (`ywoovdpnphcogwgoqhst` project) where available, or set directly by Pieter for the ones not in vault.
-- A stray mis-named secret (webhook secret value used as the secret *name*) was created and deleted this session — cosmetic, cleaned up, no lasting issue.
+### If real Yoco testing is done: flip attention to the contract e-signature feature
 
-### TASK-E — Dashboard notifications (remaining)
+Built this session but **deliberately inert** — `business_settings.contract_enabled = 'false'`. Do not flip to `'true'` until:
+1. Zandeline has sent her actual contract text + comments (was "coming a bit later" as of this session — check with Pieter).
+2. Pieter has reviewed/approved the placeholder wording in `worker/src/booking/contract.ts` (marked `CONTRACT_VERSION = "draft-v1-placeholder"`) against her real text, or replaced it outright.
+3. Once approved: update `contractBodyText`/`contractBodyHtml` in `contract.ts` with final wording, bump `CONTRACT_VERSION`, then `update business_settings set value = 'true' where key = 'contract_enabled';` on the shared Supabase project (affects both staging and prod immediately — they share one Supabase instance).
 
-Two notification types still unwired:
-- `enquiry_received` — fire when new enquiry lands (currently no bell notification)
-- `invoice_rejected` — fire when bride declines invoice (bell not triggered yet)
+### GoDaddy → Google Workspace email migration (in progress, paused mid-flow)
 
-**Where the code is:**
-- `worker/src/booking/dashboard.ts` — notification bell + `handleAdminNotifications`
-- `worker/src/booking/enquiries.ts` — `persistEnquiry` and form handler (add `insertNotification` call here)
-- `worker/src/booking/invoice.ts` — `handleInvoiceReject` already calls `insertNotification` for `invoice_rejected` ✅ (check: migration 0020 must be applied)
-
-⚠ **Pieter action required before TASK-E works:** Apply migration 0020:
-```sql
-ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'balance_due';
-ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'contact_added';
-```
+State as of session close:
+- ✅ Google Workspace account created; domain `lustiqueco.co.za` verified (TXT record added in Cloudflare).
+- ✅ Users created: `hello@lustiqueco.co.za` (Workspace admin/owner) and `info@lustiqueco.co.za` (the address hardcoded throughout the booking system's customer-facing emails — this is the one that matters operationally).
+- ✅ Old GoDaddy mail successfully imported into the new `info@lustiqueco.co.za` Gmail mailbox via Admin console → **Data → Data import & export → Data import** (IMAP from `imap.secureserver.net`). Pieter confirmed the migrated inbox looks right.
+- 🟡 **DKIM — in progress, not yet confirmed.** Path: **Menu → Apps → Google Workspace → Gmail → Authenticate email**, generate key, add `google._domainkey` TXT record to Cloudflare, then return and click Start/Activate. Last left waiting on Pieter to screenshot the generated DKIM values for confirmation before pasting into Cloudflare.
+- ⬜ **MX cutover — not started, intentionally.** This is the one step with real live-mail-flow risk. Do it deliberately: quiet time, Pieter present and reachable, DNS already in Cloudflare (not GoDaddy — confirmed this session) so no registrar hoop-jumping needed.
+  - New MX: delete the two GoDaddy records (`smtp.secureserver.net`, `mailstore1.secureserver.net`), add one: `1 SMTP.GOOGLE.COM`.
+  - New SPF: current is `v=spf1 include:secureserver.net -all` → needs to become `v=spf1 include:_spf.google.com include:spf.sendinblue.com -all` (the Brevo include is needed because the booking system's transactional emails send via Brevo from `info@lustiqueco.co.za` — verify the exact Brevo SPF hostname in Brevo dashboard → Senders & IP → Authenticate, since it can drift).
+  - Leave the `brevo-code:...` TXT record alone (unrelated domain-ownership check for Brevo).
+- **Auth note:** `autom8iq@gmail.com`'s admin-dashboard password was reset this session (directly via SQL against `auth.users.encrypted_password` using pgcrypto's `crypt()`/`gen_salt('bf')` — no service-role/Admin API needed for this trick). Pieter has the new password. Magic-link login was failing due to Supabase's default email sender hitting `over_email_send_rate_limit` (a handful of emails/hour cap) — the real fix (custom SMTP via the existing Brevo account, credentials already in the Supabase vault as `BREVO_SMTP_SECRET`) was explained but **not yet configured** in Supabase Dashboard → Authentication → Emails → SMTP Settings. Worth doing — unblocks magic-link login for both Pieter and Zandeline going forward.
 
 ---
 
-## ✅ Completed this session (2026-07-01, part 2) — promo library + FREE_KM + venue-search polish
+## ✅ Completed this session (2026-07-02/03) — Yoco fix, invoice/contract rebuild, legacy flow retirement, GoDaddy→Workspace migration (partial)
 
-**Not yet committed** — same working tree as the venue-directory work below, still on `feature/task-d-yoco-deposit`.
+### Root-caused and fixed the original Yoco 403 (staging)
+`YOCO_SECRET_KEY` on staging held a wrong/stale value. Verified the correct `YOCO_TEST_SECRET_KEY` from the Supabase vault directly against Yoco's API (got the expected `400` amount-too-low response, not `403`), then `wrangler secret put` with that value on staging. Fixed.
 
-- **Free travel threshold raised 30km → 40km round trip** — `FREE_KM` in `shared/pricing/src/constants.ts`, plus `PRICING.md` and all quote-page copy updated to match.
-- **Venue-search UX fixes**: HERE Autosuggest sometimes returns duplicate records for the same place — now deduped by normalized name. Added arrow-key + Enter keyboard navigation with visible highlighting so reaching a suggestion below the fold never depends on a scroll gesture working.
-- **Promo engine rebuilt as a dashboard-configurable library** (the 4+ promo was previously hardcoded as `ACTIVE_PROMO`):
-  - `shared/pricing/src/types.ts` — `Promo` extended from 1 kind to 7: `cheapestLookFree`, `flatCreditOnMinParty`, `milestoneTiers`, `weekdayDiscount`, `seasonalWindow`, `earlyBirdLeadTime`, `bundledValueAdd`. `EstimateInput` gained optional `weddingDayOfWeek`/`weddingMonth`/`monthsUntilWedding` (computed by the caller, not `Date.now()` inside `computeEstimate`, so it stays pure/testable). `EstimateResult` gained `perks: string[]` for zero-price-effect badges.
-  - `shared/pricing/src/promoPresets.ts` — **10 curated promos**, hand-designed with real financial-engineering rationale (see chat for the full write-up on why each is legitimate — no fabricated reference pricing). 8 apply live to the estimator; 2 (`bring-your-bestie` referral, `welcome-back-loyalty`) are backend-only, applied manually by Zandeline since they depend on verifying a second real booking.
-  - `worker/src/booking/promos.ts` — new **Promotions** dashboard tab (`GET/POST /api/admin/promos`): Zandeline picks up to 5 presets into her library, then which one (if any) is live. Public `GET /api/promo/active` is what the site fetches.
-  - `worker/src/booking/db.ts` — added `getBusinessSetting`/`setBusinessSetting` (business_settings is a plain key/value store, already existed for EFT details etc. — no new table).
-  - `supabase/migrations/0023_promo_library.sql` — seeds `cheapest-look-free` as the default library+active so nothing changes until Zandeline touches the new tab.
-  - `site/src/scripts/estimator.ts` — fetches `/api/promo/active` on load instead of importing a hardcoded constant; falls back to no-promo gracefully if the fetch fails (verified in browser — page never breaks). Renders `perks` as badges. Computes wedding-date facts from `#weddingDate` for the date-aware promo kinds.
-- 51 new tests (9 promo-kind + 5 preset-catalog tests in `shared/pricing`, 9 `promos.ts` handler tests, 4 `db.ts` business_settings tests, plus assorted). **498 tests passing total** across `site`/`worker`/`shared/pricing`.
-- ⚠ **Not independently browser-verified with a promo actually live** — fetch-mocking across a full page navigation wasn't reliable within this session; the computation logic has full unit coverage (47 pricing tests) and the fetch/fallback wiring was confirmed live in-browser, but the "promo active → renders correctly end-to-end in a real browser" path is unit-tested, not manually eyeballed. Worth a quick manual check once deployed to staging.
+### Discovered and fixed a second, deeper bug: two parallel bride-facing payment flows
+The invoice page (`invoice.ts`) had been getting rebuilt all session, but the **primary "Secure your date" button in both quote-sent emails** was actually pointing at `/api/booking/accept` — a completely separate, untouched Wave A page (`accept.ts`) with its own old single-button-then-EFT-fallback logic. Only a secondary "View & print your invoice" link went to the page being worked on. This caused repeated confusion where fixes to `invoice.ts` appeared to have no effect.
+- **Fix:** `admin-actions.ts` (`depositInvoiceEmailHtml` / `handleAdminSendQuote`) and `review.ts` (the very-first "quote ready" email, sent when an enquiry is approved — the path every real bride goes through) now emit a single link to `/api/booking/invoice`, dropping the separate accept/reject tokens entirely.
+- **`accept.ts` fully retired** — kept as a thin redirect shim only, so old emails/bookmarks/already-open tabs with a stale "accept" token don't dead-end. It now verifies the token and 302-redirects straight to the current invoice page; no booking mutation happens there anymore. (Was the exact cause of "I keep seeing the old EFT flow no matter what you fix" — a stale already-open tab kept resubmitting to the old page.)
 
----
+### Invoice page (`invoice.ts`) rebuilt: Accept/Reject + booking-fee terminology + contract signature gate
+- Terminology: "deposit" → "booking fee" throughout (T&Cs now cite whichever % the bride actually picks, not a fixed "30%").
+- Two dedicated CTA buttons — **Accept** / **Reject** — replacing the old single button + small text link. Reject reuses the existing reason-capture modal; Accept opens the existing 25/50/100% picker.
+- Contract signing (`contract.ts`, new file): typed full name + checkbox + link to a per-booking Client Agreement page (`/api/booking/contract?token=...`, reuses the invoice token). On submit, records `contract_signed_at`, `contract_signer_name`, `contract_ip`, `contract_user_agent`, a SHA-256 hash of the exact contract text shown, and a version string on the booking row — an ordinary electronic signature under SA's ECT Act, appropriate for a services contract like this (not a Schedule 2 document needing an advanced e-signature).
+- **Gated behind `business_settings.contract_enabled` (currently `'false'`)** — migration `0024_contract_signature.sql` adds the columns + seeds the flag off. Zero effect on live bookings until Zandeline's real contract text arrives and Pieter flips it on. Placeholder wording in `contract.ts` is clearly marked provisional.
+- Removed the duplicate "Resend Invoice" button from the admin dashboard for `quote_sent` bookings (was redundant with "Resend Deposit Invoice" — both pointed at the same page). Left in place for `accepted`/`deposit_paid`/`settled` statuses, where it's a genuinely different action (resend as a receipt/document).
+- Dashboard bell notification added on card-payment failure (`yoco.ts`) — was email-only before.
 
-## ✅ Completed this session (2026-07-01, part 1) — venue directory + matching accuracy
+### Fixed a real idempotency-key bug (would have bitten real brides, not just testing)
+`invoice.ts`'s Yoco checkout creation used a fixed `Idempotency-Key` of `${booking.id}-deposit`. Any second checkout attempt for the same booking with a *different* amount (booking-fee change, retry after a failed payment, admin resetting a stuck booking) got rejected by Yoco with a `422` ("payload does not match the original request"). Fixed by generating a fresh `crypto.randomUUID()` per attempt.
 
-**Not yet committed** — sitting in the working tree on `feature/task-d-yoco-deposit` alongside TASK-D. Needs a branch decision before it ships (new commit on this branch vs. a fresh branch off `dev`).
+### Deployed to both staging and production
+- Staging: `lustique-form-handler-staging` — `workers_dev = true` added to `wrangler.toml` after a deploy briefly disabled the `*.workers.dev` fallback URL (Cloudflare error 1042) that was, at the time, the *only* reachable staging URL since `staging.lustiqueco.co.za` DNS didn't exist yet. **That DNS CNAME now exists** (added by Pieter/Zandeline mid-session) and correctly routes `/api/*` to the Worker — the bare root (`staging.lustiqueco.co.za/` with no path) 522s, which is expected, there's no site hosted there, only `/api/...`.
+- Production: `lustique-form-handler` — deployed once Pieter confirmed on staging. All 443 tests passing at every deploy point.
 
-- **`site/src/data/sa-wedding-venues.json`** — 226-venue directory (sa-venues.com + OpenStreetMap + HERE Discover), each entry cross-verified against an independent business-listing search and tagged `precision`/`verified`. `site/src/data/sa-wedding-venues-review.json` holds everything the pipeline didn't auto-trust (corrected locations, conflicts, dropped candidates) for manual follow-up.
-- **`site/src/scripts/venueMatch.ts` (+ `.test.ts`, 12 tests)** — pure, unit-tested fuzzy venue-name matching, extracted out of the DOM code.
-- **`site/src/scripts/estimator.ts`** — venue lookup rebuilt: live search-as-you-type (HERE Autosuggest, blends our verified directory with HERE's live index) replaced the static datalist + "drag pin blindly" fallback; directory matches now show a confirm step instead of applying silently; destination weddings (>200km) now show an indicative travel + minimum artist-accommodation range instead of a bare "we'll tailor it".
-- **`shared/pricing`** — added `estimateDestinationExtras()` (4 new tests): informational-only travel + R1000/artist/night (min 2 nights) accommodation estimate for destination weddings. Does **not** change `computeEstimate()`'s official total — that still zeroes travel and stays personally-confirmed.
-- **Venue-match telemetry** — `supabase/migrations/0022_venue_match_log.sql` (✅ **applied** by Pieter, 2026-07-01) + `worker/src/booking/venueMatchLog.ts` (7 tests) + wired routes:
-  - `POST /api/venue-match-log` — anonymous, fire-and-forget, logs which of 8 outcomes each venue lookup resolved to
-  - `GET /api/admin/venue-match-stats?token=ADMIN_SECRET` — counts per outcome (same token gate as `/api/admin/accounting`)
-  - Once the Worker with this code deploys, data starts collecting — check back in a few weeks for real first-time-accuracy numbers instead of guessing from directory size.
-- All 466 tests passing across `site` / `worker` / `shared/pricing`.
+### Auth
+- Confirmed multi-admin concurrent dashboard use is safe — separate Supabase JWT sessions per login, and all booking-status writes use conditional `status=eq.<expected>` guards, not blind overwrites.
+- Reset `autom8iq@gmail.com`'s password directly via SQL (`crypt()`/`gen_salt('bf')` against `auth.users`) when magic-link login wasn't arriving — root cause was Supabase's default email sender hitting its built-in rate limit, not a code bug. Real fix (custom SMTP via Brevo) identified but not yet configured — see ▶ NEXT.
 
----
+### GoDaddy → Google Workspace email migration
+See ▶ NEXT above — in progress, DNS is in Cloudflare (not GoDaddy), old mail already migrated successfully, DKIM in progress, MX cutover deliberately not yet done.
 
-## ✅ Completed this session (2026-06-26)
-
-### TASK-D — Yoco deposit modal on invoice page (PR #1, branch feature/task-d-yoco-deposit)
-- `worker/src/booking/invoice.ts` — replaced "Secure your date" link with inline "Pay Deposit" modal; added deposit selection (25%/50%/100%) with correct amounts; JS fetches `POST /api/booking/invoice/pay` → redirects to Yoco checkout; EFT fallback modal shown if Yoco fails
-- New endpoint `handleInvoicePay` — verifies invoice token, validates depositPct, transitions `quote_sent → accepted`, creates Yoco checkout, inserts payment row, returns `{ checkoutUrl }` JSON; on Yoco failure returns `{ eftOnly: true, eft: {...} }`
-- `worker/src/index.ts` — wired `POST /api/booking/invoice/pay` route
-- 9 new tests added — 418/421 passing total
-
-### ENV-RETROFIT — dev branch model (commit b04e9d9, pushed)
-- `worker/wrangler.toml` — `[env.staging]` block: `lustique-form-handler-staging`, separate R2 bucket, ratelimit namespaces
-- `worker/.dev.vars.example` — local dev secrets template
-- `site/.env.local.example` — Astro local env template
-- `SETUP.md` — Local Dev Bring-Up section (full local stack runbook)
-- `.gitignore` — `.dev.vars` added; `!.env.local.example` exception
-- **`dev` branch created and pushed** to `origin/dev` ✅
-
-**Promotion flow (live):** `feature/* → dev (CF Pages preview + staging Worker) → PR → main (prod)`
-
-### Email visual redesign + inbox preheaders (commit 66dbcf1)
-- `worker/src/lib/email.ts` — brand blush border, responsive card, preheader parameter + ghost-text
-- Preheader text on all 15 bride-facing emails across 8 files
-- 409/412 tests passing
-
-### Contact page map (commit 2136ba7)
-- OSM iframe pinned at 242 Frangipani St; CSP updated
-
-### CF Pages deploy fix (commits 1a9cbaf + 1173a09)
-- `_redirects` absolute URL removed (CF Pages only allows relative source paths)
-
-### Supabase: `google_review_url` set ✅
-- Review email sweep fully operational
+**Tests:** 443 passing (33 files) at final commit — `contract.ts`/`contract.test.ts` new; `accept.ts`/`accept.test.ts` rewritten; `invoice.test.ts`, `review.test.ts`, `admin-actions.test.ts` updated for the email-link consolidation.
 
 ---
 
-## 🟠 TASK-E — Dashboard notifications (remaining)
+## ✅ Completed prior sessions
 
-Wired: `deposit_paid`, `balance_due`, `contact_added` (commit eab986c).
-Remaining: `enquiry_received`, `invoice_rejected`.
+<details>
+<summary>2026-07-01 and earlier — promo library, venue directory, TASK-D, email redesign, etc. (click to expand)</summary>
 
-Note: `invoice_rejected` is already called in `handleInvoiceReject` but migration 0020 must be applied first.
+### 2026-07-01 part 2 — promo library + FREE_KM + venue-search polish
+- Free travel threshold raised 30km → 40km round trip (`FREE_KM` in `shared/pricing/src/constants.ts`).
+- Venue-search dedup + keyboard navigation fixes.
+- Promo engine rebuilt as a dashboard-configurable library (7 promo kinds, 10 curated presets, `worker/src/booking/promos.ts` admin tab, `GET /api/promo/active` public endpoint). Migration `0023_promo_library.sql` applied.
+- 51 new tests, 498 passing total at the time.
 
-⚠ **Pieter action required:** Apply migration 0020 (see NEXT above).
+### 2026-07-01 part 1 — venue directory + matching accuracy
+- 226-venue directory (`site/src/data/sa-wedding-venues.json`), fuzzy matching (`venueMatch.ts`), live search-as-you-type, destination-wedding travel/accommodation estimates, venue-match telemetry (migration `0022_venue_match_log.sql`, applied).
+
+### 2026-06-26 — TASK-D (Yoco deposit modal, original build), ENV-RETROFIT (dev branch + staging env), email visual redesign, contact page map, CF Pages deploy fix, Google review URL set.
+
+</details>
 
 ---
 
 ## Pieter actions still open
 
-1. ~~Review + merge PR #1~~ ✅ **Merged 2026-07-01** — `dev` now has TASK-D + venue directory/matching + promo library, all fast-forwarded from `main` first to avoid conflicts (see git log for the merge commit).
-2. **CF Pages env var** — add `PUBLIC_HERE_API_KEY=-3XlCZXtw1RNbKmaw-F4w5nhn2TA8wuV3YCzjJsU_0Y` as a build env var in the CF Pages dashboard (Settings → Environment variables → Production). Also restrict the key in HERE developer dashboard to domain `lustiqueco.co.za/*`.
-3. **Worker local `.dev.vars`** — copy `.dev.vars.example`, fill in `YOCO_SECRET_KEY=sk_test_*` + Supabase keys from `supabase start`
-4. **Site local `.env.local`** — copy `site/.env.local.example`, fill in from `supabase start` + add `PUBLIC_HERE_API_KEY=`
-5. **Migration 0020** — `ALTER TYPE notification_type ADD VALUE` (blocks TASK-E)
-6. **Migration 0018** — apply `supabase/migrations/0018_public_read_policies.sql`
-7. **CF Pages env vars (Supabase)** — add `SUPABASE_URL` + `SUPABASE_ANON_KEY` as CF Pages build env vars
-8. ~~`SUPABASE_JWT_SECRET`~~ ✅ **Set on both production and staging** (staging done 2026-07-02)
-9. ~~Staging Worker secrets~~ ✅ **Done 2026-07-02** — `YOCO_SECRET_KEY` (test), `YOCO_WEBHOOK_SECRET`, `SUPABASE_JWT_SECRET` all set. `staging.lustiqueco.co.za` DNS still not created — using the `workers.dev` URL instead for now (see ▶ NEXT).
-10. **UptimeRobot** — free monitor on `https://lustiqueco.co.za`
-11. **CF Pages notifications** — email on deploy failures
-12. **Artist headshots** — Elria, Jana, Janeke, Marize, Maroné, Monique, René, Samantha
-13. **Brevo newsletter list ID** — create list → share numeric ID
-14. **NEW: finish the Yoco staging test** — see ▶ NEXT at the top of this doc, one click away from done
-15. **NEW: `staging.lustiqueco.co.za` DNS CNAME** — Cloudflare dashboard → DNS → add CNAME `staging` → `lustique-form-handler-staging.summer-cake-2b02.workers.dev` (proxied). Not urgent — `workers.dev` URL works for testing meanwhile.
-16. **NEW: decide "lift EFT as main option"** — once Yoco staging test passes, revisit what this actually means in the UI (`worker/src/booking/invoice.ts` deposit modal already tries Yoco first, EFT is shown only if Yoco checkout creation fails — clarify with Pieter whether more than that needs to change).
+1. **Live Yoco 403 on production** — needs his input on whether to test the live key value directly, or check via Yoco Business Portal (see ▶ NEXT).
+2. **DKIM** — screenshot the generated Google values for confirmation, then add to Cloudflare.
+3. **MX cutover** — schedule deliberately, not casually (see ▶ NEXT for exact record changes).
+4. **Supabase custom SMTP (Brevo)** — fixes magic-link login rate-limiting for good. Dashboard → Authentication → Emails → SMTP Settings. Values in the ▶ NEXT section above from earlier in this session.
+5. **Zandeline's contract text** — standing by; needed before `contract_enabled` can flip on.
+6. **CF Pages env var** — `PUBLIC_HERE_API_KEY=-3XlCZXtw1RNbKmaw-F4w5nhn2TA8wuV3YCzjJsU_0Y` (Settings → Environment variables → Production); restrict key to `lustiqueco.co.za/*` in HERE dashboard.
+7. **Migration 0020** — `ALTER TYPE notification_type ADD VALUE` for `enquiry_received`/`invoice_rejected` bell notifications (TASK-E, still blocked on this).
+8. **Migration 0018** — `supabase/migrations/0018_public_read_policies.sql`, not yet applied.
+9. **CF Pages env vars (Supabase)** — `SUPABASE_URL` + `SUPABASE_ANON_KEY` as Pages build env vars.
+10. **UptimeRobot** monitor on `https://lustiqueco.co.za`.
+11. **Artist headshots** — Elria, Jana, Janeke, Marize, Maroné, Monique, René, Samantha.
+12. **Brevo newsletter list ID**.
+13. **Restore test booking's `total_cents`** once the live Yoco test is fully done and the booking won't be reused (currently R20 for testing — see ▶ NEXT).
 
 ---
 
-## Current state (as-built, 2026-07-02)
-
-**Promotion flow:** `feature/* → dev (CF Pages preview + staging Worker) → PR → main (prod)`
+## Current state (as-built, 2026-07-03)
 
 ### Branch state
-- `main` — production, live at lustiqueco.co.za (unchanged this session — nothing has reached prod yet)
-- `origin/dev` — **now has everything**: TASK-D, venue directory + live search + matching telemetry, dashboard promo library, FREE_KM 30→40 change. Fast-forwarded to match `main` first, then PR #1 merged on top cleanly.
-- `feature/task-d-yoco-deposit` — merged into `dev`, can be deleted once confirmed no longer needed
-- **Staging Worker deployed** with all of the above (`lustique-form-handler-staging`, reachable at `lustique-form-handler-staging.summer-cake-2b02.workers.dev` — workers.dev subdomain explicitly enabled this session)
+- `dev` — has everything through this session (Yoco fixes, invoice/contract rebuild, accept.ts retirement, idempotency fix), committed this session.
+- `main` — check whether `dev` has been PR'd/merged since; production Worker has today's code **deployed directly** (not via a `main` merge — worth reconciling `main` with what's actually live via a PR at some point).
+- Staging and production Workers both running today's code as of session close.
 
-### Worker (`lustique-form-handler`) — on `main`
-- Booking flow end-to-end ✅
-- Admin dashboard: all nav tabs ✅
-- Staffing tab: artist roster + event assignments ✅
-- Forms tab: enquiry list + detail + "Generate Invoice" ✅
-- Contacts: list + Add / CSV import ✅
-- Portfolio: gallery + ordering ✅
-- Blog: CRUD ✅
-- Calendar feed: `/api/calendar.ics?key=ICAL_KEY` ✅
-- Invoice page: Wave-style layout (TASK-C ✅)
-- Invoice page: deposit modal + `/api/booking/invoice/pay` (TASK-D ✅, in PR)
-- Review email cron: fully operational ✅
+### Supabase migrations applied (0001–0024)
+- ⚠ 0018: public read policies — still **NOT APPLIED**.
+- ⚠ 0020: notification_type enum values — still **NOT APPLIED** (blocks TASK-E).
+- ✅ 0022, 0023 — applied prior session.
+- ✅ 0024: contract signature columns + `contract_enabled` flag (seeded `'false'`) — **applied this session**.
 
-### Supabase migrations applied (0001–0023)
-- ⚠ 0018: public read policies — **NOT YET APPLIED**
-- ⚠ 0020: notification_type enum values — **NOT YET APPLIED**
-- ✅ 0022: venue_match_log table — **applied 2026-07-01**
-- ✅ 0023: promo_library defaults — **applied 2026-07-01**
+### Key files (new/changed this session)
+- `worker/src/booking/invoice.ts` — Accept/Reject, booking-fee terminology, contract gate, fixed idempotency key.
+- `worker/src/booking/contract.ts` — new; Client Agreement page + signature hashing.
+- `worker/src/booking/accept.ts` — retired to a redirect-only shim.
+- `worker/src/booking/admin-actions.ts`, `worker/src/booking/review.ts` — single invoice-link emails (dropped separate accept/reject tokens).
+- `worker/src/booking/dashboard.ts` — removed duplicate resend button for `quote_sent`.
+- `worker/src/booking/yoco.ts` — dashboard bell notification on payment failure.
+- `worker/wrangler.toml` — `workers_dev = true` under `[env.staging]`.
+- `supabase/migrations/0024_contract_signature.sql`.
 
-### Site (Cloudflare Pages — auto-deploys from `main`)
-- Public site live at `lustiqueco.co.za` ✅
-- Contact page: OSM map live ✅
-- Email redesign: live ✅
-
----
-
-## Key files
-- `PLAN.md` · `PRICING.md` · `BRAND.md` · `ARCHITECTURE.md` · `SETUP.md` (local dev runbook)
-- `worker/wrangler.toml` — production + staging env config
-- `worker/.dev.vars.example` — local dev secrets template
-- `worker/src/booking/dashboard.ts` — admin UI shell + booking detail
-- `worker/src/booking/enquiries.ts` — Forms/enquiry handlers incl. Generate Invoice
-- `worker/src/booking/invoice.ts` — public invoice page + deposit modal (TASK-D)
-- `worker/src/lib/email.ts` — email shell + all helpers
-- `site/src/scripts/estimator.ts` — live estimator
-- `site/public/_headers` — CSP
-- `shared/pricing/` — pricing logic (single source of truth)
-
-## ⇄ Umbrella  (project ↔ Studio Manager · see _ops/BRIDGE-PROTOCOL.md)
-**⬆ To umbrella / Pieter:** PR #1 merged into `dev` 2026-07-01 — TASK-D + venue directory/matching + promo library all on staging now. Yoco staging payment test in progress (one click from done — see ▶ NEXT). Nothing has reached `main`/production yet; deploy-protection intact. TASK-E still unblocked-pending on migration 0020.
-**⬇ From umbrella:** ✅ 2026-06-30 — TASK-D ⬆ folded. Umbrella confirms deploy-protection is holding (work is on `feature/task-d-yoco-deposit` + `dev`, not `main`); site at `lustiqueco.co.za` unaffected. TASK-E unblocked once Pieter applies migration 0020.
+## ⇄ Umbrella (project ↔ Studio Manager · see _ops/BRIDGE-PROTOCOL.md)
+**⬆ To umbrella / Pieter:** Yoco payment flow now working on staging (was blocked on a wrong secret value + a stale parallel legacy page bypassing all fixes — both root-caused and fixed). Production deploy done; live payment test in progress at session close, status unconfirmed. Contract e-signature feature built but deliberately inert pending Zandeline's text. GoDaddy→Workspace email migration ~70% done (mail imported, DKIM pending, MX cutover intentionally deferred to a deliberate window).
+**⬇ From umbrella:** (none new this session)

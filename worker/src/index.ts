@@ -13,6 +13,7 @@ import { handleAdminAccounting } from "./booking/accounting";
 import { handleAdminInvoices } from "./booking/invoices";
 import { handleAdminQuotePdf } from "./booking/quote-pdf";
 import { renderInvoicePage, handleInvoiceReject, handleInvoicePay } from "./booking/invoice";
+import { renderContractPageHandler } from "./booking/contract";
 import {
   handleAdminLogin,
   handleAdminPasswordLogin,
@@ -307,11 +308,10 @@ export default {
       return withSec(await handleReview(env, req), { html: true, noindex: true });
     }
 
-    // GET /api/booking/accept?token= — bride's deposit-selection page (Wave A, prefetch-safe)
+    // GET/POST /api/booking/accept?token= — legacy Wave A link; redirects to /api/booking/invoice
     if (req.method === "GET" && url.pathname === "/api/booking/accept") {
       return withSec(await renderAcceptPage(env, req), { html: true, noindex: true });
     }
-    // POST /api/booking/accept — T3: quote_sent → accepted → Yoco checkout
     if (req.method === "POST" && url.pathname === "/api/booking/accept") {
       return withSec(await handleAccept(env, req), { html: true, noindex: true });
     }
@@ -343,6 +343,11 @@ export default {
     // POST /api/booking/invoice/pay?token= — TASK-D: bride selects deposit %, creates Yoco checkout
     if (req.method === "POST" && url.pathname === "/api/booking/invoice/pay") {
       return withSec(await handleInvoicePay(env, req), { noindex: true });
+    }
+
+    // GET /api/booking/contract?token= — bride's Client Agreement (same invoice token), read-only
+    if (req.method === "GET" && url.pathname === "/api/booking/contract") {
+      return withSec(await renderContractPageHandler(env, req), { html: true, noindex: true });
     }
 
     // Wave D3: single RL_ADMIN check covers all /api/admin/* (JWT-gated AND legacy routes).

@@ -119,10 +119,9 @@ describe("handleReview — approve (no override)", () => {
     expect(patch.deposit_net_cents).toBeUndefined();
     expect(patch.total_cents).toBeUndefined();
 
-    // Bride email has accept and reject action links
+    // Bride email links to the invoice page — it has Accept/Reject built in
     const brideEmail = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
-    expect(brideEmail.htmlContent).toContain("/api/booking/accept?token=");
-    expect(brideEmail.htmlContent).toContain("/api/booking/reject?token=");
+    expect(brideEmail.htmlContent).toContain("/api/booking/invoice?token=");
     expect(brideEmail.htmlContent).toContain("November 2027"); // wedding date appears in bride email body
 
     // Zandeline email has invoice link; mark-paid link is sent at accept time, not here
@@ -185,7 +184,7 @@ describe("handleReview — approve (with override total)", () => {
     // Bride email reflects the overridden total in the quote
     const brideEmail = JSON.parse((f.mock.calls[2]![1] as RequestInit).body as string);
     expect(brideEmail.htmlContent).toContain("10 000"); // R10,000 formatted
-    expect(brideEmail.htmlContent).toContain("/api/booking/accept?token=");
+    expect(brideEmail.htmlContent).toContain("/api/booking/invoice?token=");
   });
 
   it("uses original amounts when override equals the existing total", async () => {
