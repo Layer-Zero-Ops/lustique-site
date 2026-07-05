@@ -65,7 +65,7 @@ export function contractBodyText(b: ContractBooking): string {
     `1. Services. Lustique Cosmetology (\"the Studio\") will provide bridal hair and makeup services on the event date and at the venue above, as detailed in the accompanying invoice.`,
     `2. Fees & payment. The client agrees to pay the total fee shown above. The booking fee secures the date; the balance is due 14 business days before the event. Non-payment by that date may result in automatic cancellation of the booking.`,
     `3. Cancellation. Cancellations made within 30 days of booking qualify for a full refund of the booking fee. After 30 days, the booking fee is forfeited. Cancellations within 14 days of the event date forfeit the full fee.`,
-    `4. Travel. Travel is complimentary within 15 km one-way (30 km round trip) of the Studio's La Montagne base. Venues beyond this are charged at R7/km (round trip), payable with the balance.`,
+    `4. Travel. Travel is complimentary within 20 km one-way (40 km round trip) of the Studio's La Montagne base. Venues beyond this are charged at R7/km (round trip), payable with the balance.`,
     `5. Force majeure. Neither party is liable for delay or failure to perform due to circumstances beyond reasonable control (illness, accident, extreme weather, or other emergency). The Studio will make reasonable efforts to provide a substitute artist of comparable skill.`,
     `6. Portfolio use. The client grants the Studio a non-exclusive licence to use photographs from the event for portfolio and marketing purposes, unless the client opts out in writing before the event.`,
     `7. Liability. The Studio's liability under this agreement is limited to the total fee paid. The Studio is not liable for allergic reactions to products where the client has not disclosed known sensitivities in advance.`,
@@ -95,7 +95,7 @@ function contractBodyHtml(b: ContractBooking): string {
       <li><strong>Services.</strong> Lustique Cosmetology ("the Studio") will provide bridal hair and makeup services on the event date and at the venue above, as detailed in the accompanying invoice.</li>
       <li><strong>Fees &amp; payment.</strong> The client agrees to pay the total fee shown above. The booking fee secures the date; the balance is due 14 business days before the event. Non-payment by that date may result in automatic cancellation.</li>
       <li><strong>Cancellation.</strong> Cancellations within 30 days of booking qualify for a full refund of the booking fee. After 30 days, the booking fee is forfeited. Cancellations within 14 days of the event forfeit the full fee.</li>
-      <li><strong>Travel.</strong> Complimentary within 15 km one-way (30 km round trip) of the Studio's La Montagne base. Beyond this, R7/km (round trip), payable with the balance.</li>
+      <li><strong>Travel.</strong> Complimentary within 20 km one-way (40 km round trip) of the Studio's La Montagne base. Beyond this, R7/km (round trip), payable with the balance.</li>
       <li><strong>Force majeure.</strong> Neither party is liable for delay or non-performance due to circumstances beyond reasonable control. The Studio will make reasonable efforts to provide a substitute artist of comparable skill.</li>
       <li><strong>Portfolio use.</strong> The client grants the Studio a non-exclusive licence to use event photographs for portfolio and marketing, unless the client opts out in writing before the event.</li>
       <li><strong>Liability.</strong> The Studio's liability is limited to the total fee paid. The Studio is not liable for allergic reactions where the client has not disclosed known sensitivities in advance.</li>
@@ -129,6 +129,11 @@ body{font:15px/1.6 Georgia,'Times New Roman',serif;color:#3A2E26;background:#FAF
 .terms-list{font-size:.9rem;color:#3A2E26;line-height:1.75;padding-left:1.2rem;}
 .terms-list li{margin-bottom:.6rem;}
 .print-btn{display:block;width:100%;margin-top:2rem;font:inherit;font-size:.88rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #E8D5B7;border-radius:4px;padding:.75em;cursor:pointer;background:none;color:#7A2E3A;}
+@media (max-width:600px){
+  body{padding:1rem .5rem;}
+  .page{padding:1.75rem 1.25rem;}
+  .inv-title{font-size:1.2rem;}
+}
 @media print{.print-btn{display:none;}}
 </style>
 </head>

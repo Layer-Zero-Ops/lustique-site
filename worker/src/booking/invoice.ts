@@ -202,6 +202,20 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
 .btn-decline:hover{background:#5c2230;}
 .btn-decline:disabled{opacity:.5;cursor:not-allowed;}
 
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+@media (max-width:600px){
+  body{padding:1rem .5rem;}
+  .page{padding:1.75rem 1.25rem;}
+  .hd{flex-wrap:wrap;gap:.8rem;}
+  .inv-title{font-size:1.4rem;letter-spacing:.12em;}
+  .info-bar{flex-direction:column;gap:1rem;}
+  .meta-table{text-align:left;}
+  .total-row{gap:1rem;}
+  .total-row .tl{min-width:0;}
+  .dep-opts{gap:.6rem;}
+}
+
 @media print{
   body{background:#fff;padding:0;}
   .page{box-shadow:none;padding:1.5rem 2rem;}
@@ -253,10 +267,10 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
   <!-- Line items -->
   <div class="section">
     <div class="section-label">Services</div>
-    <table>
+    <div class="table-scroll"><table>
       <thead><tr><th>Description</th><th class="amt">Amount</th></tr></thead>
       <tbody>${lineRows}</tbody>
-    </table>
+    </table></div>
   </div>
 
   <!-- Totals -->
@@ -274,7 +288,7 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
     <ul class="terms-list">
       <li>A booking fee of ${bookingFeeTermsPhrase} of the total invoice amount is required to confirm and secure your booking date. The booking fee is <strong>non-refundable</strong> after 30 days from the booking date.</li>
       <li>The remaining balance is due <strong>14 business days before your event date</strong>. Non-payment by this date may result in automatic cancellation.</li>
-      <li>Travel is complimentary for venues within 15 km one-way (30 km round trip) from our La Montagne studio. Venues beyond this are charged at <strong>R7/km (round trip)</strong>.</li>
+      <li>Travel is complimentary for venues within 20 km one-way (40 km round trip) from our La Montagne studio. Venues beyond this are charged at <strong>R7/km (round trip)</strong>.</li>
       <li>Cancellations made within 30 days of booking qualify for a full refund. After 30 days, the booking fee is forfeited.</li>
       <li>All services are provided on-location unless otherwise agreed in writing.</li>
     </ul>
