@@ -8,7 +8,7 @@ import {
   type EstimateInput, type EstimateLine, type HairBuckets, type HairLength, type Occasion, type TravelBand, type Promo,
 } from "@lustique/pricing";
 import venueDirectory from "../data/sa-wedding-venues.json";
-import { findKnownVenue, normalizeVenueName, venueLabel, type KnownVenue } from "./venueMatch";
+import { findKnownVenue, normalizeVenueName, venueLabel, buildGeocodeQuery, type KnownVenue } from "./venueMatch";
 
 declare const L: any; // Leaflet global (loaded via the CDN <script> on the quote page)
 
@@ -349,13 +349,11 @@ async function geocodeFallback() {
   const town = val("townInput").trim();
   const res = el("travelResult");
   if (res) res.textContent = "Finding your venue…";
-  const prov = val("provinceInput");
-  const provPart = prov && prov.indexOf("Other") === -1 ? prov : "";
-  const q = [venue, town, provPart, "South Africa"].filter(Boolean).join(", ");
+  const q = buildGeocodeQuery(venue, town); // see venueMatch.ts for why province is deliberately excluded
   try {
     const apiKey = (import.meta.env.PUBLIC_HERE_API_KEY as string) || "";
     const g = await fetch(
-      `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(q)}&in=countryCode:ZAF&limit=1&apiKey=${encodeURIComponent(apiKey)}`,
+      `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(q)}&at=${STUDIO.lat},${STUDIO.lng}&in=countryCode:ZAF&limit=1&apiKey=${encodeURIComponent(apiKey)}`,
     ).then((r) => r.json());
     const item = g.items && g.items[0];
     if (!item) throw new Error("no geocode");

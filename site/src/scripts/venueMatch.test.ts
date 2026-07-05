@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findKnownVenue, normalizeVenueName, venueLabel, type KnownVenue } from "./venueMatch";
+import { findKnownVenue, normalizeVenueName, venueLabel, buildGeocodeQuery, type KnownVenue } from "./venueMatch";
 
 const avianto: KnownVenue = {
   name: "Avianto Function Venue",
@@ -68,6 +68,29 @@ describe("findKnownVenue", () => {
 
   it("does not fuzzy-match very short input even if it's a substring", () => {
     expect(findKnownVenue("Avi", venues)).toBeUndefined();
+  });
+});
+
+describe("buildGeocodeQuery", () => {
+  // Regression test: the quote form's province dropdown defaults to "Gauteng" and most
+  // brides never touch it. Confirmed live against HERE's Geocode API that appending it
+  // as query text hijacks real venues elsewhere (e.g. "Val de Vie Estate", Western Cape)
+  // to a same-ish-named place hundreds of km away in Gauteng instead. The query must
+  // never contain a province, regardless of what the caller might pass around it.
+  it("joins venue, town, and country — never a province", () => {
+    expect(buildGeocodeQuery("Val de Vie Estate", "Paarl")).toBe("Val de Vie Estate, Paarl, South Africa");
+  });
+
+  it("omits an empty town rather than leaving a stray comma", () => {
+    expect(buildGeocodeQuery("Val de Vie Estate", "")).toBe("Val de Vie Estate, South Africa");
+  });
+
+  it("trims whitespace from both inputs", () => {
+    expect(buildGeocodeQuery("  Val de Vie Estate  ", "  Paarl  ")).toBe("Val de Vie Estate, Paarl, South Africa");
+  });
+
+  it("still returns a usable query when only a town is given", () => {
+    expect(buildGeocodeQuery("", "Paarl")).toBe("Paarl, South Africa");
   });
 });
 

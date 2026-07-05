@@ -3,11 +3,11 @@
     "name": "Umtali Country Inn",
     "town": "Aliwal North",
     "province": "Eastern Cape",
-    "address": "Amalinda North, East London, Eastern Cape, South Africa",
-    "lat": -32.98887,
-    "lng": 27.86719,
+    "address": "47 Dan Pienaar Avenue, Aliwal North, 9750, Eastern Cape, South Africa",
+    "lat": -30.6969,
+    "lng": 26.7062,
     "source": "sa-venues.com",
-    "precision": "street",
+    "precision": "town",
     "verified": false
   },
   {
@@ -80,12 +80,12 @@
     "name": "Tenahead Mountain Lodge & Spa",
     "town": "Rhodes",
     "province": "Eastern Cape",
-    "address": "Rhodes, Makana, Eastern Cape, South Africa",
-    "lat": -33.31633,
-    "lng": 26.51852,
+    "address": "Naudes Nek Pass, Rhodes, 6170, Eastern Cape, South Africa",
+    "lat": -30.7019,
+    "lng": 28.1364,
     "source": "sa-venues.com",
-    "precision": "street",
-    "verified": false
+    "precision": "poi",
+    "verified": true
   },
   {
     "name": "St Francis Links",
@@ -158,11 +158,11 @@
     "name": "De Bron Wedding & Conference Venue",
     "town": "Boksburg",
     "province": "Gauteng",
-    "address": "Summer Place Boksburg, Wedding & Conference Venue., 80 Elizabeth Rd, Boksburg, 1459, South Africa",
+    "address": "17 Williams Rd, Beyers Park, Boksburg, 1459, South Africa",
     "lat": -26.16922,
     "lng": 28.27312,
     "source": "sa-venues.com",
-    "precision": "street",
+    "precision": "town",
     "verified": false
   },
   {
@@ -1470,11 +1470,11 @@
     "name": "Bloupunt Winery",
     "town": "Montagu",
     "province": "Western Cape",
-    "address": "Bloupunt, Prince Albert, South Africa",
-    "lat": -33.3795,
-    "lng": 22.495,
+    "address": "12 Long Street, Montagu, 6720, Western Cape, South Africa",
+    "lat": -33.7833,
+    "lng": 20.1167,
     "source": "sa-venues.com",
-    "precision": "street",
+    "precision": "town",
     "verified": false
   },
   {

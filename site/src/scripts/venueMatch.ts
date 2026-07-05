@@ -55,6 +55,20 @@ const FUZZY_THRESHOLD = 0.8;
  * above a high similarity bar, since a wrong silent match here means a
  * bride gets a travel quote for the wrong location.
  */
+/**
+ * Build the free-text query for HERE's Geocode API fallback (venue not in our directory
+ * and not picked from live-search). Deliberately takes ONLY venue + town — never a
+ * province — because the quote form's province dropdown defaults to "Gauteng" and most
+ * brides never touch it. Confirmed live against HERE's API: appending a wrong/default
+ * province to a real venue elsewhere (e.g. "Val de Vie Estate", Western Cape) hijacks the
+ * result to a same-ish-named place hundreds of km away in Gauteng instead. Any location
+ * bias belongs in the caller's `at=` proximity-ranking parameter (a soft nudge that never
+ * overrides a strong unique match), not in this query text.
+ */
+export function buildGeocodeQuery(venue: string, town: string): string {
+  return [venue.trim(), town.trim(), "South Africa"].filter(Boolean).join(", ");
+}
+
 export function findKnownVenue(input: string, venues: KnownVenue[]): KnownVenue | undefined {
   const trimmed = input.trim();
   if (!trimmed) return undefined;
