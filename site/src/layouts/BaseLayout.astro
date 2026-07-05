@@ -4,8 +4,12 @@ import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import { SITE, OG_IMG, SITE_JSONLD, GA_MEASUREMENT_ID } from "../data/site";
 
-interface Props { slug: string; title: string; desc: string; jsonld?: object; breadcrumb?: Array<{name: string; item?: string}>; robots?: "noindex"; preloadImage?: string; }
-const { slug, title, desc, jsonld, breadcrumb, robots, preloadImage } = Astro.props;
+interface Props { slug: string; title: string; desc: string; jsonld?: object; breadcrumb?: Array<{name: string; item?: string}>; robots?: "noindex"; preloadImage?: string; ogImage?: string; businessJsonLdExtra?: object; }
+const { slug, title, desc, jsonld, breadcrumb, robots, preloadImage, ogImage, businessJsonLdExtra } = Astro.props;
+const shareImage = ogImage ?? OG_IMG;
+// businessJsonLdExtra merges into the one LocalBusiness node (e.g. real Google review data on
+// the homepage) rather than declaring a second, competing @id — only pass verified, real fields.
+const localBusinessJsonLd = businessJsonLdExtra ? { ...SITE_JSONLD, ...businessJsonLdExtra } : SITE_JSONLD;
 const breadcrumbJsonLd = breadcrumb ? {
   "@context": "https://schema.org", "@type": "BreadcrumbList",
   itemListElement: [
@@ -31,12 +35,12 @@ const canonical = `${SITE}/${slug === "index.html" ? "" : slug}`;
   <meta property="og:site_name" content="Lustique Co." />
   <meta property="og:title" content={title} />
   <meta property="og:description" content={desc} />
-  <meta property="og:image" content={OG_IMG} />
+  <meta property="og:image" content={shareImage} />
   <meta property="og:url" content={canonical} />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={desc} />
-  <meta name="twitter:image" content={OG_IMG} />
+  <meta name="twitter:image" content={shareImage} />
   {robots && <meta name="robots" content={robots} />}
   <meta name="theme-color" content="#A0625E" />
   <script is:inline define:vars={{ gaId: GA_MEASUREMENT_ID }}>window.LUSTIQUE_GA_ID = gaId;</script>
@@ -49,7 +53,7 @@ const canonical = `${SITE}/${slug === "index.html" ? "" : slug}`;
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Manrope:wght@300;400;500;600&display=swap" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Manrope:wght@300;400;500;600&display=swap" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Manrope:wght@300;400;500;600&display=swap" /></noscript>
-  <script type="application/ld+json" set:html={JSON.stringify(SITE_JSONLD)} />
+  <script type="application/ld+json" set:html={JSON.stringify(localBusinessJsonLd)} />
   {jsonld && <script type="application/ld+json" set:html={JSON.stringify(jsonld)} />}
   {breadcrumbJsonLd && <script type="application/ld+json" set:html={JSON.stringify(breadcrumbJsonLd)} />}
 </head>

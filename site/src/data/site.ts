@@ -1,6 +1,29 @@
 export const SITE = "https://lustiqueco.co.za";
 export const OG_IMG = SITE + "/assets/og-share.jpg";
 
+// Real bride testimonials, shown on the homepage. Also feeds the `review` schema below —
+// keep the two in sync so the JSON-LD never claims more reviews than the page actually shows.
+export const TESTIMONIALS = [
+  {
+    id: "t1",
+    quote:
+      "They felt less like a vendor and more like the calmest people in the room. I looked like me — just the version I always hoped to be on my wedding day.",
+    attribution: "A Lustique Bride",
+  },
+  {
+    id: "t2",
+    quote:
+      "My whole bridal party was ready, relaxed and glowing. Not one moment of stress all morning.",
+    attribution: "A Lustique Bride",
+  },
+  {
+    id: "t3",
+    quote:
+      "The trial sold me. They listened, adjusted, and on the day my makeup lasted from the first photo to the last dance.",
+    attribution: "A Lustique Bride",
+  },
+];
+
 // [label, href] — hrefs keep the .html suffix so internal links match the prototype
 // (astro.config build.format: "file" emits /about.html etc.)
 export const NAV: [string, string][] = [
@@ -32,6 +55,13 @@ export const SITE_JSONLD = {
   currenciesAccepted: "ZAR",
   founder: { "@type": "Person", name: "Zandeline Kemp" },
   sameAs: ["https://www.instagram.com/lustique_cosmetology/", "https://www.facebook.com/LustiqueCosmetology", "https://www.tiktok.com/@lustique_co"],
+  // Deliberately no `review`/`aggregateRating` here: the homepage testimonials are anonymised
+  // ("A Lustique Bride") and self-hosted, not independently verifiable — adding review schema
+  // for them would violate Google's self-serving-reviews guideline and risks a manual action
+  // against rich results, not just a missed opportunity. Local-pack star ratings come from the
+  // Google Business Profile's real reviews regardless of this file; that's the correct place to
+  // earn them (see the SEO spec, Part B2). Revisit this once testimonials carry a real, named,
+  // ideally third-party-linked source.
 };
 
 // GA4 Measurement ID — replace with real ID when GA4 property is created.

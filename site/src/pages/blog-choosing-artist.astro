@@ -1,9 +1,17 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { SITE, OG_IMG } from "../data/site";
 const title = "How to Choose a Bridal Makeup Artist in Pretoria | Lustique Co.";
 const desc = "Five things that separate a great bridal artist from a risky booking — and what to ask.";
+const jsonld = {
+  "@context": "https://schema.org", "@type": "BlogPosting",
+  headline: "How to Choose a Bridal Makeup Artist in Pretoria",
+  description: desc, image: OG_IMG, url: SITE + "/blog-choosing-artist.html",
+  mainEntityOfPage: { "@type": "WebPage", "@id": SITE + "/blog-choosing-artist.html" },
+  author: { "@type": "Person", name: "Zandeline Kemp" }, publisher: { "@id": SITE + "/" },
+};
 ---
-<BaseLayout slug="blog-choosing-artist.html" title={title} desc={desc}>
+<BaseLayout slug="blog-choosing-artist.html" title={title} desc={desc} jsonld={jsonld} breadcrumb={[{ name: "Journal", item: SITE + "/blog.html" }, { name: "How to Choose a Bridal Makeup Artist in Pretoria" }]}>
 
   
   <section class="page-hero">

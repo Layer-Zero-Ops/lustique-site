@@ -1,9 +1,17 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { SITE, OG_IMG } from "../data/site";
 const title = "What to Expect at Your Bridal Trial | Lustique Co.";
 const desc = "How to get the most from your bridal hair and makeup trial.";
+const jsonld = {
+  "@context": "https://schema.org", "@type": "BlogPosting",
+  headline: "What to Expect at Your Bridal Trial",
+  description: desc, image: OG_IMG, url: SITE + "/blog-bridal-trial.html",
+  mainEntityOfPage: { "@type": "WebPage", "@id": SITE + "/blog-bridal-trial.html" },
+  author: { "@type": "Person", name: "Zandeline Kemp" }, publisher: { "@id": SITE + "/" },
+};
 ---
-<BaseLayout slug="blog-bridal-trial.html" title={title} desc={desc}>
+<BaseLayout slug="blog-bridal-trial.html" title={title} desc={desc} jsonld={jsonld} breadcrumb={[{ name: "Journal", item: SITE + "/blog.html" }, { name: "What to Expect at Your Bridal Trial" }]}>
 
   
   <section class="page-hero">
