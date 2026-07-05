@@ -88,6 +88,7 @@ export async function handleAdminPromos(
           <div style="font-weight:700;color:#3a2e26;">${esc(p.name)}</div>
           <div style="font-size:.82rem;color:#5c4332;margin-top:.15rem;">${esc(p.tagline)}</div>
           <div style="font-size:.76rem;color:#8a7d72;margin-top:.35rem;">${esc(p.mechanic)}</div>
+          <div style="font-size:.74rem;color:#a08a78;margin-top:.35rem;font-style:italic;">Terms: ${esc(p.terms)}</div>
           ${p.requiresSetup ? `<div style="font-size:.76rem;color:#b7791f;margin-top:.35rem;">⚠ ${esc(p.requiresSetup)}</div>` : ""}
         </span>
       </label>
@@ -98,6 +99,7 @@ export async function handleAdminPromos(
       <div style="font-weight:700;color:#3a2e26;">${esc(p.name)}</div>
       <div style="font-size:.82rem;color:#5c4332;margin-top:.15rem;">${esc(p.tagline)}</div>
       <div style="font-size:.76rem;color:#8a7d72;margin-top:.35rem;">${esc(p.mechanic)}</div>
+      <div style="font-size:.74rem;color:#a08a78;margin-top:.35rem;font-style:italic;">Terms: ${esc(p.terms)}</div>
       <div style="font-size:.76rem;color:#8a3a52;margin-top:.35rem;">✋ ${esc(p.manualNote ?? "")}</div>
     </div>`;
 
