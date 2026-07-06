@@ -1,22 +1,31 @@
 /**
  * GET  /api/booking/invoice?token=<signed>        — bride's printable invoice (S9).
  * POST /api/booking/invoice/reject?token=<signed> — bride declines the invoice.
+ * POST /api/booking/invoice/pay?token=<signed>    — TASK-D: bride selects deposit %, creates Yoco checkout.
  *
  * The invoice token is signed with action "invoice" and a 2-year TTL.
  * Rejection transitions booking quote_sent → rejected, inserts a rejections row,
  * fires the admin bell (invoice_rejected), and sends an admin email.
+ * Pay transitions quote_sent → accepted then creates a Yoco checkout (same logic as accept.ts).
  */
 
-import { getBookingByIdForInvoice, transitionBooking, insertNotification } from "./db";
+import { getBookingByIdForInvoice, getBusinessSetting, transitionBooking, insertNotification, insertPayment } from "./db";
 import { writeAudit } from "./audit";
-import { verifyActionToken, signActionToken } from "./token";
+import { verifyActionToken } from "./token";
 import { sendEmail, esc as emailEsc } from "../lib/email";
+import { splitDeposit } from "@lustique/pricing";
+import { contractBodyText, sha256Hex, CONTRACT_VERSION } from "./contract";
 import type { AuditEnv } from "./audit";
 
 export interface InvoiceEnv extends AuditEnv {
   SIGNING_SECRET: string;
   BREVO_API_KEY: string;
   NOTIFY_EMAIL: string;
+}
+
+export interface InvoicePayEnv extends InvoiceEnv {
+  YOCO_SECRET_KEY: string;
+  ALLOWED_ORIGIN: string;
 }
 
 const esc = (s = "") =>
@@ -56,7 +65,7 @@ function invoicePage(b: {
   status: string;
   quote_lines: Array<{ label: string; amount: number }> | null;
   quote_sent_at: string | null;
-}, invoiceToken: string, acceptUrl?: string): string {
+}, invoiceToken: string, contractEnabled: boolean): string {
   const today = new Date();
   const fmtDate = (d: Date) =>
     d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
@@ -79,7 +88,9 @@ function invoicePage(b: {
         .join("")
     : `<tr><td class="desc">Wedding hair &amp; makeup services</td><td class="amt">${zar(b.total_cents)}</td></tr>`;
 
-  const depositLabel = b.deposit_pct ? `Deposit (${b.deposit_pct}%)` : "Deposit";
+  const depositLabel = b.deposit_pct ? `Booking fee (${b.deposit_pct}%)` : "Booking fee";
+  // Terms wording: once a pct is chosen it's fixed; beforehand, name all three options the bride can pick.
+  const bookingFeeTermsPhrase = b.deposit_pct ? `${b.deposit_pct}% (as selected)` : "25%, 50%, or 100% (as selected at checkout)";
 
   return `<!doctype html>
 <html lang="en">
@@ -157,18 +168,24 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
 .footer{margin-top:2.4rem;padding-top:1.4rem;border-top:1.5px solid #E8D5B7;font-size:.87rem;color:#8a7d72;text-align:center;line-height:1.9;}
 .footer a{color:#7A2E3A;text-decoration:none;}
 
-/* ── Secure your date CTA ── */
+/* ── Pay Deposit CTA ── */
 .secure-cta{display:block;text-align:center;margin-top:1.8rem;padding:1.4rem;background:#FDF7F4;border:1px solid #E8D5B7;border-radius:6px;}
 .secure-cta p{font-size:.88rem;color:#6b5d52;margin:0 0 1rem;}
-.secure-btn{display:inline-block;background:#EFD2C5;color:#5C4332;text-decoration:none;font-size:.82rem;letter-spacing:.2em;text-transform:uppercase;padding:13px 36px;border-radius:24px;border:1px solid #5C4332;font-family:Arial,sans-serif;font-weight:500;}
+.secure-btn{display:inline-block;background:#EFD2C5;color:#5C4332;text-decoration:none;font-size:.82rem;letter-spacing:.2em;text-transform:uppercase;padding:13px 36px;border-radius:24px;border:1px solid #5C4332;font-family:Arial,sans-serif;font-weight:500;cursor:pointer;}
+.reject-btn{display:inline-block;background:none;color:#7A2E3A;text-decoration:none;font-size:.82rem;letter-spacing:.2em;text-transform:uppercase;padding:13px 36px;border-radius:24px;border:1px solid #E8D5B7;font-family:Arial,sans-serif;font-weight:500;cursor:pointer;}
+.reject-btn:hover{background:#FAF6F0;}
+
+/* ── Deposit selection options ── */
+.dep-opts{display:flex;flex-direction:column;gap:.5rem;margin:.8rem 0;}
+.dep-opt{display:flex;align-items:flex-start;gap:.8rem;border:1.5px solid #E8D5B7;border-radius:8px;padding:.75rem .9rem;cursor:pointer;}
+.dep-opt:has(input:checked){border-color:#7A2E3A;background:#FDF5F7;}
+.dep-opt input{margin-top:.2rem;accent-color:#7A2E3A;}
+.dep-opt-label{font-weight:600;color:#3A2E26;font-size:.9rem;}
+.dep-opt-sub{font-size:.83rem;color:#6b5d52;}
 
 /* ── Print button ── */
 .print-btn{display:block;width:100%;margin-top:2rem;font:inherit;font-size:.88rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1.5px solid #E8D5B7;border-radius:4px;padding:.75em;cursor:pointer;background:none;color:#7A2E3A;transition:background .15s;}
 .print-btn:hover{background:#FAF6F0;}
-
-/* ── Decline link ── */
-.decline-link{display:block;text-align:center;margin-top:1rem;font-size:.82rem;color:#b08a8a;cursor:pointer;background:none;border:none;text-decoration:underline;font:inherit;}
-.decline-link:hover{color:#7A2E3A;}
 
 /* ── Decline modal ── */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;}
@@ -185,11 +202,24 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
 .btn-decline:hover{background:#5c2230;}
 .btn-decline:disabled{opacity:.5;cursor:not-allowed;}
 
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+@media (max-width:600px){
+  body{padding:1rem .5rem;}
+  .page{padding:1.75rem 1.25rem;}
+  .hd{flex-wrap:wrap;gap:.8rem;}
+  .inv-title{font-size:1.4rem;letter-spacing:.12em;}
+  .info-bar{flex-direction:column;gap:1rem;}
+  .meta-table{text-align:left;}
+  .total-row{gap:1rem;}
+  .total-row .tl{min-width:0;}
+  .dep-opts{gap:.6rem;}
+}
+
 @media print{
   body{background:#fff;padding:0;}
   .page{box-shadow:none;padding:1.5rem 2rem;}
   .print-btn{display:none;}
-  .decline-link{display:none;}
 }
 </style>
 </head>
@@ -237,10 +267,10 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
   <!-- Line items -->
   <div class="section">
     <div class="section-label">Services</div>
-    <table>
+    <div class="table-scroll"><table>
       <thead><tr><th>Description</th><th class="amt">Amount</th></tr></thead>
       <tbody>${lineRows}</tbody>
-    </table>
+    </table></div>
   </div>
 
   <!-- Totals -->
@@ -256,10 +286,10 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
   <div class="section">
     <div class="section-label">Terms &amp; Conditions</div>
     <ul class="terms-list">
-      <li>A deposit of 30% of the total invoice amount is required to confirm and secure your booking date. The deposit is <strong>non-refundable</strong> after 30 days from the booking date.</li>
+      <li>A booking fee of ${bookingFeeTermsPhrase} of the total invoice amount is required to confirm and secure your booking date. The booking fee is <strong>non-refundable</strong> after 30 days from the booking date.</li>
       <li>The remaining balance is due <strong>14 business days before your event date</strong>. Non-payment by this date may result in automatic cancellation.</li>
-      <li>Travel is complimentary for venues within 15 km one-way (30 km round trip) from our La Montagne studio. Venues beyond this are charged at <strong>R7/km (round trip)</strong>.</li>
-      <li>Cancellations made within 30 days of booking qualify for a full refund. After 30 days, the booking deposit is forfeited.</li>
+      <li>Travel is complimentary for venues within 20 km one-way (40 km round trip) from our La Montagne studio. Venues beyond this are charged at <strong>R7/km (round trip)</strong>.</li>
+      <li>Cancellations made within 30 days of booking qualify for a full refund. After 30 days, the booking fee is forfeited.</li>
       <li>All services are provided on-location unless otherwise agreed in writing.</li>
     </ul>
   </div>
@@ -277,64 +307,180 @@ td{padding:.6rem 0;font-size:.95rem;color:#3A2E26;}
     <div>Questions? <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a></div>
   </div>
 
-${b.status === "quote_sent" && acceptUrl ? `
-  <div class="secure-cta">
-    <p>Ready to lock in your date? Choose your booking fee to confirm.</p>
-    <a class="secure-btn" href="${esc(acceptUrl)}">Secure your date →</a>
-  </div>
-` : ""}
-
-  <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
-
 ${b.status === "quote_sent" ? `
-  <button class="decline-link" id="declineBtn">I want to decline this invoice</button>
+  <div class="secure-cta">
+    <p>Ready to lock in your date? Accept this invoice to choose your booking fee, or let us know if it's not a fit.</p>
+    <div style="display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap;">
+      <button class="secure-btn" id="acceptBtn" type="button">Accept &rarr;</button>
+      <button class="reject-btn" id="rejectBtn" type="button">Reject</button>
+    </div>
+  </div>
 
+  <!-- Deposit selection modal -->
+  <div class="modal-overlay" id="depositModal" role="dialog" aria-modal="true" aria-labelledby="depositTitle">
+    <div class="modal-box">
+      <h2 id="depositTitle">Choose your booking fee</h2>
+      <p>Select how much you&#8217;d like to pay now &#8212; the balance is due closer to your day.</p>
+      <div class="dep-opts">
+        <label class="dep-opt">
+          <input type="radio" name="depositPct" value="25">
+          <div><div class="dep-opt-label">25% &mdash; ${zar(Math.round(b.total_cents * 0.25))}</div><div class="dep-opt-sub">Balance of ${zar(b.total_cents - Math.round(b.total_cents * 0.25))} due later</div></div>
+        </label>
+        <label class="dep-opt">
+          <input type="radio" name="depositPct" value="50">
+          <div><div class="dep-opt-label">50% &mdash; ${zar(Math.round(b.total_cents * 0.5))}</div><div class="dep-opt-sub">Balance of ${zar(b.total_cents - Math.round(b.total_cents * 0.5))} due later</div></div>
+        </label>
+        <label class="dep-opt">
+          <input type="radio" name="depositPct" value="100">
+          <div><div class="dep-opt-label">Pay in full &mdash; ${zar(b.total_cents)}</div><div class="dep-opt-sub">Nothing more to pay &#10003;</div></div>
+        </label>
+      </div>
+      ${contractEnabled ? `
+      <div style="margin-top:1.1rem;padding-top:1rem;border-top:1px solid #f0e8de;">
+        <label style="display:block;font-size:.83rem;color:#6b5d52;margin-bottom:.4rem;">Type your full name to sign</label>
+        <input type="text" id="signerName" placeholder="Full name" value="${esc(b.bride_name)}" style="width:100%;border:1.5px solid #E8D5B7;border-radius:6px;padding:.55rem .7rem;font:inherit;font-size:.9rem;color:#3A2E26;margin-bottom:.7rem;">
+        <label class="dep-opt" style="cursor:pointer;">
+          <input type="checkbox" id="agreeContract">
+          <div class="dep-opt-sub">I have read and agree to the <a href="/api/booking/contract?token=${esc(invoiceToken)}" target="_blank" style="color:#7A2E3A;">Client Agreement</a> for this booking, and my typed name above is my electronic signature.</div>
+        </label>
+      </div>` : ""}
+      <p id="depositErr" style="display:none;color:#7A2E3A;font-size:.88rem;margin:.4rem 0 0;"></p>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="cancelDeposit">Cancel</button>
+        <button class="btn-decline" id="submitDeposit"${contractEnabled ? " disabled" : ""}>Continue to payment &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reject / decline modal -->
   <div class="modal-overlay" id="declineModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-box">
-      <h2 id="modalTitle">Decline this invoice</h2>
-      <p>We're sorry it didn't work out. If you'd like to let us know why, please share any feedback below — it helps us improve.</p>
+      <h2 id="modalTitle">Reject this invoice</h2>
+      <p>We're sorry it didn't work out. If you'd like to let us know why — amount, date, or anything else — please share below.</p>
       <textarea id="declineReason" placeholder="Optional — any feedback is welcome" rows="4"></textarea>
       <div class="modal-actions">
         <button class="btn-cancel" id="cancelDecline">Cancel</button>
-        <button class="btn-decline" id="submitDecline">Decline invoice</button>
+        <button class="btn-decline" id="submitDecline">Reject invoice</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EFT fallback modal (shown when Yoco checkout fails) -->
+  <div class="modal-overlay" id="eftModal" role="dialog" aria-modal="true" aria-labelledby="eftTitle">
+    <div class="modal-box">
+      <h2 id="eftTitle">Pay by EFT</h2>
+      <p>Card payment is temporarily unavailable. Please pay by EFT &#8212; your date will be secured once we confirm receipt.</p>
+      <div class="bank-grid" id="eftGrid" style="margin-top:.8rem;"></div>
+      <p class="ref-note" id="eftRefNote" style="margin-top:.8rem;"></p>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="closeEft">Close</button>
       </div>
     </div>
   </div>
 
   <script>
   (function(){
-    var btn=document.getElementById('declineBtn');
-    var modal=document.getElementById('declineModal');
-    var cancel=document.getElementById('cancelDecline');
-    var submit=document.getElementById('submitDecline');
-    var reason=document.getElementById('declineReason');
-    btn.addEventListener('click',function(){modal.classList.add('open');reason.focus();});
-    cancel.addEventListener('click',function(){modal.classList.remove('open');});
-    modal.addEventListener('click',function(e){if(e.target===modal)modal.classList.remove('open');});
-    submit.addEventListener('click',function(){
-      submit.disabled=true;submit.textContent='Declining…';
+    var acceptBtn=document.getElementById('acceptBtn');
+    var rejectBtn=document.getElementById('rejectBtn');
+    var depModal=document.getElementById('depositModal');
+    var cancelDep=document.getElementById('cancelDeposit');
+    var submitDep=document.getElementById('submitDeposit');
+    var depErr=document.getElementById('depositErr');
+    var signerName=document.getElementById('signerName');
+    var agreeContract=document.getElementById('agreeContract');
+    var eftModal=document.getElementById('eftModal');
+    var eftGrid=document.getElementById('eftGrid');
+    var eftRefNote=document.getElementById('eftRefNote');
+    var closeEft=document.getElementById('closeEft');
+    var declineModal=document.getElementById('declineModal');
+    var cancelDecline=document.getElementById('cancelDecline');
+    var submitDecline=document.getElementById('submitDecline');
+    var declineReason=document.getElementById('declineReason');
+
+    acceptBtn.addEventListener('click',function(){depModal.classList.add('open');});
+    rejectBtn.addEventListener('click',function(){declineModal.classList.add('open');declineReason.focus();});
+    cancelDep.addEventListener('click',function(){depModal.classList.remove('open');});
+    depModal.addEventListener('click',function(e){if(e.target===depModal)depModal.classList.remove('open');});
+    closeEft.addEventListener('click',function(){eftModal.classList.remove('open');});
+    eftModal.addEventListener('click',function(e){if(e.target===eftModal)eftModal.classList.remove('open');});
+    cancelDecline.addEventListener('click',function(){declineModal.classList.remove('open');});
+    declineModal.addEventListener('click',function(e){if(e.target===declineModal)declineModal.classList.remove('open');});
+
+    ${contractEnabled ? `
+    function refreshGate(){
+      submitDep.disabled=!(signerName.value.trim().length>1 && agreeContract.checked);
+    }
+    signerName.addEventListener('input',refreshGate);
+    agreeContract.addEventListener('change',refreshGate);
+    ` : ""}
+
+    submitDecline.addEventListener('click',function(){
+      submitDecline.disabled=true;submitDecline.textContent='Rejecting…';
       var body=new URLSearchParams();
-      body.set('reason',reason.value.trim());
+      body.set('reason',declineReason.value.trim());
       fetch('/api/booking/invoice/reject?token=${esc(invoiceToken)}',{
         method:'POST',
         headers:{'content-type':'application/x-www-form-urlencoded'},
         body:body.toString()
       }).then(function(r){
         if(r.ok){
-          modal.classList.remove('open');
-          document.querySelector('.page').innerHTML='<div style="text-align:center;padding:3rem 1rem;"><p style="font-size:1.1rem;color:#3A2E26;margin-bottom:.8rem;">Thank you for letting us know.</p><p style="color:#6b5d52;font-size:.95rem;">We appreciate you taking the time to get back to us. If circumstances change, please don\'t hesitate to reach out at <a href="mailto:info@lustiqueco.co.za" style="color:#7A2E3A;">info@lustiqueco.co.za</a>.</p></div>';
+          declineModal.classList.remove('open');
+          document.querySelector('.page').innerHTML='<div style="text-align:center;padding:3rem 1rem;"><p style="font-size:1.1rem;color:#3A2E26;margin-bottom:.8rem;">Thank you for letting us know.</p><p style="color:#6b5d52;font-size:.95rem;">We appreciate you taking the time to get back to us. If circumstances change, please don\\'t hesitate to reach out at <a href="mailto:info@lustiqueco.co.za" style="color:#7A2E3A;">info@lustiqueco.co.za</a>.</p></div>';
         } else {
-          submit.disabled=false;submit.textContent='Decline invoice';
+          submitDecline.disabled=false;submitDecline.textContent='Reject invoice';
           alert('Something went wrong — please try again or email us at info@lustiqueco.co.za');
         }
       }).catch(function(){
-        submit.disabled=false;submit.textContent='Decline invoice';
+        submitDecline.disabled=false;submitDecline.textContent='Reject invoice';
         alert('Something went wrong — please try again or email us at info@lustiqueco.co.za');
+      });
+    });
+
+    submitDep.addEventListener('click',function(){
+      var sel=document.querySelector('input[name="depositPct"]:checked');
+      if(!sel){depErr.textContent='Please choose a deposit amount.';depErr.style.display='';return;}
+      depErr.style.display='none';
+      submitDep.disabled=true;submitDep.textContent='Processing…';
+      var payload={depositPct:Number(sel.value)};
+      ${contractEnabled ? "payload.signerName=signerName.value.trim();payload.agreedToContract=!!agreeContract.checked;" : ""}
+      fetch('/api/booking/invoice/pay?token=${esc(invoiceToken)}',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify(payload)
+      }).then(function(r){return r.json();}).then(function(d){
+        if(d.ok&&d.checkoutUrl){
+          window.location.href=d.checkoutUrl;
+          return;
+        }
+        if(d.ok&&d.eftOnly){
+          depModal.classList.remove('open');
+          var e=d.eft||{};
+          var rows='';
+          if(e.bank)rows+='<span>Bank</span><span>'+e.bank+'</span>';
+          if(e.accountHolder)rows+='<span>Account name</span><span>'+e.accountHolder+'</span>';
+          if(e.accountNumber)rows+='<span>Account no.</span><span><strong>'+e.accountNumber+'</strong></span>';
+          if(e.branchCode)rows+='<span>Branch code</span><span>'+e.branchCode+'</span>';
+          if(e.amount)rows+='<span>Amount due</span><span><strong>R '+(e.amount/100).toFixed(2)+'</strong></span>';
+          eftGrid.innerHTML=rows;
+          if(e.reference)eftRefNote.innerHTML='Please use <strong>'+e.reference+'</strong> as your payment reference. Email proof to <a href="mailto:info@lustiqueco.co.za" style="color:#7A2E3A;">info@lustiqueco.co.za</a>.';
+          eftModal.classList.add('open');
+          return;
+        }
+        if(d.already_handled){window.location.reload();return;}
+        submitDep.disabled=false;submitDep.textContent='Continue to payment →';
+        depErr.textContent=(d.error==='contract_not_signed'?'Please type your name and agree to the Client Agreement.':'Something went wrong — please try again or email info@lustiqueco.co.za.');
+        depErr.style.display='';
+      }).catch(function(){
+        submitDep.disabled=false;submitDep.textContent='Continue to payment →';
+        depErr.textContent='Something went wrong — please try again or email info@lustiqueco.co.za.';
+        depErr.style.display='';
       });
     });
   }());
   </script>
 ` : ""}
+
+  <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
 
 </div>
 </body>
@@ -355,10 +501,11 @@ export async function renderInvoicePage(
   const booking = await getBookingByIdForInvoice(env, v.bookingId, fetchImpl);
   if (!booking) return new Response("Invoice not found", { status: 404, headers: { "content-type": "text/plain" } });
 
-  // Fetch EFT settings server-side so banking details are embedded in the HTML (no client XHR).
+  // Fetch EFT + contract settings server-side so they're embedded in the HTML (no client XHR).
   let bankHtml = "Contact info@lustiqueco.co.za for bank details.";
+  let contractEnabled = false;
   try {
-    const url = `${env.SUPABASE_URL}/rest/v1/business_settings?key=in.(eft_bank_name,eft_account_holder,eft_account_number,eft_branch_code)&select=key,value`;
+    const url = `${env.SUPABASE_URL}/rest/v1/business_settings?key=in.(eft_bank_name,eft_account_holder,eft_account_number,eft_branch_code,contract_enabled)&select=key,value`;
     const r = await fetchImpl(url, {
       headers: { apikey: env.SUPABASE_SERVICE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
     });
@@ -370,23 +517,11 @@ export async function renderInvoicePage(
 <span>Account name</span><span>${esc(m["eft_account_holder"] ?? "")}</span>
 <span>Account no.</span><span><strong>${esc(m["eft_account_number"] ?? "")}</strong></span>
 <span>Branch code</span><span>${esc(m["eft_branch_code"] ?? "")}</span>`;
+      contractEnabled = m["contract_enabled"] === "true";
     }
-  } catch { /* non-fatal — page still renders without bank details */ }
+  } catch { /* non-fatal — page still renders without bank details, contract gate off */ }
 
-  // For quote_sent bookings, generate a fresh accept token so the invoice page has a "Secure your date" CTA.
-  let acceptUrl: string | undefined;
-  if (booking.status === "quote_sent") {
-    const origin = new URL(req.url).origin;
-    const acceptToken = await signActionToken(
-      booking.id,
-      new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      env.SIGNING_SECRET,
-      "accept",
-    );
-    acceptUrl = `${origin}/api/booking/accept?token=${encodeURIComponent(acceptToken)}`;
-  }
-
-  const html = invoicePage(booking, token, acceptUrl).replace(">Loading…</div>", `>${bankHtml}</div>`);
+  const html = invoicePage(booking, token, contractEnabled).replace(">Loading…</div>", `>${bankHtml}</div>`);
   return new Response(html, {
     status: 200,
     headers: {
@@ -509,4 +644,156 @@ export async function handleInvoiceReject(
     status: 200,
     headers: { "content-type": "application/json" },
   });
+}
+
+// ── handleInvoicePay ──────────────────────────────────────────────────────────
+
+const jsonResp = (data: unknown, status: number) =>
+  new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
+
+/**
+ * POST /api/booking/invoice/pay?token=<signed>
+ * Body (JSON): { depositPct: 25 | 50 | 100 }
+ *
+ * TASK-D: Bride selects her deposit percentage directly from the invoice page modal.
+ * Verifies the invoice token → transitions quote_sent → accepted → creates Yoco checkout
+ * → inserts payment row → returns { ok: true, checkoutUrl }.
+ *
+ * On Yoco failure returns { ok: true, eftOnly: true, eft: {...} } so the modal
+ * can show EFT details inline without a page reload.
+ */
+export async function handleInvoicePay(
+  env: InvoicePayEnv,
+  req: Request,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Response> {
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+  const token = new URL(req.url).searchParams.get("token") ?? "";
+  if (!token) return jsonResp({ ok: false, error: "missing_token" }, 400);
+
+  const v = await verifyActionToken(token, env.SIGNING_SECRET, "invoice");
+  if (!v) return jsonResp({ ok: false, error: "invalid_token" }, 400);
+
+  let depositPct: number | null = null;
+  let signerName = "";
+  let agreedToContract = false;
+  try {
+    const body = await req.json() as { depositPct?: unknown; signerName?: unknown; agreedToContract?: unknown };
+    depositPct = Number(body.depositPct);
+    signerName = typeof body.signerName === "string" ? body.signerName.trim() : "";
+    agreedToContract = body.agreedToContract === true;
+  } catch { /* non-JSON body */ }
+
+  if (!([25, 50, 100] as number[]).includes(depositPct ?? 0)) {
+    return jsonResp({ ok: false, error: "invalid_deposit_pct" }, 400);
+  }
+  const pct = depositPct as 25 | 50 | 100;
+
+  const booking = await getBookingByIdForInvoice(env, v.bookingId, fetchImpl);
+  if (!booking) return jsonResp({ ok: false, error: "not_found" }, 404);
+  if (booking.status !== "quote_sent") {
+    return jsonResp({ ok: false, already_handled: true }, 409);
+  }
+
+  // Contract signature gate — only enforced once Zandeline's approved wording is live
+  // (business_settings.contract_enabled = 'true'). See contract.ts for the legal basis.
+  const contractEnabled = (await getBusinessSetting(env, "contract_enabled", fetchImpl)) === "true";
+  if (contractEnabled && (signerName.length < 2 || !agreedToContract)) {
+    return jsonResp({ ok: false, error: "contract_not_signed" }, 400);
+  }
+
+  const { depositNetCents, balanceNetCents } = splitDeposit(booking.total_cents, pct);
+  const now = new Date().toISOString();
+
+  const patch: Record<string, unknown> = {
+    status: "accepted",
+    accepted_at: now,
+    deposit_pct: pct,
+    deposit_net_cents: depositNetCents,
+    balance_net_cents: balanceNetCents,
+  };
+  if (contractEnabled) {
+    const contractText = contractBodyText({ ...booking, deposit_pct: pct });
+    patch.contract_signed_at = now;
+    patch.contract_signer_name = signerName;
+    patch.contract_ip = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for") ?? "";
+    patch.contract_user_agent = req.headers.get("user-agent") ?? "";
+    patch.contract_content_hash = await sha256Hex(contractText);
+    patch.contract_version = CONTRACT_VERSION;
+  }
+
+  const updated = await transitionBooking(env, booking.id, "quote_sent", patch, fetchImpl);
+
+  if (!updated) return jsonResp({ ok: false, already_handled: true }, 409);
+
+  await writeAudit(env, {
+    bookingId: booking.id,
+    eventType: "invoice-pay.accepted",
+    payload: { reference: booking.reference, pct, depositNetCents },
+  }, fetchImpl).catch(() => {});
+
+  const origin = env.ALLOWED_ORIGIN || "";
+
+  // Create Yoco checkout; on failure return EFT fallback.
+  try {
+    const r = await fetchImpl("https://payments.yoco.com/api/checkouts", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.YOCO_SECRET_KEY}`,
+        "Content-Type": "application/json",
+        // Fresh key per attempt — a fixed key would make Yoco reject any retry whose
+        // amount differs from the first attempt (e.g. after a booking-fee change or a
+        // failed-then-retried payment), even though it's a legitimately new checkout.
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        amount: depositNetCents,
+        currency: "ZAR",
+        successUrl: `${origin}/booking-deposit-paid.html?ref=${encodeURIComponent(booking.reference)}`,
+        cancelUrl: `${origin}/api/booking/invoice?token=${encodeURIComponent(token)}`,
+        metadata: { bookingId: booking.id, reference: booking.reference },
+      }),
+    });
+    if (!r.ok) throw new Error(`Yoco ${r.status}: ${await r.text()}`);
+    const checkout = (await r.json()) as { id: string; redirectUrl: string };
+    await insertPayment(env, {
+      booking_id: booking.id,
+      kind: "deposit",
+      net_cents: depositNetCents,
+      payable_cents: depositNetCents,
+      yoco_checkout_id: checkout.id,
+      pay_url: checkout.redirectUrl,
+      status: "pending",
+    }, fetchImpl);
+    return jsonResp({ ok: true, checkoutUrl: checkout.redirectUrl }, 200);
+  } catch (e) {
+    await writeAudit(env, {
+      bookingId: booking.id,
+      eventType: "invoice-pay.checkout-failed",
+      payload: { reference: booking.reference, error: String(e) },
+    }, fetchImpl).catch(() => {});
+  }
+
+  // Yoco failed — return EFT details so the modal can show them inline.
+  try {
+    const settingsUrl = `${env.SUPABASE_URL}/rest/v1/business_settings?key=in.(eft_bank_name,eft_account_holder,eft_account_number,eft_branch_code)&select=key,value`;
+    const sr = await fetchImpl(settingsUrl, {
+      headers: { apikey: env.SUPABASE_SERVICE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
+    });
+    if (sr.ok) {
+      const rows = (await sr.json()) as Array<{ key: string; value: string }>;
+      const m = Object.fromEntries(rows.map(({ key, value }) => [key, value]));
+      return jsonResp({ ok: true, eftOnly: true, eft: {
+        bank: m["eft_bank_name"] ?? "",
+        accountHolder: m["eft_account_holder"] ?? "",
+        accountNumber: m["eft_account_number"] ?? "",
+        branchCode: m["eft_branch_code"] ?? "",
+        reference: booking.reference,
+        amount: depositNetCents,
+      }}, 200);
+    }
+  } catch { /* non-fatal */ }
+
+  return jsonResp({ ok: true, eftOnly: true, eft: { reference: booking.reference, amount: depositNetCents } }, 200);
 }

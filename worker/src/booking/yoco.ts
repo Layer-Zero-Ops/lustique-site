@@ -30,6 +30,7 @@ import {
   findStalePayments,
   transitionBooking,
   getBookingById,
+  insertNotification,
   type DbEnv,
 } from "./db";
 import { writeAudit, type AuditEnv } from "./audit";
@@ -216,6 +217,14 @@ async function handlePaymentFailure(
       paymentFailedAdminEmailHtml(booking.bride_name, booking.wedding_date, amountCents, booking.reference),
       f,
     );
+    await insertNotification(env, {
+      type: "payment_failed",
+      title: `Card payment failed — ${booking.bride_name}`,
+      body: `${booking.reference} · ${fmtZAR(amountCents)} · EFT instructions sent to bride`,
+      link: `/api/admin/booking/${booking.id}`,
+      booking_id: booking.id,
+      payload: { reference: booking.reference, amountCents },
+    }, f).catch(() => {});
     await markPaymentFailureNotified(env, paymentRowId, f);
   } catch (e) {
     await writeAudit(env, { bookingId: booking.id, eventType: "payment.failure-email-failed", payload: { reference: booking.reference, error: String(e) } }, f).catch(() => {});

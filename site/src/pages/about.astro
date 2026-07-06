@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Photo from "../components/Photo.astro";
+import heroImg from "../assets/hero.jpg";
 const title = "About Lustique Co. — Bridal Artists in Pretoria";
 const desc = "Meet Lustique Co. — nine bridal hair and makeup artists in Pretoria with 40+ years combined experience, crafting calm, tailored bridal beauty since 2018.";
 ---
@@ -13,7 +14,7 @@ const desc = "Meet Lustique Co. — nine bridal hair and makeup artists in Preto
     <p>Tailored hair and makeup for the bride who wants to feel like the most radiant version of herself.</p>
   </section>
   <section class="section"><div class="wrap team-grid">
-    <div class="res-media"><Photo src="hero.jpg" alt="A Lustique bride" /></div>
+    <div class="res-media"><Photo src={heroImg} alt="A Lustique bride" /></div>
     <div class="team-copy">
       <span class="eyebrow">Since 2018</span>
       <h2 style="margin:1rem 0 1.2rem;">More than makeup —<br>a feeling of calm.</h2>

@@ -1,9 +1,17 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { SITE, OG_IMG } from "../data/site";
 const title = "Bridal Beauty for 2026 & 2027 | Lustique Co.";
 const desc = "Soft, timeless bridal looks that still look like you in twenty years.";
+const jsonld = {
+  "@context": "https://schema.org", "@type": "BlogPosting",
+  headline: "Bridal Beauty for 2026 & 2027: Soft, Timeless, You",
+  description: desc, image: OG_IMG, url: SITE + "/blog-2026-trends.html",
+  mainEntityOfPage: { "@type": "WebPage", "@id": SITE + "/blog-2026-trends.html" },
+  author: { "@type": "Person", name: "Zandeline Kemp" }, publisher: { "@id": SITE + "/" },
+};
 ---
-<BaseLayout slug="blog-2026-trends.html" title={title} desc={desc}>
+<BaseLayout slug="blog-2026-trends.html" title={title} desc={desc} jsonld={jsonld} breadcrumb={[{ name: "Journal", item: SITE + "/blog.html" }, { name: "Bridal Beauty for 2026 & 2027" }]}>
 
   
   <section class="page-hero">

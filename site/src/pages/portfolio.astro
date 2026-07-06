@@ -1,9 +1,9 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 
-const title = "Portfolio — Lustique Co.";
+const title = "Bridal Makeup & Hair Portfolio — Pretoria | Lustique Co.";
 const desc =
-  "Real brides, real mornings — a gallery of recent bridal hair and makeup work, filterable by artist.";
+  "Real brides, real mornings in Pretoria — a gallery of recent bridal hair and makeup work, filterable by artist.";
 ---
 <BaseLayout slug="portfolio.html" title={title} desc={desc} breadcrumb={[{ name: "Portfolio" }]}>
 
@@ -94,9 +94,13 @@ const desc =
 
           // Build gallery images
           gallery.innerHTML = images.map(function (img) {
+            var artistName = img.artists && img.artists.name;
+            var alt = artistName
+              ? "Bridal hair and makeup by " + artistName + " — Lustique Co., Pretoria"
+              : "Bridal hair and makeup portfolio — Lustique Co., Pretoria";
             return '<img class="gitem"'
               + ' src="' + storageUrl(img.storage_path) + '"'
-              + ' alt="Portfolio image — Lustique Co. bridal artistry"'
+              + ' alt="' + alt.replace(/"/g, "&quot;") + '"'
               + ' data-artist="' + (img.artist_id || "") + '"'
               + ' loading="lazy" decoding="async" width="900">';
           }).join("");

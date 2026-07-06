@@ -1,6 +1,18 @@
 ---
+import { Image } from "astro:assets";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Photo from "../components/Photo.astro";
+import heroImg from "../assets/hero.jpg";
+import resImg from "../assets/res.jpg";
+import s1Img from "../assets/s1.jpg";
+import s2Img from "../assets/s2.jpg";
+import s3Img from "../assets/s3.jpg";
+import t1Img from "../assets/t1.jpg";
+import t2Img from "../assets/t2.jpg";
+import t3Img from "../assets/t3.jpg";
+import t4Img from "../assets/t4.jpg";
+import { TESTIMONIALS } from "../data/site";
+import { fetchGoogleReviews } from "../lib/googleReviews";
 
 const title = "Bridal Makeup Artist Pretoria | Lustique Co. — Hair & Makeup";
 const desc =
@@ -10,31 +22,31 @@ const heroHeadline = "Feel most like yourself.";
 const heroSub =
   "For the bride who wants to look softly, unmistakably, unforgettably like herself — on the morning that matters most.";
 
-const testimonials = [
-  {
-    id: "t1",
-    quote:
-      "They felt less like a vendor and more like the calmest people in the room. I looked like me — just the version I always hoped to be on my wedding day.",
-    attribution: "A Lustique Bride",
-  },
-  {
-    id: "t2",
-    quote:
-      "My whole bridal party was ready, relaxed and glowing. Not one moment of stress all morning.",
-    attribution: "A Lustique Bride",
-  },
-  {
-    id: "t3",
-    quote:
-      "The trial sold me. They listened, adjusted, and on the day my makeup lasted from the first photo to the last dance.",
-    attribution: "A Lustique Bride",
-  },
-];
+// Real Google reviews when GOOGLE_PLACES_API_KEY/GOOGLE_PLACE_ID are configured (see SETUP.md);
+// falls back to the curated static testimonials otherwise. Never fabricate either the reviews
+// or the aggregateRating — both come straight from what Google's API actually returns.
+const googleReviews = await fetchGoogleReviews();
+const testimonials = googleReviews?.reviews.length
+  ? googleReviews.reviews.map((r, i) => ({ id: `g${i}`, quote: r.text, attribution: `${r.authorName} — Google review` }))
+  : TESTIMONIALS;
+const testimonialsSub = googleReviews?.reviews.length
+  ? `— ${googleReviews.rating.toFixed(1)}★ average from ${googleReviews.userRatingCount} real Google reviews`
+  : "— real bride testimonials";
+const businessJsonLdExtra = googleReviews ? {
+  aggregateRating: { "@type": "AggregateRating", ratingValue: googleReviews.rating, reviewCount: googleReviews.userRatingCount },
+  review: googleReviews.reviews.map((r) => ({
+    "@type": "Review",
+    reviewRating: { "@type": "Rating", ratingValue: r.rating, bestRating: 5 },
+    author: { "@type": "Person", name: r.authorName },
+    reviewBody: r.text,
+    datePublished: r.publishTime,
+  })),
+} : undefined;
 ---
-<BaseLayout slug="index.html" title={title} desc={desc} preloadImage="/assets/hero.jpg">
+<BaseLayout slug="index.html" title={title} desc={desc} businessJsonLdExtra={businessJsonLdExtra}>
 
   <section class="hero" aria-label="Lustique Co. — bridal hair and makeup artistry">
-    <img class="hero-img" src="assets/hero.jpg" alt="A Lustique bride on her wedding morning — softly lit, hair styled, looking quietly radiant" fetchpriority="high" />
+    <Image class="hero-img" src={heroImg} alt="A Lustique bride on her wedding morning — softly lit, hair styled, looking quietly radiant" fetchpriority="high" loading="eager" widths={[640, 960, 1440, 1920]} sizes="100vw" formats={["avif", "webp"]} />
     <div class="hero-overlay"></div>
     <div class="hero-inner">
       <span class="eyebrow">Bridal Hair &amp; Makeup Artistry · Pretoria &amp; Beyond</span>
@@ -75,16 +87,16 @@ const testimonials = [
         <p class="reveal d2" style="max-width:34ch;color:#5c5048;">Every look is tailored to you — your features, your dress, the feeling of your day.</p>
       </div>
       <div class="cards">
-        <article class="card reveal"><div class="card-media"><Photo src="s1.jpg" alt="Bridal makeup by Lustique Co." /></div><div class="card-body"><h3>Bridal Makeup</h3><p>A soft, lasting look built on flawless skin — from natural radiance to timeless glamour, made to last from "I do" to the last dance.</p><a class="card-link" href="services.html">Explore makeup <span>→</span></a></div></article>
-        <article class="card reveal d1"><div class="card-media"><Photo src="s2.jpg" alt="Bridal hair styling by Lustique Co." /></div><div class="card-body"><h3>Bridal Hair</h3><p>From romantic soft curls to elegant updos, styled to complement your features, your dress and the spirit of your celebration.</p><a class="card-link" href="services.html">Explore hair <span>→</span></a></div></article>
-        <article class="card reveal d2"><div class="card-media"><Photo src="s3.jpg" alt="A bridal party styled by Lustique Co." /></div><div class="card-body"><h3>The Whole Party</h3><p>Bridesmaids, mothers, flower girls and guests — beautifully cohesive, individually considered, calmly choreographed on the day.</p><a class="card-link" href="pricing.html">Explore packages <span>→</span></a></div></article>
+        <article class="card reveal"><div class="card-media"><Photo src={s1Img} alt="Bridal makeup by Lustique Co." /></div><div class="card-body"><h3>Bridal Makeup</h3><p>A soft, lasting look built on flawless skin — from natural radiance to timeless glamour, made to last from "I do" to the last dance.</p><a class="card-link" href="services.html">Explore makeup <span>→</span></a></div></article>
+        <article class="card reveal d1"><div class="card-media"><Photo src={s2Img} alt="Bridal hair styling by Lustique Co." /></div><div class="card-body"><h3>Bridal Hair</h3><p>From romantic soft curls to elegant updos, styled to complement your features, your dress and the spirit of your celebration.</p><a class="card-link" href="services.html">Explore hair <span>→</span></a></div></article>
+        <article class="card reveal d2"><div class="card-media"><Photo src={s3Img} alt="A bridal party styled by Lustique Co." /></div><div class="card-body"><h3>The Whole Party</h3><p>Bridesmaids, mothers, flower girls and guests — beautifully cohesive, individually considered, calmly choreographed on the day.</p><a class="card-link" href="pricing.html">Explore packages <span>→</span></a></div></article>
       </div>
     </div>
   </section>
 
   <section class="section team">
     <div class="wrap team-grid">
-      <div class="team-collage reveal"><Photo src="t1.jpg" alt="A Lustique artist styling a bride" /><Photo src="t2.jpg" alt="Bridal hair detail" /><Photo src="t3.jpg" alt="Bridal makeup detail" /><Photo src="t4.jpg" alt="A Lustique bride on her wedding morning" /></div>
+      <div class="team-collage reveal"><Photo src={t1Img} alt="A Lustique artist styling a bride" /><Photo src={t2Img} alt="Bridal hair detail" /><Photo src={t3Img} alt="Bridal makeup detail" /><Photo src={t4Img} alt="A Lustique bride on her wedding morning" /></div>
       <div class="team-copy">
         <span class="eyebrow reveal">The Lustique team</span>
         <h2 class="reveal d1">Nine artists.<br>One quiet morning at a time.</h2>
@@ -114,7 +126,7 @@ const testimonials = [
         <div class="price reveal d3"><small>Bridal hair</small><div class="amt"><sup>from R</sup>495</div></div>
       </div>
       <div class="pricing-foot">
-        <p>Free travel within 30 km of our La Montagne studio · R7/km beyond · prices scale with hair length</p>
+        <p>Free travel within 40 km round trip of our La Montagne studio · R7/km beyond · prices scale with hair length</p>
         <a class="btn btn-light reveal" href="pricing.html">See full pricing &amp; estimate →</a>
       </div>
     </div>
@@ -122,7 +134,7 @@ const testimonials = [
 
   <section class="section testi">
     <div class="wrap">
-      <div class="stars reveal">★★★★★</div>
+      <div class="stars reveal">{"★".repeat(Math.round(googleReviews?.rating ?? 5))}{"☆".repeat(5 - Math.round(googleReviews?.rating ?? 5))}</div>
       <div class="testi-slider reveal d1">
         {testimonials.map((t, i) => (
           <div class={`testi-slide${i === 0 ? " active" : ""}`}>
@@ -132,7 +144,7 @@ const testimonials = [
         ))}
       </div>
       <div class="testi-dots"></div>
-      <div class="sub reveal d2">— real bride testimonials</div>
+      <div class="sub reveal d2">{testimonialsSub}</div>
     </div>
   </section>
 
@@ -144,7 +156,7 @@ const testimonials = [
         <p class="reveal d2">A 30-day bridal skin-prep plan, a wedding-morning timeline, and more — thoughtful resources to help your day feel calm and considered. Yours, free.</p>
         <a class="btn btn-primary reveal d2" href="guides.html">Browse the guides</a>
       </div>
-      <div class="res-media reveal d1"><Photo src="res.jpg" alt="A calm Lustique bridal morning" /></div>
+      <div class="res-media reveal d1"><Photo src={resImg} alt="A calm Lustique bridal morning" /></div>
     </div>
   </section>
 

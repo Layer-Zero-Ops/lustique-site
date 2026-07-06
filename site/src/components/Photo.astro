@@ -1,6 +1,9 @@
 ---
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+
 interface Props {
-  src: string;
+  src: ImageMetadata;
   alt: string;
   cls?: string;
   eager?: boolean;
@@ -11,13 +14,14 @@ interface Props {
 const { src, alt, cls = "", eager = false, width = 800, height = 800 } = Astro.props as Props;
 ---
 <div class={`ph img ${cls}`}>
-  <img
+  <Image
     class="ph-img"
-    src={`assets/${src}`}
+    src={src}
     alt={alt}
     loading={eager ? "eager" : "lazy"}
     decoding="async"
     width={width}
     height={height}
+    formats={["avif", "webp"]}
   />
 </div>

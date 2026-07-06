@@ -1,4 +1,4 @@
-import { PRICING, RATE_PER_KM, FREE_KM, EVENT_BASE, LESSONS, ASSISTANT_RATE } from "./constants";
+import { PRICING, RATE_PER_KM, FREE_KM, EVENT_BASE, LESSONS, ASSISTANT_RATE, OVERNIGHT_RATE_PER_ARTIST, DEST_MIN_NIGHTS } from "./constants";
 import type { EstimateInput, EstimateResult, EstimateLine, HairBuckets, HairLength, Promo } from "./types";
 
 const LENGTHS: readonly HairLength[] = ["short", "medium", "long", "xlong"];
@@ -9,6 +9,27 @@ export const travelForKm = (km: number): number => {
   const roundTrip = km * 2;
   return roundTrip <= FREE_KM ? 0 : Math.round(roundTrip * RATE_PER_KM);
 };
+
+/**
+ * Indicative-only figures for a destination wedding (>200km one-way) — NOT the
+ * official quoted total, which computeEstimate() always zeroes and flags
+ * `destination: true` for so it stays a personally-confirmed number (PRICING.md
+ * §4: the R7/km round-trip vs one-way reading, and how many artists actually
+ * travel, are still open items worth Zandeline's confirmation for this segment).
+ * Both figures below use rates already locked elsewhere in this file:
+ * the same round-trip travel formula as travelForKm, and the R1000/artist/night
+ * (min 2 nights) overnight rate from PRICING.md §4/§5. `heads` reuses the same
+ * party-size tiers that already gate the included-assistant count.
+ */
+export function estimateDestinationExtras(
+  kmOneWay: number,
+  heads: number,
+): { travelEstimate: number; artists: number; accommodationEstimate: number } {
+  const travelEstimate = Math.round(kmOneWay * 2 * RATE_PER_KM);
+  const artists = heads >= 9 ? 3 : heads >= 5 ? 2 : 1;
+  const accommodationEstimate = artists * OVERNIGHT_RATE_PER_ARTIST * DEST_MIN_NIGHTS;
+  return { travelEstimate, artists, accommodationEstimate };
+}
 
 /** Flatten a length distribution into an ordered list (short→x-long), one entry per head. */
 function expandBuckets(b: HairBuckets): HairLength[] {
@@ -23,17 +44,98 @@ function resolveTravel(t: EstimateInput["travel"]): { cost: number; destination:
   return { cost: band === null ? 0 : band, destination: band === null };
 }
 
+interface PromoContext {
+  paidCount: number;          // looks booked, incl. the bride — the "N+" thresholds count against this
+  freebieCandidates: number[]; // look costs eligible to be comped (never the bride, never an under-12 FG)
+  weddingDayOfWeek?: number;
+  weddingMonth?: number;
+  monthsUntilWedding?: number;
+}
+
+interface PromoEffect {
+  lines: EstimateLine[]; // discount lines (negative amounts) — appended to the breakdown
+  perks: string[];       // zero-price-effect badges (e.g. "Free touch-up kit included")
+  travelWaived: boolean; // true = skip the travel line entirely (any distance band)
+}
+
+const NO_EFFECT: PromoEffect = { lines: [], perks: [], travelWaived: false };
+
 /**
- * Apply the active promo. `paidCount` = looks booked (for the "4+" threshold); `freebieCandidates`
- * = looks eligible to be comped (party adults + 12+ flower girls — never the bride, never an
- * under-12 flower girl). Returns the discount as a negative line, or null.
+ * Evaluate whichever promo is active against this booking. Each kind is one of the
+ * curated presets in `promoPresets.ts` — Zandeline picks which is live from the
+ * admin dashboard; this function just applies whatever config it's handed.
  */
-function promoLine(promo: Promo, paidCount: number, freebieCandidates: number[]): EstimateLine | null {
-  if (promo.kind === "none" || paidCount < promo.minPeople) return null;
-  if (promo.kind === "cheapestLookFree" && freebieCandidates.length > 0) {
-    return { label: "Promo — cheapest look free", amount: -Math.min(...freebieCandidates) };
+function evaluatePromo(promo: Promo, ctx: PromoContext): PromoEffect {
+  switch (promo.kind) {
+    case "none":
+      return NO_EFFECT;
+
+    case "cheapestLookFree": {
+      if (ctx.paidCount < promo.minPeople || !ctx.freebieCandidates.length) return NO_EFFECT;
+      return { lines: [{ label: "Promo — cheapest look free", amount: -Math.min(...ctx.freebieCandidates) }], perks: [], travelWaived: false };
+    }
+
+    case "flatCreditOnMinParty": {
+      if (ctx.paidCount < promo.minPeople) return NO_EFFECT;
+      return { lines: [{ label: `Promo — R${promo.amount} off your booking`, amount: -promo.amount }], perks: [], travelWaived: false };
+    }
+
+    case "milestoneTiers": {
+      const qualifying = promo.tiers
+        .filter((t) => ctx.paidCount >= t.minPeople)
+        .sort((a, b) => a.minPeople - b.minPeople);
+      if (!qualifying.length) return NO_EFFECT;
+      const lines: EstimateLine[] = [];
+      const perks: string[] = [];
+      let travelWaived = false;
+      // Perks are cumulative once a tier is reached — a 7-person party still gets the 4+
+      // tier's free look AND the 7+ tier's badge. The discount % takes the BEST (largest)
+      // among all qualifying tiers, not just the highest-minPeople one, since a higher tier
+      // may only add a perk/waiver without redefining the look discount itself.
+      const bestFreeLookPercent = Math.max(0, ...qualifying.map((t) => t.freeLookPercent ?? 0));
+      if (bestFreeLookPercent > 0 && ctx.freebieCandidates.length) {
+        const cheapest = Math.min(...ctx.freebieCandidates);
+        const amount = Math.round(cheapest * (bestFreeLookPercent / 100));
+        if (amount > 0) {
+          const label = bestFreeLookPercent >= 100 ? "Promo — cheapest look free" : `Promo — ${bestFreeLookPercent}% off cheapest look`;
+          lines.push({ label, amount: -amount });
+        }
+      }
+      for (const t of qualifying) {
+        if (t.travelWaived) travelWaived = true;
+        if (t.perkLabel) perks.push(t.perkLabel);
+      }
+      return { lines, perks, travelWaived };
+    }
+
+    case "weekdayDiscount": {
+      if (ctx.weddingDayOfWeek == null || !promo.applyOnDays.includes(ctx.weddingDayOfWeek)) return NO_EFFECT;
+      return {
+        lines: promo.amount > 0 ? [{ label: "Promo — weekday wedding discount", amount: -promo.amount }] : [],
+        perks: [],
+        travelWaived: !!promo.travelWaived,
+      };
+    }
+
+    case "seasonalWindow": {
+      if (ctx.weddingMonth == null) return NO_EFFECT;
+      const inWindow = promo.startMonth <= promo.endMonth
+        ? ctx.weddingMonth >= promo.startMonth && ctx.weddingMonth <= promo.endMonth
+        : ctx.weddingMonth >= promo.startMonth || ctx.weddingMonth <= promo.endMonth; // wraps year-end (e.g. Nov-Feb)
+      if (!inWindow) return NO_EFFECT;
+      return { lines: [{ label: "Promo — off-peak season rate", amount: -promo.amount }], perks: [], travelWaived: false };
+    }
+
+    case "earlyBirdLeadTime": {
+      if (ctx.monthsUntilWedding == null || ctx.monthsUntilWedding < promo.minMonthsAhead) return NO_EFFECT;
+      return { lines: [{ label: "Promo — early-bird booking bonus", amount: -promo.amount }], perks: [], travelWaived: false };
+    }
+
+    case "bundledValueAdd": {
+      if (ctx.paidCount < promo.minPeople) return NO_EFFECT;
+      return { lines: [], perks: [promo.perkLabel], travelWaived: false };
+    }
   }
-  return null;
 }
 
 /**
@@ -55,15 +157,16 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
     return total + trav.cost;
   };
 
-  // Group lessons — tiered per-person (PRICING.md §7), minimum group of 6.
+  // Group lessons — tiered per-person (PRICING.md §7), minimum group of 6. Promos are a
+  // bridal-party lever only — not applied here.
   if (input.occasion === "lessons") {
     const n = Math.max(LESSONS.minGroup, input.lessonsAttending ?? 0);
     const pp = n < LESSONS.threshold ? LESSONS.perPersonUnder10 : LESSONS.perPerson10Plus;
     lines.push({ label: `Group lesson × ${n}`, amount: n * pp });
-    return { total: addTravel(n * pp), heads: n, destination: trav.destination, occasion: input.occasion, lines };
+    return { total: addTravel(n * pp), heads: n, destination: trav.destination, occasion: input.occasion, lines, perks: [] };
   }
 
-  // Other non-wedding events — makeup faces × base + hair faces × event-hair.
+  // Other non-wedding events — makeup faces × base + hair faces × event-hair. No promos here either.
   if (input.occasion !== "wedding") {
     const base = EVENT_BASE[input.occasion] ?? 750;
     const evMakeup = Math.max(0, input.evMakeup ?? 0);
@@ -72,7 +175,7 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
     let total = 0;
     if (evMakeup > 0) { total += base * evMakeup; lines.push({ label: `Makeup × ${evMakeup}`, amount: base * evMakeup }); }
     if (evHair > 0) { const a = PRICING.hairAdult[len] * evHair; total += a; lines.push({ label: `Hair (${LEN_LABEL[len]}) × ${evHair}`, amount: a }); }
-    return { total: addTravel(total), heads: Math.max(1, evMakeup, evHair), destination: trav.destination, occasion: input.occasion, lines };
+    return { total: addTravel(total), heads: Math.max(1, evMakeup, evHair), destination: trav.destination, occasion: input.occasion, lines, perks: [] };
   }
 
   // Wedding — full bridal logic.
@@ -122,10 +225,18 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
   const artists = Math.max(0, input.requestedArtists);
   if (artists > 0) { total += artists * ASSISTANT_RATE; lines.push({ label: `Additional artist × ${artists}`, amount: artists * ASSISTANT_RATE }); }
 
-  total = addTravel(total);
+  const effect = evaluatePromo(input.promo, {
+    paidCount: paid.length,
+    freebieCandidates: freebie,
+    weddingDayOfWeek: input.weddingDayOfWeek,
+    weddingMonth: input.weddingMonth,
+    monthsUntilWedding: input.monthsUntilWedding,
+  });
 
-  const promo = promoLine(input.promo, paid.length, freebie);
-  if (promo) { total += promo.amount; lines.push(promo); }
+  // A travel-waiver promo skips the travel line entirely; destination weddings already
+  // zero travel inside addTravel regardless, so this only changes local-band bookings.
+  total = (effect.travelWaived && !trav.destination) ? total : addTravel(total);
+  for (const ln of effect.lines) { total += ln.amount; lines.push(ln); }
 
-  return { total, heads, destination: trav.destination, occasion: "wedding", lines };
+  return { total, heads, destination: trav.destination, occasion: "wedding", lines, perks: effect.perks };
 }

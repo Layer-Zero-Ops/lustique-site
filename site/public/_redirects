@@ -1,10 +1,12 @@
 # www → apex is handled by the CF Redirect Rule (full URL sources are not
 # allowed in _redirects — CF Pages only accepts relative source paths).
 
-# Redirect old blog-*.html URLs to new blog/ directory URLs (301 permanent).
-# These redirects must be committed BEFORE the 3 old .astro pages are deleted
-# (deletion happens in Task 7, after Sanity content is seeded).
-# CF Pages processes this file automatically at deploy time.
-/blog-choosing-artist.html  /blog/choosing-artist.html  301
-/blog-bridal-trial.html     /blog/bridal-trial.html     301
-/blog-2026-trends.html      /blog/2026-trends.html      301
+# Redirects for the old blog-*.html URLs -> new /blog/*.html CMS-backed URLs are NOT live yet.
+# The `blog_posts` table is currently empty, so /blog/*.html don't exist — adding these 301s
+# now would send real traffic/backlinks for the 3 existing posts (blog-choosing-artist.html,
+# blog-bridal-trial.html, blog-2026-trends.html) into a dead redirect. Once those 3 posts are
+# seeded into blog_posts (Supabase) AND verified live at /blog/<slug>.html, re-add:
+#   /blog-choosing-artist.html  /blog/choosing-artist.html  301
+#   /blog-bridal-trial.html     /blog/bridal-trial.html     301
+#   /blog-2026-trends.html      /blog/2026-trends.html      301
+# ...and only then delete the matching src/pages/blog-*.astro files.

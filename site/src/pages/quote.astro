@@ -32,15 +32,19 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
       </div>
       <div class="form-step reveal" id="weddingDayFields"><h3>Your big day</h3><p class="step-sub">So we can reserve the date and work out the travel from our La Montagne studio.</p>
         <div class="field-row"><div class="field"><label for="weddingDate">Wedding date</label><input type="date" id="weddingDate"></div><div class="field"><label for="provinceInput">Province</label><select id="provinceInput"><option>Gauteng</option><option>Limpopo</option><option>Mpumalanga</option><option>North West</option><option>Other / outside SA</option></select></div></div>
-        <div class="field"><label for="venueInput">Venue name <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(helps us pin you precisely)</span></label><input id="venueInput" placeholder="e.g. Red Ivory Estate"></div>
+        <div class="field" style="position:relative;">
+          <label for="venueInput">Venue name or address <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(start typing — we’ll search for it)</span></label>
+          <input id="venueInput" placeholder="e.g. Red Ivory Estate, or a street address" autocomplete="off">
+          <div id="venueSuggestions" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;background:#fff;border:1px solid rgba(60,42,42,.18);border-radius:10px;margin-top:.3rem;box-shadow:0 8px 24px rgba(60,42,42,.12);max-height:280px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;"></div>
+        </div>
         <div class="field"><label for="townInput">Town / area</label><input id="townInput" placeholder="e.g. Hartbeespoort"></div>
         <button type="button" class="btn btn-ghost" id="checkTravel" style="padding:.7em 1.4em;">Find venue on map</button>
         <div id="venueMap" style="height:300px;border-radius:14px;margin-top:1rem;display:none;"></div>
         <div id="mapHint" style="display:none;margin-top:.75rem;background:rgba(138,90,74,.07);border:1px solid rgba(138,90,74,.18);border-radius:10px;padding:.65rem 1rem;font-size:.88rem;color:#5c5048;">
-          <strong style="color:var(--mocha);">📍 Drag the pin to your venue.</strong> Drop it on your exact location and the travel fee updates instantly. Use the button above to centre the map on your venue name.
+          <strong style="color:var(--mocha);">📍 Pick a suggestion above for the exact pin.</strong> Didn’t see it? Drag the pin on the map to your venue and the travel fee updates instantly.
         </div>
-        <p class="note" id="travelResult" style="margin:.85rem 0 0;">We travel from La Montagne, Pretoria — first 30 km round trip is free, then R7/km.</p>
-        <div class="field" id="bandWrap" style="display:none;margin-top:1rem;"><label for="travelBand">Distance band (fallback)</label><select id="travelBand"><option value="studio">Within 15 km one-way / 30 km round trip (free)</option><option value="mid">30–80 km</option><option value="far">80–150 km</option><option value="veryfar">150–200 km</option><option value="destination">Over 200 km / destination</option></select></div>
+        <p class="note" id="travelResult" style="margin:.85rem 0 0;">We travel from La Montagne, Pretoria — first 40 km round trip is free, then R7/km.</p>
+        <div class="field" id="bandWrap" style="display:none;margin-top:1rem;"><label for="travelBand">Distance band (fallback)</label><select id="travelBand"><option value="studio">Within 20 km one-way / 40 km round trip (free)</option><option value="mid">30–80 km</option><option value="far">80–150 km</option><option value="veryfar">150–200 km</option><option value="destination">Over 200 km / destination</option></select></div>
       </div>
       <div id="weddingFields">
       <div class="form-step reveal"><h3>The bride</h3><p class="step-sub">Your trial and wedding-day hair &amp; makeup — lashes and a touch-up kit included.</p>
@@ -76,7 +80,7 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         <div class="field"><label for="inspo">Inspiration link (Pinterest / Instagram)</label><input id="inspo" placeholder="Paste a link — optional"></div>
         <div class="field"><label for="message">Anything else we should know? (skin notes, timings, special requests)</label><textarea id="message" rows="4" placeholder="Tell us anything that helps us prepare…"></textarea></div>
         <div id="estimateBreakdown" style="margin:.4rem 0 1.3rem;font-size:.92rem;color:#5c5048;"></div>
-        <div id="promoRow"><label style="display:flex;align-items:center;gap:.6rem;font-size:.92rem;color:#5c5048;margin:.2rem 0 1.3rem;"><input type="checkbox" id="promoToggle" checked style="width:auto;"> Apply the "book 4+, least-expensive look free" offer to my estimate</label></div>
+        <div id="promoRow" style="display:none;"><label style="display:flex;align-items:center;gap:.6rem;font-size:.92rem;color:#5c5048;margin:.2rem 0 1.3rem;"><input type="checkbox" id="promoToggle" checked style="width:auto;"> <span id="promoToggleLabel">Apply the current offer to my estimate</span></label></div>
         <div style="margin:1.2rem 0 .8rem;">
           <label style="display:flex;align-items:flex-start;gap:.7rem;font-size:.92rem;color:#5c5048;cursor:pointer;">
             <input type="checkbox" id="consentCheck" style="width:auto;margin-top:.18rem;flex-shrink:0;">

@@ -24,7 +24,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 body {
   font-family: var(--sans);
   color: var(--charcoal);
@@ -52,7 +52,7 @@ h3 { font-size: clamp(1.4rem, 2.3vw, 1.9rem); }
 .center { text-align: center; }
 
 /* ---------- buttons ---------- */
-.btn { display: inline-flex; align-items: center; gap: 0.6em; font-family: var(--sans); font-size: 0.82rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 1.05em 2em; border-radius: 100px; cursor: pointer; transition: transform .5s var(--ease), background .5s var(--ease), color .5s var(--ease), box-shadow .5s var(--ease); border: 1px solid transparent; white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; gap: 0.6em; font-family: var(--sans); font-size: 0.82rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 1.05em 2em; border-radius: 100px; cursor: pointer; transition: transform .5s var(--ease), background .5s var(--ease), color .5s var(--ease), box-shadow .5s var(--ease); border: 1px solid transparent; max-width: 100%; }
 .btn-primary { background: var(--rose-deep); color: var(--ivory); }
 .btn-primary:hover { background: var(--burgundy); transform: translateY(-2px); box-shadow: 0 14px 34px -16px rgba(122,46,58,.6); }
 .btn-ghost { background: transparent; color: var(--mocha); border-color: rgba(92,67,50,.35); }
@@ -195,11 +195,17 @@ html.js .ph.img-error .ph-img { opacity: 1; filter: none; }
 .pricing-foot { text-align:center; }
 .pricing-foot p { opacity: .8; font-size: .92rem; margin-bottom: 1.6rem; }
 
+/* Horizontal-scroll wrapper for any table — on narrow screens a table's natural content
+   width often exceeds the viewport; scrolling the table itself (rather than squeezing its
+   columns or letting it push the whole page wider) keeps tabular data readable at any size. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 14px; }
+.table-scroll .ptable { margin-top: 0; }
+
 /* pricing tables (pricing page) */
+.ptable-caption { font-family: var(--serif); font-size: 1.6rem; color: var(--mocha); margin: 1.5rem 0 .8rem; }
 .ptable { width: 100%; border-collapse: collapse; margin: 1.5rem 0 0; background: var(--white); border-radius: 14px; overflow: hidden; box-shadow: 0 30px 60px -50px rgba(92,67,50,.6); }
-.ptable caption { text-align: left; font-family: var(--serif); font-size: 1.6rem; color: var(--mocha); margin-bottom: .8rem; caption-side: top; }
 .ptable th, .ptable td { padding: .95rem 1.2rem; text-align: left; border-bottom: 1px solid rgba(92,67,50,.08); font-size: .96rem; }
-.ptable th { font-family: var(--sans); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--burgundy); font-weight: 600; background: var(--blush); }
+.ptable th { font-family: var(--sans); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--burgundy); font-weight: 600; background: var(--blush); white-space: nowrap; }
 .ptable td.amt { text-align: right; font-family: var(--serif); font-size: 1.2rem; color: var(--mocha); white-space: nowrap; }
 .ptable tr:last-child td { border-bottom: 0; }
 .len-toggle { display: inline-flex; gap: .4rem; background: var(--blush); padding: .35rem; border-radius: 100px; margin-top: 1rem; flex-wrap: wrap; }
