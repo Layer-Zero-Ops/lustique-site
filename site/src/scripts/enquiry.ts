@@ -13,6 +13,10 @@ const val = (id: string): string => {
   return el ? el.value.trim() : "";
 };
 const numv = (id: string): number => parseInt(val(id), 10) || 0;
+const chk = (id: string, d = true): boolean => {
+  const el = document.getElementById(id) as HTMLInputElement | null;
+  return el ? el.checked : d;
+};
 
 const OCCASION: Record<string, string> = {
   wedding: "Wedding", matric: "Matric farewell",
@@ -56,7 +60,12 @@ function collect() {
 
   if (occasion === "wedding") {
     add("Venue", val("venueInput"));
-    add("Bride hair", lenLabel("brideHairLen"));
+    const brideMakeup = chk("brideWantsMakeup");
+    const brideHair = chk("brideWantsHair");
+    const brideTrial = chk("brideWantsTrial");
+    const brideParts = [brideMakeup ? "Makeup" : null, brideHair ? "Hair" : null].filter(Boolean).join(" + ");
+    add("Bride services", `${brideParts || "None selected"}${brideTrial ? " (incl. trial)" : " (wedding day only)"}`);
+    if (brideHair) add("Bride hair length", lenLabel("brideHairLen"));
     add("Party", partySummary());
     add("Party hair", partyHairSummary());
     if (numv("fgHair")) add("Flower-girl hair", `${numv("fgHair")} × ${lenLabel("fgHairLen")}`);
@@ -141,6 +150,10 @@ btn?.addEventListener("click", async () => {
   }
   // For weddings, the length buckets must account for everyone needing hair — so the quote is exact.
   if ((val("occasion") || "wedding") === "wedding") {
+    if (!chk("brideWantsMakeup") && !chk("brideWantsHair")) {
+      say("Please choose at least makeup or hair for the bride.");
+      return;
+    }
     const need = numv("bmHair") + numv("momHair") + numv("guestHair");
     const placed = numv("lenShort") + numv("lenMedium") + numv("lenLong") + numv("lenXlong");
     if (placed !== need) {

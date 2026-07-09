@@ -4,7 +4,7 @@ import { ACTIVE_PROMO } from "./constants";
 import type { EstimateInput } from "./types";
 
 const base: EstimateInput = {
-  occasion: "wedding", brideHairLen: "medium",
+  occasion: "wedding", brideWantsMakeup: true, brideWantsHair: true, brideWantsTrial: true, brideHairLen: "medium",
   partyHair: { short: 0, medium: 0, long: 0, xlong: 0 },
   bmMakeup: 0, bmHair: 0, momMakeup: 0, momHair: 0,
   fgAge: "under", fgMakeup: 0, fgHair: 0, fgHairLen: "medium",
@@ -62,7 +62,36 @@ describe("computeEstimate — wedding", () => {
     const r = computeEstimate(base);
     expect(r.total).toBe(2890);
     expect(r.heads).toBe(1);
-    expect(r.lines).toEqual([{ label: "Bride — makeup + hair, trial & wedding day (medium)", amount: 2890 }]);
+    expect(r.lines).toEqual([{ label: "Bride — makeup + hair (medium), trial & wedding day", amount: 2890 }]);
+  });
+
+  it("bride can choose makeup only, no hair — no hair length charged", () => {
+    const r = computeEstimate({ ...base, brideWantsHair: false });
+    expect(r.total).toBe(1700); // 850 trial + 850 day, no hair component at any length
+    expect(r.lines).toEqual([{ label: "Bride — makeup, trial & wedding day", amount: 1700 }]);
+  });
+
+  it("bride can choose hair only, no makeup", () => {
+    const r = computeEstimate({ ...base, brideWantsMakeup: false, brideHairLen: "long" });
+    expect(r.total).toBe(1390); // 695 trial + 695 day (long)
+    expect(r.lines).toEqual([{ label: "Bride — hair (long), trial & wedding day", amount: 1390 }]);
+  });
+
+  it("bride can skip the trial — wedding-day session only", () => {
+    const r = computeEstimate({ ...base, brideWantsTrial: false });
+    expect(r.total).toBe(1445); // 850 makeup + 595 hair (medium), day only
+    expect(r.lines).toEqual([{ label: "Bride — makeup + hair (medium), wedding day only", amount: 1445 }]);
+  });
+
+  it("bride makeup-only never counts toward the '4+' promo threshold (not a full look)", () => {
+    const promo = { kind: "cheapestLookFree" as const, minPeople: 1 };
+    // Bride makeup-only + 1 full-look bridesmaid: only the bridesmaid is a "full look",
+    // so paidCount is 1 (not 2) — still meets minPeople:1, but the bride can never be freed.
+    const r = computeEstimate({
+      ...base, promo, brideWantsHair: false,
+      bmMakeup: 1, bmHair: 1, partyHair: { short: 0, medium: 1, long: 0, xlong: 0 },
+    });
+    expect(r.lines).toContainEqual({ label: "Promo — cheapest look free", amount: -1045 }); // the bridesmaid, never the bride
   });
 
   it("full party: NO auto-assistant; promo frees the cheapest ADULT look (not the flower girl)", () => {
@@ -75,7 +104,7 @@ describe("computeEstimate — wedding", () => {
     expect(r.total).toBe(7520);
     expect(r.heads).toBe(7);
     expect(r.lines).toEqual([
-      { label: "Bride — makeup + hair, trial & wedding day (medium)", amount: 2890 },
+      { label: "Bride — makeup + hair (medium), trial & wedding day", amount: 2890 },
       { label: "Bridesmaid Makeup × 3", amount: 1650 },
       { label: "Bridesmaid Hair Styling × 3", amount: 1485 },
       { label: "Mother Makeup × 2", amount: 1000 },
@@ -129,6 +158,31 @@ describe("computeEstimate — wedding", () => {
 });
 
 describe("promo kinds (Zandeline's dashboard-selected library)", () => {
+  // Regression: a real quote (bride + 4 makeup-only bridesmaids + 1 makeup-only mother —
+  // 6 paid people, 0 full looks besides the bride) was still eligible to reach the "4+"
+  // threshold before this fix, because the threshold counted ANY paid service, not just
+  // full hair+makeup looks. The promo explicitly advertises "book hair & makeup for 4+".
+  it("cheapestLookFree: makeup-only or hair-only bookings never count toward the '4+' threshold", () => {
+    const promo = { kind: "cheapestLookFree" as const, minPeople: 4 };
+    const r = computeEstimate({
+      ...base, promo,
+      bmMakeup: 4, bmHair: 0, momMakeup: 1, momHair: 0, // 5 makeup-only people, 0 full looks
+    });
+    expect(r.lines.some((l) => l.label.startsWith("Promo"))).toBe(false);
+    expect(r.total).toBe(2890 + 4 * 550 + 500); // bride + bridesmaid makeup × 4 + mother makeup, no discount
+  });
+
+  it("cheapestLookFree: a mix of full looks and makeup-only bookings only counts the full looks", () => {
+    const promo = { kind: "cheapestLookFree" as const, minPeople: 4 };
+    // bride + 3 full-look bridesmaids (paidCount incl. bride = 4, hits threshold) + 2 makeup-only guests
+    const r = computeEstimate({
+      ...base, promo,
+      bmMakeup: 3, bmHair: 3, guestMakeup: 2, guestHair: 0,
+      partyHair: { short: 0, medium: 3, long: 0, xlong: 0 },
+    });
+    expect(r.lines).toContainEqual({ label: "Promo — cheapest look free", amount: -1045 }); // cheapest bridesmaid look freed
+  });
+
   it("flatCreditOnMinParty: flat rand credit once the party threshold is met", () => {
     // party4 gross = bride 2890 + bridesmaid 1045 + mother 995 + guest 1045 = 5975
     const promo = { kind: "flatCreditOnMinParty" as const, minPeople: 4, amount: 1000 };

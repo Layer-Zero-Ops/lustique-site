@@ -46,8 +46,13 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         <div class="field" id="bandWrap" style="display:none;margin-top:1rem;"><label for="travelBand">Distance band (fallback)</label><select id="travelBand"><option value="studio">Within 20 km one-way / 40 km round trip (free)</option><option value="mid">30–80 km</option><option value="far">80–150 km</option><option value="veryfar">150–200 km</option><option value="destination">Over 200 km / destination</option></select></div>
       </div>
       <div id="weddingFields">
-      <div class="form-step reveal"><h3>The bride</h3><p class="step-sub">Your trial and wedding-day hair &amp; makeup — lashes and a touch-up kit included.</p>
-        <div class="field"><label for="brideHairLen">Bride’s hair length</label><select id="brideHairLen"><option value="short">Short (chin)</option><option value="medium" selected>Medium (shoulder)</option><option value="long">Long (mid-back)</option><option value="xlong">X-Long (pantyline)</option></select></div>
+      <div class="form-step reveal"><h3>The bride</h3><p class="step-sub">Choose what you'd like for yourself — lashes and a touch-up kit included whenever makeup is booked.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:1.2rem;margin:.2rem 0 1rem;">
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.92rem;color:#5c5048;"><input type="checkbox" id="brideWantsMakeup" checked style="width:auto;"> Makeup</label>
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.92rem;color:#5c5048;"><input type="checkbox" id="brideWantsHair" checked style="width:auto;"> Hair</label>
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.92rem;color:#5c5048;"><input type="checkbox" id="brideWantsTrial" checked style="width:auto;"> Include a trial</label>
+        </div>
+        <div class="field" id="brideHairLenWrap"><label for="brideHairLen">Bride’s hair length</label><select id="brideHairLen"><option value="short">Short (chin)</option><option value="medium" selected>Medium (shoulder)</option><option value="long">Long (mid-back)</option><option value="xlong">X-Long (pantyline)</option></select></div>
       </div>
       <div class="form-step reveal"><h3>Your bridal party</h3><p class="step-sub">Makeup and hair are priced separately — so tell us exactly who needs what, and only pay for that.</p>
         <p style="font-weight:600;color:var(--mocha);margin:.2rem 0 .6rem;">Bridesmaids</p>

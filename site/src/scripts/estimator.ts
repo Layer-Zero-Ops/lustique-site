@@ -73,8 +73,15 @@ const el = (id: string) => document.getElementById(id);
 const fld = (id: string) => document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
 const num = (id: string) => { const e = fld(id); return e ? Math.max(0, parseInt(e.value, 10) || 0) : 0; };
 const val = (id: string, d = "") => { const e = fld(id); return e ? e.value : d; };
+const checked = (id: string, d = true): boolean => { const e = el(id) as HTMLInputElement | null; return e ? e.checked : d; };
 const rand = (x: number) => x.toLocaleString("en-ZA").replace(/,/g, " ");
 const setBand = (show: boolean) => { const w = el("bandWrap"); if (w) w.style.display = show ? "" : "none"; };
+
+/** The hair-length picker only makes sense once the bride has actually chosen hair. */
+function applyBrideServiceToggle(): void {
+  const wrap = el("brideHairLenWrap");
+  if (wrap) wrap.style.display = checked("brideWantsHair") ? "" : "none";
+}
 
 // Adult heads needing hair = the bridesmaid + mother + guest hair counts.
 const adultHairHeads = (): number => num("bmHair") + num("momHair") + num("guestHair");
@@ -123,6 +130,9 @@ export function readInput(): EstimateInput {
         : { band: val("travelBand", "studio") as TravelBand };
   return {
     occasion,
+    brideWantsMakeup: checked("brideWantsMakeup"),
+    brideWantsHair: checked("brideWantsHair"),
+    brideWantsTrial: checked("brideWantsTrial"),
     brideHairLen: val("brideHairLen", "medium") as HairLength,
     partyHair: readPartyHair(),
     bmMakeup: num("bmMakeup"), bmHair: num("bmHair"),
@@ -561,8 +571,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (occ) occ.addEventListener("change", applyOccasion);
   const btn = el("checkTravel");
   if (btn) btn.addEventListener("click", lookupTravel);
+  const brideHairToggle = el("brideWantsHair");
+  if (brideHairToggle) brideHairToggle.addEventListener("change", applyBrideServiceToggle);
   wireVenueSearch();
   applyOccasion();
+  applyBrideServiceToggle();
   renderEstimate();
   loadActivePromo(); // async — re-renders once the live promo config arrives
 });

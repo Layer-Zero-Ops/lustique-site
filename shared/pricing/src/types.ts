@@ -42,6 +42,12 @@ export interface EstimateLine {
 
 export interface EstimateInput {
   occasion: Occasion;
+  /** Whether the bride wants makeup / hair done at all — she may pick either, or both. */
+  brideWantsMakeup: boolean;
+  brideWantsHair: boolean;
+  /** Whether her selected service(s) include a trial session, or wedding-day only. */
+  brideWantsTrial: boolean;
+  /** Only meaningful (and only priced) when brideWantsHair is true. */
   brideHairLen: HairLength;
   /**
    * Adult party hair (bridesmaids + mothers + guests) as a length distribution —
