@@ -15,6 +15,7 @@ import { listArtists, listBookingArtists, type ArtistRow, type BookingArtistRow 
 import type { Env } from "../index";
 import { checkRateLimit, RATE_LIMITS } from "../lib/rateLimit";
 import { sendEmail, emailShell, ep, em as emFn, esc as emailEsc } from "../lib/email";
+import { writeAudit } from "./audit";
 
 // Env used by dashboard handlers — Env + auth fields
 export interface DashboardEnv extends Env {
@@ -421,9 +422,11 @@ export async function handleAdminLogin(
     }
   }
 
-  // Fire-and-forget: always show "check your email" to avoid user enumeration
+  // The user always sees "check your email" regardless of outcome, to avoid user
+  // enumeration — but a send failure (bad SMTP config, Supabase outage, etc.) must
+  // still be recorded somewhere, or it's invisible until someone reports "it never arrived".
   try {
-    await fetchFn(`${env.SUPABASE_URL}/auth/v1/otp`, {
+    const otpRes = await fetchFn(`${env.SUPABASE_URL}/auth/v1/otp`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -436,7 +439,21 @@ export async function handleAdminLogin(
         redirect_to: `${new URL(req.url).origin}/api/admin/auth/callback`,
       }),
     });
-  } catch { /* network error — still show the check-email page */ }
+    if (!otpRes.ok) {
+      const body = await otpRes.text().catch(() => "");
+      await writeAudit(
+        env,
+        { bookingId: null, eventType: "admin-login.otp-send-failed", payload: { email, status: otpRes.status, body: body.slice(0, 500) } },
+        fetchFn,
+      ).catch(() => {});
+    }
+  } catch (err) {
+    await writeAudit(
+      env,
+      { bookingId: null, eventType: "admin-login.otp-send-failed", payload: { email, error: err instanceof Error ? err.message : String(err) } },
+      fetchFn,
+    ).catch(() => {});
+  }
 
   return htmlResponse(`<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
