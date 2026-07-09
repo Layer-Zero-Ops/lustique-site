@@ -55,7 +55,6 @@ function collect() {
   add("Heard via", val("source"));
 
   if (occasion === "wedding") {
-    add("Province", val("provinceInput"));
     add("Venue", val("venueInput"));
     add("Bride hair", lenLabel("brideHairLen"));
     add("Party", partySummary());
@@ -96,7 +95,6 @@ function collect() {
     phone: val("phone"),
     occasion: OCCASION[occasion] ?? occasion,
     date,
-    town: val("townInput"),
     estimate: (document.getElementById("estimateAmount")?.textContent ?? "").trim(),
     message: val("message"),
     details,

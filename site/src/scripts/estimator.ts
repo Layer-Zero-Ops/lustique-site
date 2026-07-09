@@ -8,7 +8,7 @@ import {
   type EstimateInput, type EstimateLine, type HairBuckets, type HairLength, type Occasion, type TravelBand, type Promo,
 } from "@lustique/pricing";
 import venueDirectory from "../data/sa-wedding-venues.json";
-import { findKnownVenue, normalizeVenueName, venueLabel, buildGeocodeQuery, type KnownVenue } from "./venueMatch";
+import { findKnownVenue, normalizeVenueName, venueLabel, buildGeocodeQuery, isPreciseGeocodeResult, type KnownVenue } from "./venueMatch";
 
 declare const L: any; // Leaflet global (loaded via the CDN <script> on the quote page)
 
@@ -346,10 +346,9 @@ function renderVenueConfirmation(venue: KnownVenue) {
 
 async function geocodeFallback() {
   const venue = val("venueInput").trim();
-  const town = val("townInput").trim();
   const res = el("travelResult");
   if (res) res.textContent = "Finding your venue…";
-  const q = buildGeocodeQuery(venue, town); // see venueMatch.ts for why province is deliberately excluded
+  const q = buildGeocodeQuery(venue); // see venueMatch.ts for why town/province are deliberately excluded
   try {
     const apiKey = (import.meta.env.PUBLIC_HERE_API_KEY as string) || "";
     const g = await fetch(
@@ -357,6 +356,10 @@ async function geocodeFallback() {
     ).then((r) => r.json());
     const item = g.items && g.items[0];
     if (!item) throw new Error("no geocode");
+    // A coarse (town/area-level) match means we didn't actually find the venue — only
+    // its general vicinity. Accepting that silently is exactly how a lodge outside town
+    // gets quoted as if it were parked at the town's centre. Fall through to manual pin.
+    if (!isPreciseGeocodeResult(item.resultType)) throw new Error("imprecise geocode: " + item.resultType);
     const center = { lat: item.position.lat, lng: item.position.lng };
     const label: string = (item.address && item.address.label) || item.title || "";
     foundLabel = label.split(",").slice(0, 3).map((s: string) => s.trim()).filter(Boolean).join(", ");
@@ -376,9 +379,8 @@ async function geocodeFallback() {
 
 async function lookupTravel() {
   const venue = val("venueInput").trim();
-  const town = val("townInput").trim();
   const res = el("travelResult");
-  if (!venue && !town) { if (res) res.textContent = "Add your venue or town above, then we’ll find it on the map."; return; }
+  if (!venue) { if (res) res.textContent = "Add your venue above, then we’ll find it on the map."; return; }
 
   const known = findKnownVenue(venue, VENUES);
   if (known) {

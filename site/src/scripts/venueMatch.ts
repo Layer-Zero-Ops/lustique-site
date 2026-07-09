@@ -57,16 +57,26 @@ const FUZZY_THRESHOLD = 0.8;
  */
 /**
  * Build the free-text query for HERE's Geocode API fallback (venue not in our directory
- * and not picked from live-search). Deliberately takes ONLY venue + town — never a
- * province — because the quote form's province dropdown defaults to "Gauteng" and most
- * brides never touch it. Confirmed live against HERE's API: appending a wrong/default
- * province to a real venue elsewhere (e.g. "Val de Vie Estate", Western Cape) hijacks the
- * result to a same-ish-named place hundreds of km away in Gauteng instead. Any location
- * bias belongs in the caller's `at=` proximity-ranking parameter (a soft nudge that never
- * overrides a strong unique match), not in this query text.
+ * and not picked from live-search). Deliberately takes ONLY the venue name — never a
+ * bride-typed town or province — because both were found live to hijack real venues
+ * to the wrong place: a defaulted "Gauteng" province sent a real Western Cape venue
+ * ("Val de Vie Estate") hundreds of km off, and a town name alone (e.g. "Bronkhorstspruit")
+ * can make HERE resolve to that town's centre instead of the actual venue when the venue
+ * name itself isn't a recognised POI — silently underquoting travel by tens of km. Any
+ * location bias belongs in the caller's `at=` proximity-ranking parameter (a soft nudge
+ * that never overrides a strong unique match), not in this query text.
  */
-export function buildGeocodeQuery(venue: string, town: string): string {
-  return [venue.trim(), town.trim(), "South Africa"].filter(Boolean).join(", ");
+export function buildGeocodeQuery(venue: string): string {
+  return [venue.trim(), "South Africa"].filter(Boolean).join(", ");
+}
+
+// HERE resultTypes coarse enough to mean "we matched the town/area, not the actual
+// venue" — accepting these silently is exactly how a lodge outside town gets quoted
+// as if it were at the town centre. Treat them as a failed lookup instead.
+const IMPRECISE_RESULT_TYPES = new Set(["locality", "administrativeArea", "country", "postalCode"]);
+
+export function isPreciseGeocodeResult(resultType: string | undefined): boolean {
+  return !!resultType && !IMPRECISE_RESULT_TYPES.has(resultType);
 }
 
 export function findKnownVenue(input: string, venues: KnownVenue[]): KnownVenue | undefined {
