@@ -62,6 +62,7 @@ const ENQUIRY = {
   status: "new",
   notes: null,
   contacted_at: null,
+  referral_source: null,
 };
 
 const getReq = async (path: string) =>
@@ -144,6 +145,22 @@ describe("handleAdminEnquiryDetail", () => {
     expect(body).toContain("Bridesmaids");
     expect(body).toContain("status");
     expect(body).toContain("Notes");
+  });
+
+  it("renders the referral source when present", async () => {
+    const withReferral = { ...ENQUIRY, referral_source: "avianto" };
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([withReferral]));
+    const r = await handleAdminEnquiryDetail(await getReq("/api/admin/enquiries/aaaa-1111"), env, shell, "aaaa-1111", f as unknown as typeof fetch);
+    const body = await r.text();
+    expect(body).toContain("Referral source");
+    expect(body).toContain("avianto");
+  });
+
+  it("shows no referral row when absent", async () => {
+    const f = vi.fn().mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes()).mockResolvedValueOnce(res([ENQUIRY]));
+    const r = await handleAdminEnquiryDetail(await getReq("/api/admin/enquiries/aaaa-1111"), env, shell, "aaaa-1111", f as unknown as typeof fetch);
+    const body = await r.text();
+    expect(body).not.toContain("Referral source");
   });
 
   it("shows 404 when enquiry not found", async () => {

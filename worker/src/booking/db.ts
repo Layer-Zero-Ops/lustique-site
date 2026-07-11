@@ -624,10 +624,11 @@ export interface EnquiryCrmRow {
   notes: string | null;
   contacted_at: string | null;
   booking_id: string | null;
+  referral_source: string | null;
 }
 
 const ENQUIRY_COLS =
-  "id,created_at,name,email,phone,occasion,event_date,town,estimate,message,details,status,notes,contacted_at,booking_id";
+  "id,created_at,name,email,phone,occasion,event_date,town,estimate,message,details,status,notes,contacted_at,booking_id,referral_source";
 
 export async function listEnquiries(
   env: DbEnv,
