@@ -14,12 +14,14 @@ import { signActionToken, verifyActionToken } from "./token";
 import { workingDaysBefore } from "./util";
 import { recordPayment, type WaveEnv } from "../lib/wave";
 import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail, getEftSettings, type EftSettings } from "../lib/email";
+import { upsertBrevoContact } from "../lib/brevoCampaign";
 
 export interface BookingBalanceEnv extends AuditEnv, WaveEnv {
   BREVO_API_KEY: string;
   NOTIFY_EMAIL: string;
   ALLOWED_ORIGIN: string;
   SIGNING_SECRET: string;
+  BREVO_PAST_CLIENTS_LIST_ID?: string;
 }
 
 const BALANCE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
@@ -155,6 +157,16 @@ export async function handleMarkBalancePaid(
   } catch {
     await writeAudit(env, { bookingId: b.id, eventType: "payment.email-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
   }
+
+  if (env.BREVO_PAST_CLIENTS_LIST_ID) {
+    const listId = parseInt(env.BREVO_PAST_CLIENTS_LIST_ID, 10);
+    if (listId) {
+      upsertBrevoContact(env, b.bride_email, listId, fetchImpl).catch(() => {
+        writeAudit(env, { bookingId: b.id, eventType: "marketing.past-client-sync-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
+      });
+    }
+  }
+
   return htmlResponse(balanceRecordedHtml(b));
 }
 

@@ -251,6 +251,71 @@ describe("handleYocoWebhook — payment.created (deposit)", () => {
   });
 });
 
+describe("handleYocoWebhook — payment.created (balance)", () => {
+  it("marks payment paid, transitions deposit_paid→settled, emails bride", async () => {
+    const body = JSON.stringify(paymentSucceededEvent);
+    const { sig, webhookId, webhookTimestamp } = await sign(body);
+    const f = vi.fn()
+      .mockResolvedValueOnce(res([]))                                              // [0] findPaymentByYocoId (not found → proceed)
+      .mockResolvedValueOnce(res([paymentRow({ kind: "balance" })]))                // [1] findPaymentByCheckoutId
+      .mockResolvedValueOnce(res({}, 200))                                         // [2] markPaymentPaid
+      .mockResolvedValueOnce(res([bookingRow({ status: "settled" })]))              // [3] transitionBooking(deposit_paid→settled)
+      .mockResolvedValueOnce(res([bookingRow({ status: "settled" })]))              // [4] getBookingById
+      .mockResolvedValueOnce(res({ messageId: "m1" }, 201))                        // [5] Brevo → bride
+      .mockResolvedValueOnce(res({}, 201));                                        // [6] writeAudit → insertAudit
+
+    const resp = await handleYocoWebhook(env, webhookReq(paymentSucceededEvent, sig, webhookId, webhookTimestamp), f as unknown as typeof fetch);
+    expect(resp.status).toBe(200);
+
+    const patchUrl = f.mock.calls[3]![0] as string;
+    expect(patchUrl).toContain("status=eq.deposit_paid");
+    const patch = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
+    expect(patch.status).toBe("settled");
+    expect(patch.settled_at).toBeTruthy();
+
+    const brideEmail = JSON.parse((f.mock.calls[5]![1] as RequestInit).body as string);
+    expect(brideEmail.to[0].email).toBe("anke@example.com");
+  });
+
+  it("syncs the bride to the past-clients Brevo list when BREVO_PAST_CLIENTS_LIST_ID is set", async () => {
+    const body = JSON.stringify(paymentSucceededEvent);
+    const { sig, webhookId, webhookTimestamp } = await sign(body);
+    const f = vi.fn()
+      .mockResolvedValueOnce(res([]))                                              // [0] findPaymentByYocoId
+      .mockResolvedValueOnce(res([paymentRow({ kind: "balance" })]))                // [1] findPaymentByCheckoutId
+      .mockResolvedValueOnce(res({}, 200))                                         // [2] markPaymentPaid
+      .mockResolvedValueOnce(res([bookingRow({ status: "settled" })]))              // [3] transitionBooking
+      .mockResolvedValueOnce(res([bookingRow({ status: "settled" })]))              // [4] getBookingById
+      .mockResolvedValueOnce(res({ messageId: "m1" }, 201))                        // [5] Brevo → bride
+      .mockResolvedValueOnce(res({}, 201))                                         // [6] writeAudit
+      .mockResolvedValueOnce(new Response(null, { status: 201 }));                 // [7] upsertBrevoContact (fire-and-forget)
+
+    const envWithList = { ...env, BREVO_PAST_CLIENTS_LIST_ID: "99" };
+    const resp = await handleYocoWebhook(envWithList, webhookReq(paymentSucceededEvent, sig, webhookId, webhookTimestamp), f as unknown as typeof fetch);
+    expect(resp.status).toBe(200);
+    const brevoContactCall = f.mock.calls.find(([url]) => url === "https://api.brevo.com/v3/contacts");
+    expect(brevoContactCall).toBeTruthy();
+  });
+
+  it("does not sync to the past-clients list on the deposit path (only on balance/settle)", async () => {
+    const body = JSON.stringify(paymentSucceededEvent);
+    const { sig, webhookId, webhookTimestamp } = await sign(body);
+    const f = vi.fn()
+      .mockResolvedValueOnce(res([]))                                           // [0] findPaymentByYocoId
+      .mockResolvedValueOnce(res([paymentRow()]))                               // [1] findPaymentByCheckoutId (kind: deposit, default)
+      .mockResolvedValueOnce(res({}, 200))                                      // [2] markPaymentPaid
+      .mockResolvedValueOnce(res([bookingRow({ status: "deposit_paid" })]))      // [3] transitionBooking(accepted)
+      .mockResolvedValueOnce(res([bookingRow({ status: "deposit_paid" })]))      // [4] getBookingById
+      .mockResolvedValueOnce(res({ messageId: "m1" }, 201))                     // [5] Brevo → bride
+      .mockResolvedValueOnce(res({}, 201));                                     // [6] writeAudit
+    const envWithList = { ...env, BREVO_PAST_CLIENTS_LIST_ID: "99" };
+    const resp = await handleYocoWebhook(envWithList, webhookReq(paymentSucceededEvent, sig, webhookId, webhookTimestamp), f as unknown as typeof fetch);
+    expect(resp.status).toBe(200);
+    const brevoContactCall = f.mock.calls.find(([url]) => url === "https://api.brevo.com/v3/contacts");
+    expect(brevoContactCall).toBeFalsy();
+  });
+});
+
 describe("handleYocoWebhook — payment.failed → EFT fallback", () => {
   it("marks payment failed and sends EFT fallback emails to bride + Zandeline", async () => {
     const body = JSON.stringify(paymentFailedEvent);

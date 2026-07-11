@@ -96,6 +96,21 @@ describe("handleMarkBalancePaid (POST)", () => {
     const audit = JSON.parse((f.mock.calls[3]![1] as RequestInit).body as string);
     expect(audit.event_type).toBe("payment.email-failed");
   });
+
+  it("syncs the bride to the past-clients Brevo list when BREVO_PAST_CLIENTS_LIST_ID is set", async () => {
+    const t = await balanceToken();
+    const f = vi.fn()
+      .mockResolvedValueOnce(res([bookingRow({ status: "deposit_paid" })]))  // getBookingById
+      .mockResolvedValueOnce(res([bookingRow({ status: "settled" })]))        // transitionBooking
+      .mockResolvedValueOnce(res({ messageId: "m" }, 201))                    // Brevo → bride
+      .mockResolvedValueOnce(res({}, 201))                                    // audit
+      .mockResolvedValueOnce(new Response(null, { status: 201 }));            // upsertBrevoContact (fire-and-forget)
+    const envWithList = { ...env, BREVO_PAST_CLIENTS_LIST_ID: "99" };
+    const resp = await handleMarkBalancePaid(envWithList, postReq(t), f as unknown as typeof fetch);
+    expect(resp.status).toBe(200);
+    const brevoContactCall = f.mock.calls.find(([url]) => url === "https://api.brevo.com/v3/contacts");
+    expect(brevoContactCall).toBeTruthy();
+  });
 });
 
 // wedding 14 working days after 2026-06-15 (Mon) = 2026-07-03 (Fri); cron "today" = 2026-06-15.

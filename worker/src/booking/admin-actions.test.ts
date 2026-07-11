@@ -327,4 +327,25 @@ describe("handleAdminMarkBalancePaid", () => {
     );
     expect(brevoCalls.length).toBe(1);
   });
+
+  it("syncs the bride to the past-clients Brevo list when BREVO_PAST_CLIENTS_LIST_ID is set", async () => {
+    const token = await validAdminJwt();
+    const f = vi.fn((url: string) => {
+      if (url.includes("/auth/v1/user")) return Promise.resolve(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }));
+      if (url.includes("/profiles?")) return Promise.resolve(json(adminProfile));
+      if (url.includes("&select=")) return Promise.resolve(json([depositPaidBooking]));
+      if (url.includes("&status=eq.deposit_paid")) return Promise.resolve(json([{ ...depositPaidBooking, status: "settled" }]));
+      if (url === "https://api.brevo.com/v3/contacts") return Promise.resolve(new Response(null, { status: 201 }));
+      if (url.includes("brevo.com")) return Promise.resolve(json({ messageId: "x" }));
+      if (url.includes("/audit_log")) return Promise.resolve(json({}));
+      return Promise.resolve(json([]));
+    });
+    const envWithList = { ...env, BREVO_PAST_CLIENTS_LIST_ID: "99" };
+    const res = await handleAdminMarkBalancePaid(postReq("/api/admin/booking/bk1/mark-balance", token), envWithList, "bk1", f as unknown as typeof fetch);
+    expect(res.status).toBe(302);
+    const contactCall = (f as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([url]: [string]) => url === "https://api.brevo.com/v3/contacts",
+    );
+    expect(contactCall).toBeTruthy();
+  });
 });
