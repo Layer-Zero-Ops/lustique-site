@@ -554,6 +554,16 @@ export async function listBookingsDueForBalanceReminder(
   return (await r.json()) as Array<ConfirmBookingRow & { balance_reminder_sent_at: string | null }>;
 }
 
+/** All settled bookings' bride contact info — feeds the past-clients Brevo list backfill. */
+export async function listSettledBookingEmails(
+  env: DbEnv,
+  f: typeof fetch = fetch,
+): Promise<Array<{ bride_email: string; bride_name: string }>> {
+  const r = await f(rest(env, "bookings?status=eq.settled&select=bride_email,bride_name"), { headers: headers(env) });
+  if (!r.ok) throw new Error(`listSettledBookingEmails ${r.status}`);
+  return (await r.json()) as Array<{ bride_email: string; bride_name: string }>;
+}
+
 export interface EnquiryRow {
   name: string;
   email: string;

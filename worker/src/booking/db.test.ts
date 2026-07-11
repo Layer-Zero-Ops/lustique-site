@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, listBookingsDueForBalanceReminder, getBusinessSetting, setBusinessSetting, persistEnquiry } from "./db";
+import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, listBookingsDueForBalanceReminder, getBusinessSetting, setBusinessSetting, persistEnquiry, listSettledBookingEmails } from "./db";
 
 const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc" };
 const res = (body: unknown, status = 200) =>
@@ -172,6 +172,28 @@ describe("listBookingsDueForBalanceReminder", () => {
   it("returns [] when nothing is due", async () => {
     const f = vi.fn().mockResolvedValue(res([]));
     expect(await listBookingsDueForBalanceReminder(env, "2026-06-13", "2026-07-04", f as unknown as typeof fetch)).toEqual([]);
+  });
+});
+
+describe("listSettledBookingEmails", () => {
+  it("queries settled bookings and returns bride email + name", async () => {
+    const rows = [
+      { bride_email: "anke@example.com", bride_name: "Anke van der Berg" },
+      { bride_email: "zanele@example.com", bride_name: "Zanele Nkosi" },
+    ];
+    const f = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify(rows), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    const result = await listSettledBookingEmails(env, f as unknown as typeof fetch);
+    expect(result).toEqual(rows);
+    const [url] = f.mock.calls[0]!;
+    expect(url).toContain("bookings?status=eq.settled");
+    expect(url).toContain("select=bride_email,bride_name");
+  });
+
+  it("throws on a non-2xx response", async () => {
+    const f = vi.fn().mockResolvedValueOnce(new Response("error", { status: 500 }));
+    await expect(listSettledBookingEmails(env, f as unknown as typeof fetch)).rejects.toThrow(/500/);
   });
 });
 
