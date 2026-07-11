@@ -120,12 +120,13 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     navLink("/api/admin/dashboard",  "Inbox"),
     navLink("/api/admin/staffing",   "Staffing"),
     navLink("/api/admin/promos",     "Promotions"),
+    navLink("/api/admin/marketing",  "Marketing"),
     navLink("/api/admin/templates",  "Templates"),
   ];
 
   const nav = [
     navGroup("Admin",    adminLinks,    adminLinks.some((_, i) =>
-      isActive(["/api/admin/dashboard", "/api/admin/staffing", "/api/admin/promos", "/api/admin/templates"][i]!))),
+      isActive(["/api/admin/dashboard", "/api/admin/staffing", "/api/admin/promos", "/api/admin/marketing", "/api/admin/templates"][i]!))),
     navGroup("Bookings", bookingsLinks, bookingsLinks.some((_, i) =>
       isActive(["/api/admin/calendar", "/api/admin/quotes", "/api/admin/rejections"][i]!))),
     navGroup("Clients",  clientsLinks,  clientsLinks.some((_, i) =>

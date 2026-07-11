@@ -508,6 +508,18 @@ export default {
         return handleAdminPromos(req, env as Parameters<typeof handleAdminPromos>[1], adminShell);
       }
 
+      // GET/POST /api/admin/marketing — compose & send a promo campaign
+      if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/admin/marketing") {
+        const { handleAdminMarketing } = await import("./booking/marketing");
+        return handleAdminMarketing(req, env as Parameters<typeof handleAdminMarketing>[1], adminShell);
+      }
+
+      // POST /api/admin/marketing/sync-past-clients — backfill/refresh the past-clients Brevo list
+      if (req.method === "POST" && url.pathname === "/api/admin/marketing/sync-past-clients") {
+        const { handleAdminMarketingSyncPastClients } = await import("./booking/marketing");
+        return handleAdminMarketingSyncPastClients(req, env as Parameters<typeof handleAdminMarketingSyncPastClients>[1]);
+      }
+
       // ── Forms ─────────────────────────────────────────────────────────────
       // GET /api/admin/forms — unified inbox (enquiries + booking requests)
       if (req.method === "GET" && url.pathname === "/api/admin/forms") {
