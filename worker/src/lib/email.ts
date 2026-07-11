@@ -26,11 +26,11 @@ const LOGO = "https://lustiqueco.co.za/assets/logo.png";
 
 /** Paragraph — accepts raw HTML content; caller escapes any user values inside. */
 export const ep = (html: string) =>
-  `<p style="margin:0 0 16px;font-size:14px;line-height:1.85;color:#3A2E26;font-family:Arial,sans-serif;">${html}</p>`;
+  `<p style="margin:0 0 16px;font-size:14px;line-height:1.85;color:#3A2E26;font-family:'Manrope',Arial,sans-serif;">${html}</p>`;
 
 /** Italic mocha-serif em span for inline dates/amounts. */
 export const em = (text: string) =>
-  `<span style="font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#5C4332;">${esc(text)}</span>`;
+  `<span style="font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;font-style:italic;color:#5C4332;">${esc(text)}</span>`;
 
 // ── detail table ──────────────────────────────────────────────────────────────
 
@@ -42,33 +42,33 @@ export interface TableRow {
 }
 
 export function emailTable(rows: TableRow[]): string {
-  const TH = `font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#A89080;font-family:Arial,sans-serif;padding:11px 16px 11px 0;border-bottom:1px solid #F5EDE5;white-space:nowrap;vertical-align:top;`;
+  const TH = `font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#9E5F58;font-family:'Manrope',Arial,sans-serif;font-weight:600;padding:11px 16px 11px 0;border-bottom:1px solid #F0E4DC;white-space:nowrap;vertical-align:top;`;
   const rowHtml = rows
     .map((r) => {
       const valStyle = r.ref
-        ? `font-size:15px;font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#5C4332;font-weight:400;padding:11px 0;border-bottom:1px solid #F5EDE5;vertical-align:top;`
+        ? `font-size:15px;font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;font-style:italic;color:#5C4332;font-weight:400;padding:11px 0;border-bottom:1px solid #F0E4DC;vertical-align:top;`
         : r.bold
-        ? `font-size:13px;font-family:Arial,sans-serif;color:#5C4332;font-weight:500;padding:11px 0;border-bottom:1px solid #F5EDE5;vertical-align:top;`
-        : `font-size:13px;font-family:Arial,sans-serif;color:#3A2E26;padding:11px 0;border-bottom:1px solid #F5EDE5;vertical-align:top;`;
+        ? `font-size:13px;font-family:'Manrope',Arial,sans-serif;color:#5C4332;font-weight:600;padding:11px 0;border-bottom:1px solid #F0E4DC;vertical-align:top;`
+        : `font-size:13px;font-family:'Manrope',Arial,sans-serif;color:#3A2E26;padding:11px 0;border-bottom:1px solid #F0E4DC;vertical-align:top;`;
       return `<tr><td style="${TH}">${esc(r.key)}</td><td style="${valStyle}">${esc(r.val)}</td></tr>`;
     })
     .join("");
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #EEE5DA;">${rowHtml}</table>`;
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid #E8D5B7;">${rowHtml}</table>`;
 }
 
 // ── button-zone helpers ───────────────────────────────────────────────────────
 
-/** Blush pill CTA button. */
+/** Rose-deep pill CTA button — matches the site's .btn-primary. */
 export const emailBtn = (href: string, label: string) =>
-  `<a href="${esc(href)}" style="display:inline-block;background-color:#EFD2C5;color:#5C4332;text-decoration:none;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;padding:14px 40px;border-radius:24px;border:1px solid #5C4332;font-family:Arial,sans-serif;font-weight:500;">${esc(label)}</a>`;
+  `<a href="${esc(href)}" style="display:inline-block;background-color:#9E5F58;color:#FAF6F0;text-decoration:none;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;padding:14px 40px;border-radius:24px;font-family:'Manrope',Arial,sans-serif;font-weight:600;">${esc(label)}</a>`;
 
 /** Secondary muted text link below the main button. label is trusted HTML; callers must esc() any user data inside it. */
 export const emailBtnLink = (href: string, label: string) =>
-  `<p style="margin:18px 0 0;"><a href="${esc(href)}" style="font-size:12px;font-family:Arial,sans-serif;color:#8A7060;text-decoration:none;">${label}</a></p>`;
+  `<p style="margin:18px 0 0;"><a href="${esc(href)}" style="font-size:12px;font-family:'Manrope',Arial,sans-serif;color:#7A2E3A;text-decoration:none;">${label}</a></p>`;
 
 /** Quiet italic note — for informational emails with no CTA. Accepts raw HTML. */
 export const emailNote = (html: string) =>
-  `<p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:14px;color:#8A7060;">${html}</p>`;
+  `<p style="margin:0;font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;font-style:italic;font-size:14px;color:#8A7060;">${html}</p>`;
 
 // ── email shell ───────────────────────────────────────────────────────────────
 
@@ -96,37 +96,40 @@ ${esc(preheader)}&nbsp;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#8
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <title>Lustique Co.</title>
+<!--[if !mso]><!-->
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital@0;1&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
+<!--<![endif]-->
 </head>
 <body style="margin:0;padding:0;background-color:#FAF6F0;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
 ${preheaderHtml}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FAF6F0;">
 <tr><td align="center" style="padding:44px 16px 56px;">
 
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;background:#FFFFFF;border-top:3px solid #C4877A;border-left:1px solid #E8D5B7;border-right:1px solid #E8D5B7;border-bottom:1px solid #E8D5B7;border-collapse:collapse;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;background:#FFFFFF;border-top:3px solid #9E5F58;border-left:1px solid #E8D5B7;border-right:1px solid #E8D5B7;border-bottom:1px solid #E8D5B7;border-collapse:collapse;">
 
 <tr><td align="center" style="padding:44px 48px 32px 48px;">
 <img src="${LOGO}" alt="Lustique Co." width="100" height="auto" style="display:block;border:0;max-width:100px;" />
 </td></tr>
 
-<tr><td style="padding:0 48px;"><div style="height:1px;background:#EDE0D4;"></div></td></tr>
+<tr><td style="padding:0 48px;"><div style="height:1px;background:#E8D5B7;"></div></td></tr>
 
 <tr><td style="padding:44px 48px 36px 48px;">
-<h1 style="margin:0 0 22px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:400;font-style:italic;color:#5C4332;line-height:1.4;">${heading}</h1>
+<h1 style="margin:0 0 22px;font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;font-size:26px;font-weight:400;font-style:italic;color:#5C4332;line-height:1.4;">${heading}</h1>
 ${body}
 </td></tr>
 
-<tr><td style="padding:0 48px;"><div style="height:1px;background:#EDE0D4;"></div></td></tr>
+<tr><td style="padding:0 48px;"><div style="height:1px;background:#E8D5B7;"></div></td></tr>
 
 <tr><td align="center" style="padding:40px 48px;">
 ${btnZone}
 </td></tr>
 
-<tr><td style="padding:0 48px;"><div style="height:1px;background:#EDE0D4;"></div></td></tr>
+<tr><td style="padding:0 48px;"><div style="height:1px;background:#E8D5B7;"></div></td></tr>
 
 <tr><td style="padding:32px 48px 40px 48px;">
-<p style="margin:0 0 14px;font-size:11px;color:#8A7060;line-height:1.8;font-family:Arial,sans-serif;">${footerNote}</p>
-<p style="margin:0 0 24px;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:14px;color:#5C4332;">Lustique Co.</p>
-<p style="margin:0;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#BFA99A;font-family:Arial,sans-serif;">
+<p style="margin:0 0 14px;font-size:11px;color:#8A7060;line-height:1.8;font-family:'Manrope',Arial,sans-serif;">${footerNote}</p>
+<p style="margin:0 0 24px;font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;font-style:italic;font-size:15px;color:#7A2E3A;">Blessings,<br>The Lustique Cosmetology Team</p>
+<p style="margin:0;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:#BFA99A;font-family:'Manrope',Arial,sans-serif;">
 242 Frangipani Street, La Montagne &middot; Pretoria 0184<br>
 <a href="https://lustiqueco.co.za" style="color:#BFA99A;text-decoration:none;">lustiqueco.co.za</a>
 </p>
