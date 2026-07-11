@@ -65,8 +65,11 @@ import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLi
                        the enquiry + confirm the bride (Brevo) → 200.
 
    Secrets (set via `wrangler secret put`, never committed):
-     BREVO_API_KEY  — Brevo transactional-email key
-     NOTIFY_EMAIL   — verified Brevo sender + where enquiries land (info@lustiqueco.co.za)
+     BREVO_API_KEY              — Brevo transactional-email key
+     NOTIFY_EMAIL                — verified Brevo sender + where enquiries land (info@lustiqueco.co.za)
+     BREVO_NEWSLETTER_LIST_ID    — numeric Brevo list ID for newsletter signups (see newsletter.ts)
+     BREVO_PAST_CLIENTS_LIST_ID  — numeric Brevo list ID for settled bookings' brides (see marketing.ts) —
+                                    optional; the past-clients audience and its sync are skipped if unset.
 
    This is the seam ARCHITECTURE.md describes: v1 wires it to Brevo (+ later Sheets/CRM);
    AXIS can subscribe to the same boundary later without a site rewrite.
