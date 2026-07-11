@@ -5,6 +5,7 @@
 
 import { computeEstimate } from "@lustique/pricing";
 import { readInput } from "./estimator";
+import { readReferralSource } from "./referral";
 
 type Detail = { label: string; value: string; kind?: "service" };
 
@@ -109,6 +110,7 @@ function collect() {
     details,
     hp_company: val("hp_company"), // honeypot — the Worker drops it if filled
     cfTurnstileToken: tsInput?.value ?? "",
+    referralSource: readReferralSource(),
   };
 }
 

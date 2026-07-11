@@ -9,7 +9,16 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-  
+  <script>
+    (function() {
+      try {
+        var p = new URLSearchParams(location.search);
+        var v = p.get('ref') || p.get('utm_source');
+        if (v) sessionStorage.setItem('lustique_referral_source', v.slice(0, 80));
+      } catch (e) { /* best-effort only */ }
+    })();
+  </script>
+
   <section class="page-hero">
     <span class="eyebrow">Get a Quote</span>
     <h1>Tell us about your day.</h1>
