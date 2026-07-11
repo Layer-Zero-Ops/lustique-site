@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, listBookingsDueForBalanceReminder, getBusinessSetting, setBusinessSetting } from "./db";
+import { insertBooking, updateBookingStatus, findPaymentByYocoId, keepWarm, countBookingsOnDate, getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, listBookingsDueForBalanceReminder, getBusinessSetting, setBusinessSetting, persistEnquiry } from "./db";
 
 const env = { SUPABASE_URL: "https://x.supabase.co", SUPABASE_SERVICE_KEY: "svc" };
 const res = (body: unknown, status = 200) =>
@@ -26,6 +26,22 @@ describe("insertBooking", () => {
   it("throws on a non-OK insert", async () => {
     const f = vi.fn().mockResolvedValue(res({ message: "boom" }, 500));
     await expect(insertBooking(env, { idempotency_key: "k1" }, f as unknown as typeof fetch)).rejects.toThrow(/500/);
+  });
+});
+
+describe("persistEnquiry", () => {
+  it("stores referral_source when provided", async () => {
+    const f = vi.fn().mockResolvedValue(res([{ id: "e1" }], 201));
+    await persistEnquiry(env, { name: "Anri", email: "anri@x.com", phone: "0821234567", referral_source: "avianto" }, f as unknown as typeof fetch);
+    const body = JSON.parse((f.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.referral_source).toBe("avianto");
+  });
+
+  it("omits referral_source when not provided (never sends undefined as a literal string)", async () => {
+    const f = vi.fn().mockResolvedValue(res([{ id: "e2" }], 201));
+    await persistEnquiry(env, { name: "Anri", email: "anri@x.com", phone: "0821234567" }, f as unknown as typeof fetch);
+    const body = JSON.parse((f.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.referral_source).toBeUndefined();
   });
 });
 

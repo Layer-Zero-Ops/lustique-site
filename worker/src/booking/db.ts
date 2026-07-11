@@ -565,6 +565,8 @@ export interface EnquiryRow {
   message?: string;
   details?: unknown;
   ip?: string;
+  /** Vendor/venue partner slug from a `?ref=<slug>` link, if the enquiry arrived via one. */
+  referral_source?: string;
 }
 
 /** Persist a /api/enquiry submission so no lead is lost even if email delivery fails. */

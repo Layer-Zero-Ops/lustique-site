@@ -132,6 +132,8 @@ interface Enquiry {
   details?: Detail[]; // occasion-specific rows (party, hair, style…) built client-side
   hp_company?: string; // honeypot — bots fill it; humans never see it
   cfTurnstileToken?: string;
+  /** Vendor/venue partner slug from a `?ref=<slug>` link, captured client-side. */
+  referralSource?: string;
 }
 
 const esc = (s = "") => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
@@ -675,6 +677,7 @@ export default {
           message: body.message ? cap(body.message, 2000) : undefined,
           details: Array.isArray(body.details) ? body.details : undefined,
           ip: req.headers.get("cf-connecting-ip") ?? undefined,
+          referral_source: body.referralSource ? cap(body.referralSource, 80) : undefined,
         });
         await insertNotification(env, {
           type: "enquiry_received",
