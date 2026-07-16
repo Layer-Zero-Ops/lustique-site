@@ -8,6 +8,7 @@ import { renderRejectPage, handleReject } from "./booking/reject";
 import { handleYocoWebhook, pendingPaymentSweep } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 import { reviewEmailSweep } from "./booking/review-email";
+import { emailShell, ep, firstN } from "./lib/email";
 import { handleAdminBlockedDates } from "./booking/admin";
 import { handleAdminAccounting } from "./booking/accounting";
 import { handleAdminInvoices } from "./booking/invoices";
@@ -713,9 +714,12 @@ export default {
         env,
         { email: body.email!.trim(), name },
         "We've received your enquiry — Lustique Co.",
-        `<p>Hi ${esc(name)},</p>
-         <p>Thank you — we have your enquiry and will reply within 24 hours, often sooner.</p>
-         <p>Blessings,<br/>The Lustique Cosmetology Team</p>`,
+        emailShell({
+          preheader: "We've received your enquiry and will reply within 24 hours.",
+          heading: `Thank you, ${esc(firstN(name))}.`,
+          body: ep(`We have your enquiry and will reply within 24 hours, often sooner.`),
+          btnZone: `<a href="https://lustiqueco.co.za" style="display:inline-block;background-color:#9E5F58;color:#FAF6F0;text-decoration:none;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;padding:14px 40px;border-radius:24px;font-family:Arial,Helvetica,sans-serif;font-weight:600;">Visit Lustique Co.</a>`,
+        }),
       );
 
       // 2) Notify Lustique — header lines + the occasion-specific detail rows.
