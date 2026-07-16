@@ -76,6 +76,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     if (href === "/api/admin/website")    return currentPath.startsWith("/api/admin/website");
     if (href === "/api/admin/templates")  return currentPath.startsWith("/api/admin/templates");
     if (href === "/api/admin/staffing")   return currentPath.startsWith("/api/admin/staffing");
+    if (href === "/api/admin/clio")       return currentPath.startsWith("/api/admin/clio");
     return currentPath === href;
   }
 
@@ -122,11 +123,12 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     navLink("/api/admin/promos",     "Promotions"),
     navLink("/api/admin/marketing",  "Marketing"),
     navLink("/api/admin/templates",  "Templates"),
+    navLink("/api/admin/clio",       "Clio"),
   ];
 
   const nav = [
     navGroup("Admin",    adminLinks,    adminLinks.some((_, i) =>
-      isActive(["/api/admin/dashboard", "/api/admin/staffing", "/api/admin/promos", "/api/admin/marketing", "/api/admin/templates"][i]!))),
+      isActive(["/api/admin/dashboard", "/api/admin/staffing", "/api/admin/promos", "/api/admin/marketing", "/api/admin/templates", "/api/admin/clio"][i]!))),
     navGroup("Bookings", bookingsLinks, bookingsLinks.some((_, i) =>
       isActive(["/api/admin/calendar", "/api/admin/quotes", "/api/admin/rejections"][i]!))),
     navGroup("Clients",  clientsLinks,  clientsLinks.some((_, i) =>
@@ -1903,6 +1905,35 @@ export async function handleAdminNotificationsRead(
     status: 200,
     headers: { "content-type": "application/json" },
   });
+}
+
+// ── handleAdminClio ───────────────────────────────────────────────────────────
+
+/** GET /api/admin/clio — Clio AI assistant page with Telegram bot link */
+export async function handleAdminClio(
+  req: Request,
+  env: DashboardEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAuthEnvUser(req, env, fetchFn);
+  if (!user) return loginRedirect();
+
+  const inner = `<h1>Ask Clio</h1>
+<p style="margin:0 0 1.4rem;font-size:.92rem;color:#5c3d47;line-height:1.65;max-width:580px;">
+  Clio is your AI assistant. Chat with her to get pricing estimates, availability checks, booking guidance, and more — straight from the Lustique knowledge base.
+</p>
+<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem;">
+  <a href="https://t.me/LustiqueCoBot" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:.65rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.2rem 1.6rem;text-decoration:none;color:inherit;transition:border-color .15s;">
+    <span style="font-size:2rem;line-height:1;">🤖</span>
+    <div>
+      <div style="font-weight:700;color:#2b2b2b;">Open in Telegram</div>
+      <div style="font-size:.82rem;color:#8a7d72;">t.me/LustiqueCoBot</div>
+    </div>
+  </a>
+</div>
+<p style="margin:1.4rem 0 0;font-size:.84rem;color:#8a7d72;">Chat will be embedded directly in this dashboard soon.</p>`;
+
+  return htmlResponse(adminShell("Ask Clio", user, inner, new URL(req.url).pathname));
 }
 
 // ── handleAdminWebsite ────────────────────────────────────────────────────────

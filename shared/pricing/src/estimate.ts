@@ -166,8 +166,9 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
     return { total: addTravel(n * pp), heads: n, destination: trav.destination, occasion: input.occasion, lines, perks: [] };
   }
 
-  // Other non-wedding events — makeup faces × base + hair faces × event-hair. No promos here either.
-  if (input.occasion !== "wedding") {
+  // Non-wedding events (matric/editorial/engagement/corporate/pageant) — simple face counts. No promos.
+  // "event" uses wedding guest pricing — falls through to the wedding path below.
+  if (input.occasion !== "wedding" && input.occasion !== "event") {
     const base = EVENT_BASE[input.occasion] ?? 750;
     const evMakeup = Math.max(0, input.evMakeup ?? 0);
     const evHair = Math.max(0, input.evHair ?? 0);
@@ -254,5 +255,5 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
   total = (effect.travelWaived && !trav.destination) ? total : addTravel(total);
   for (const ln of effect.lines) { total += ln.amount; lines.push(ln); }
 
-  return { total, heads, destination: trav.destination, occasion: "wedding", lines, perks: effect.perks };
+  return { total, heads, destination: trav.destination, occasion: input.occasion, lines, perks: effect.perks };
 }

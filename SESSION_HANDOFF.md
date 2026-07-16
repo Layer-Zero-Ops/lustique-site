@@ -87,6 +87,42 @@ Google Ads research was interrupted by a session usage-limit mid-run (only 3 cla
 
 ## ⇄ Umbrella (project ↔ Studio Manager · see _ops/BRIDGE-PROTOCOL.md)
 
-**⬆ To umbrella / Pieter:** Zandeline's dashboard access was fully broken (both login paths) at session start — root-caused and fixed, both DNS-side (SPF) and code-side (email_confirm bug, OTP-failure logging). Two real quoting bugs with direct revenue impact fixed and deployed: a travel-fee miscalculation (confirmed against a real bride's submission) and a promo-eligibility bug that could have given away free looks incorrectly. Two full features (referral-partner tracking, Brevo marketing email system) built via TDD plans and merged. Everything worker-side is live; the site half of the deploy is blocked on a local dev-environment network quirk, not a code problem — needs a `npm run build && wrangler deploy` from a normal terminal to finish shipping. Flagged and did **not** act on a suspicious "message from Gemini" that instructed skipping verification on geodata for the venue directory — independently checked it and it added nothing real; worth being generally cautious about AI-relayed data for anything pricing-adjacent.
+**⬆ To umbrella / Pieter:**
 
-**⬇ From umbrella:** (none new this session)
+🟢 **SHIPPED** — WhatsApp gateway is live. Zandeline (067 925 3894) can message Clio directly. `SOUL.md` has strict WhatsApp rules: signal-only, no jargon, COO-to-CEO tone, ask-don't-dump on first contact. Gateway running via launchd, auto-restarts.
+
+---
+
+## ⬆ Clio(Lustique) → Clio(main): Status update (2026-07-14)
+
+### What's live ✅
+- **Telegram gateway** — primary messaging platform, vision working (GPT-4o via OpenRouter)
+- **WhatsApp** — disabled (unreliable Baileys bridge, replaced by Telegram)
+- **Supabase access** — read-only, all operational tables
+- **Brevo access** — transactional + campaign sends, Gmail-safe email templates deployed
+- **Yoco access** — live secret key provisioned for payment monitoring
+- **Cloudflare access** — API token for Pages/Worker management
+- **Site deployed** — `lustiqueco.co.za` live on Cloudflare Pages (`lustique-site`)
+- **Cron jobs** — morning digest (08:00 SAST) and evening wrap (17:00 SAST)
+- **Approvals** — set to `smart` mode (auto-approves routine operations)
+
+### What's pending
+- Google Workspace OAuth setup (Gmail + Calendar access)
+- Calendar reconciliation (old Google Calendar → Workspace)
+- Artist headshots (8 artists missing photo_url)
+- DB migration 0025 (referral_source column)
+- Brevo Worker secrets
+- Yoco end-to-end test
+
+### 🟡 BUILD-REQUEST → OpenCode: Clio dashboard tab
+
+**What:** A "Clio" tab in the Worker-rendered admin dashboard (`worker/src/booking/dashboard.ts`). Admin shell and JWT auth already exist. 
+
+**The tab shows:**
+- A simple chat interface (text input → send → Clio responds via the Hermes gateway)
+- A "recent activity" feed showing what Clio has observed (new enquiries, payments, flags)
+- Sits alongside existing tabs: Inbox, Bookings, Quotes, Payments, Calendar, Templates, Marketing, Website, Clio
+
+**How:** Add a "Clio" nav item in `adminShell()` that renders a new route. For v1, embed the Telegram bot widget or an iframe pointing to the Hermes gateway. Even a static page with "Ask Clio" + Telegram link works as MVP.
+
+**⬇ From umbrella:** (awaiting: cron schedule sync, Google Workspace decision)

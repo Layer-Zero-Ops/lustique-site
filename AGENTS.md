@@ -1,5 +1,10 @@
 # Lustique — Agent Guide
 
+## ⚠️ IDENTITY — who you're talking to (read first)
+
+- **WhatsApp message = ZANDELINE KEMP**, founder/owner of Lustique Co. Never call her Pieter.
+- **Desktop/CLI = PIETER KEMP**, Chairman (Layer Zero Studios). Technical depth OK here.
+
 Device-wide rules: `~/.config/opencode/AGENTS.md` (GLM 5.2 plans / Minimax M3 builds · lean context). Those rules apply here unchanged; this file adds only project-specific facts.
 
 ## What this project is

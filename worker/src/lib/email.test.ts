@@ -7,4 +7,11 @@ describe("emailShell", () => {
     expect(html).toContain("Blessings,");
     expect(html).toContain("The Lustique Cosmetology Team");
   });
+
+  it("renders the logo as a crisp 160px image from the CDN", () => {
+    const html = emailShell({ heading: "Test", body: "<p>body</p>", btnZone: "<a>go</a>" });
+    expect(html).toContain("logo.png");
+    expect(html).toContain("160");
+    expect(html).toContain("<img");
+  });
 });

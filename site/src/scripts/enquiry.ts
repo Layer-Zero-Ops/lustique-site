@@ -20,7 +20,7 @@ const chk = (id: string, d = true): boolean => {
 };
 
 const OCCASION: Record<string, string> = {
-  wedding: "Wedding", matric: "Matric farewell",
+  wedding: "Wedding", matric: "Matric farewell", event: "Event",
 };
 const LEN: Record<string, string> = { short: "Short", medium: "Medium", long: "Long", xlong: "X-Long" };
 const lenLabel = (id: string): string => LEN[val(id) || "medium"] ?? "Medium";
@@ -50,7 +50,7 @@ function partyHairSummary(): string {
 function collect() {
   const occasion = val("occasion") || "wedding";
   const date =
-    occasion === "wedding" ? val("weddingDate")
+    occasion === "wedding" || occasion === "event" ? val("weddingDate")
     : occasion === "lessons" ? val("lessonsDate")
     : val("eventDate");
 
@@ -77,7 +77,15 @@ function collect() {
     add("Attending", val("lessonsAttending"));
   } else {
     add("People", `${numv("evMakeup")} makeup / ${numv("evHair")} hair`);
-    if (numv("evHair")) add("Hair length", lenLabel("evHairLen"));
+    if (numv("evHair")) {
+      const buckets = (["Short", "Medium", "Long", "Xlong"] as const)
+        .map((k) => { const n = numv("evLen" + k); return n ? `${n} ${LEN[k.toLowerCase()] ?? k}` : ""; })
+        .filter(Boolean);
+      add("Hair lengths", buckets.length ? buckets.join(", ") : "—");
+    }
+    // Venue: events get venue from weddingDayFields or "studio"
+    const eventAt = val("eventAt") || "venue";
+    add("Location", eventAt === "studio" ? "Lustique studio, La Montagne" : val("venueInput"));
   }
   add("Style", val("style"));
   add("Inspiration", val("inspo"));
@@ -160,6 +168,15 @@ btn?.addEventListener("click", async () => {
     const placed = numv("lenShort") + numv("lenMedium") + numv("lenLong") + numv("lenXlong");
     if (placed !== need) {
       say(`Almost there — please place all ${need} party hair looks by length (you've placed ${placed}).`);
+      return;
+    }
+  }
+  // Same check for events: if hair is booked, all heads must be placed by length
+  if ((val("occasion") || "") === "event") {
+    const evNeed = numv("evHair");
+    const evPlaced = numv("evLenShort") + numv("evLenMedium") + numv("evLenLong") + numv("evLenXlong");
+    if (evPlaced !== evNeed) {
+      say(`Almost there — please place all ${evNeed} hair looks by length (you've placed ${evPlaced}).`);
       return;
     }
   }

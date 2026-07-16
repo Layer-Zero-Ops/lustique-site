@@ -29,6 +29,7 @@ import {
   handleAdminNotifications,
   handleAdminNotificationsRead,
   handleAdminWebsite,
+  handleAdminClio,
   handleAdminQuoteComposer,
 } from "./booking/dashboard";
 import { handleAssignArtist, handleRemoveArtist } from "./booking/artists";
@@ -469,6 +470,10 @@ export default {
       // GET /api/admin/website — website management placeholder
       if (req.method === "GET" && url.pathname === "/api/admin/website") {
         return await handleAdminWebsite(req, dashEnv);
+      }
+      // GET /api/admin/clio — Clio AI assistant
+      if (req.method === "GET" && url.pathname === "/api/admin/clio") {
+        return await handleAdminClio(req, dashEnv);
       }
       // GET /api/admin/payments — payments view
       if (req.method === "GET" && url.pathname === "/api/admin/payments") {

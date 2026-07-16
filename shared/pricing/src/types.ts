@@ -4,7 +4,7 @@ export type HairLength = "short" | "medium" | "long" | "xlong";
 export type HairBuckets = Record<HairLength, number>;
 
 export type Occasion =
-  | "wedding" | "matric" | "editorial" | "engagement" | "corporate" | "pageant" | "lessons";
+  | "wedding" | "matric" | "event" | "editorial" | "engagement" | "corporate" | "pageant" | "lessons";
 
 export type TravelBand = "studio" | "mid" | "far" | "veryfar" | "destination";
 

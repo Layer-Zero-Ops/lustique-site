@@ -91,6 +91,11 @@ function readPartyHair(): HairBuckets {
   return { short: num("lenShort"), medium: num("lenMedium"), long: num("lenLong"), xlong: num("lenXlong") };
 }
 
+/** Event hair length distribution — the four event buckets. */
+function readEventHair(): HairBuckets {
+  return { short: num("evLenShort"), medium: num("evLenMedium"), long: num("evLenLong"), xlong: num("evLenXlong") };
+}
+
 /** Keep the "N looks need hair" count + the "placed of N" reconciliation note honest as the form changes. */
 function updateLengthHint(): void {
   const n = adultHairHeads();
@@ -99,6 +104,21 @@ function updateLengthHint(): void {
   const counter = el("lengthsCounter");
   if (!counter) return;
   const placed = num("lenShort") + num("lenMedium") + num("lenLong") + num("lenXlong");
+  if (placed === n) counter.textContent = n ? `✓ all ${n} placed` : "";
+  else if (placed < n) counter.textContent = `${placed} of ${n} placed — ${n - placed} to go`;
+  else counter.textContent = `${placed} placed — ${placed - n} more than need hair`;
+}
+
+/** Same reconciliation for the event hair length buckets. */
+function updateEvLengthHint(): void {
+  const n = num("evHair");
+  const headCount = el("evHairHeadCount");
+  if (headCount) headCount.textContent = String(n);
+  const wrap = el("evHairWrap");
+  if (wrap) wrap.style.display = n > 0 ? "" : "none";
+  const counter = el("evLengthsCounter");
+  if (!counter) return;
+  const placed = num("evLenShort") + num("evLenMedium") + num("evLenLong") + num("evLenXlong");
   if (placed === n) counter.textContent = n ? `✓ all ${n} placed` : "";
   else if (placed < n) counter.textContent = `${placed} of ${n} placed — ${n - placed} to go`;
   else counter.textContent = `${placed} placed — ${placed - n} more than need hair`;
@@ -120,32 +140,37 @@ function weddingDateFacts(): Pick<EstimateInput, "weddingDayOfWeek" | "weddingMo
 
 export function readInput(): EstimateInput {
   const occasion = val("occasion", "wedding") as Occasion;
-  // Only weddings collect a venue. Events & lessons settle travel in the personal quote,
-  // so it's always 0 in their live estimate (no stale wedding travel leaks in either).
+  // Weddings & events collect a venue. Events can also choose "studio" (no travel fee).
   const travel: EstimateInput["travel"] =
-    occasion !== "wedding"
+    occasion !== "wedding" && occasion !== "event"
       ? { band: "studio" as TravelBand }
-      : travelOverride
-        ? { cost: travelOverride.cost, destination: travelOverride.destination }
-        : { band: val("travelBand", "studio") as TravelBand };
+      : occasion === "event" && val("eventAt", "venue") === "studio"
+        ? { band: "studio" as TravelBand }
+        : travelOverride
+          ? { cost: travelOverride.cost, destination: travelOverride.destination }
+          : { band: val("travelBand", "studio") as TravelBand };
   return {
     occasion,
-    brideWantsMakeup: checked("brideWantsMakeup"),
-    brideWantsHair: checked("brideWantsHair"),
-    brideWantsTrial: checked("brideWantsTrial"),
+    // Events: no bride or bridal party — map event faces to wedding guest fields
+    brideWantsMakeup: occasion === "event" ? false : checked("brideWantsMakeup"),
+    brideWantsHair: occasion === "event" ? false : checked("brideWantsHair"),
+    brideWantsTrial: occasion === "event" ? false : checked("brideWantsTrial"),
     brideHairLen: val("brideHairLen", "medium") as HairLength,
-    partyHair: readPartyHair(),
-    bmMakeup: num("bmMakeup"), bmHair: num("bmHair"),
-    momMakeup: num("momMakeup"), momHair: num("momHair"),
+    partyHair: occasion === "event" ? readEventHair() : readPartyHair(),
+    bmMakeup: occasion === "event" ? 0 : num("bmMakeup"),
+    bmHair: occasion === "event" ? 0 : num("bmHair"),
+    momMakeup: occasion === "event" ? 0 : num("momMakeup"),
+    momHair: occasion === "event" ? 0 : num("momHair"),
     fgAge: val("fgAge", "under") === "under" ? "under" : "over",
-    fgMakeup: num("fgMakeup"), fgHair: num("fgHair"), fgHairLen: val("fgHairLen", "medium") as HairLength,
-    guestMakeup: num("guestMakeup"), guestHair: num("guestHair"),
-    evMakeup: num("evMakeup"), evHair: num("evHair"), evHairLen: val("evHairLen", "medium") as HairLength,
+    fgMakeup: occasion === "event" ? 0 : num("fgMakeup"),
+    fgHair: occasion === "event" ? 0 : num("fgHair"),
+    fgHairLen: val("fgHairLen", "medium") as HairLength,
+    guestMakeup: occasion === "event" ? num("evMakeup") : num("guestMakeup"),
+    guestHair: occasion === "event" ? num("evHair") : num("guestHair"),
+    evMakeup: num("evMakeup"), evHair: num("evHair"), evHairLen: "medium" as HairLength, // per-look-length buckets now handled via partyHair
     lessonsAttending: num("lessonsAttending"),
     requestedArtists: num("requestedArtists"),
-    // Whichever promo Zandeline has live right now (fetched from the dashboard's
-    // active-promo config) — the toggle only opts in/out, never picks the promo itself.
-    promo: (el("promoToggle") as HTMLInputElement | null)?.checked === false ? { kind: "none" } : activePromo,
+    promo: occasion === "event" ? { kind: "none" } as Promo : (el("promoToggle") as HTMLInputElement | null)?.checked === false ? { kind: "none" } : activePromo,
     travel,
     ...weddingDateFacts(),
   };
@@ -228,6 +253,7 @@ function renderEstimate() {
   // Safety net: never let the live estimate break silently or flash "NaN" at a bride.
   try {
     updateLengthHint();
+    updateEvLengthHint();
     const r = computeEstimate(readInput());
     if (!r.destination && !Number.isFinite(r.total)) throw new Error(`non-finite total: ${r.total}`);
     out.textContent = r.destination ? "Destination — we’ll tailor it" : "from R " + rand(r.total);
@@ -401,18 +427,51 @@ async function lookupTravel() {
   await geocodeFallback();
 }
 
+// Show/hide venue search elements — for events, the studio/venue toggle controls this.
+function toggleVenueSearch() {
+  const occ = val("occasion", "wedding");
+  const isEvent = occ === "event";
+  const studio = isEvent && val("eventAt", "venue") === "studio";
+  const show = (id: string, on: boolean) => { const e = el(id); if (e) e.style.display = on ? "" : "none"; };
+  // Always visible: weddingDate. Venue-search elements:
+  const venueField = document.querySelector("#weddingDayFields .field:has(#venueInput)") as HTMLElement | null;
+  if (venueField) venueField.style.display = studio ? "none" : "";
+  show("checkTravel", !studio);
+  show("venueMap", !studio);
+  show("mapHint", !studio);
+  show("travelResult", !studio);
+  show("bandWrap", !studio);
+}
+
 // Show only the field groups that fit the chosen occasion.
 function applyOccasion() {
   const occ = val("occasion", "wedding");
   const isWedding = occ === "wedding";
+  const isEvent = occ === "event";
   const isLessons = occ === "lessons";
   const show = (id: string, on: boolean) => { const e = el(id); if (e) e.style.display = on ? "" : "none"; };
-  show("weddingDayFields", isWedding);            // date + venue + travel — weddings only
-  show("weddingFields", isWedding);               // the bride + bridal party
-  show("eventFields", !isWedding && !isLessons);  // events: faces + hair
-  show("lessonsFields", isLessons);               // group lessons: attendee count
-  show("promoRow", isWedding);                    // the "book 4+ free" offer only computes for weddings
-  if (isWedding) initMap(STUDIO);                 // pre-show map so bride can drag pin without geocoding
+  show("weddingDayFields", isWedding || isEvent);  // date + venue + travel — weddings & events
+  show("weddingFields", isWedding);                 // the bride + bridal party — weddings only
+  show("eventFields", !isWedding && !isLessons);    // simple faces + hair — matric & events
+  show("lessonsFields", isLessons);                 // group lessons: attendee count
+  show("promoRow", isWedding);                    // promos — weddings only, not events
+  // Update labels for event
+  if (isEvent) {
+    const h3 = document.querySelector("#weddingDayFields h3");
+    if (h3) h3.textContent = "Your event";
+    const sub = document.querySelector("#weddingDayFields .step-sub");
+    if (sub) sub.textContent = "Let us know the date and where you'd like us to be.";
+    const dl = document.querySelector("#weddingDayFields label[for='weddingDate']");
+    if (dl) dl.textContent = "Event date";
+    const vl = document.querySelector("#weddingDayFields label[for='venueInput']");
+    if (vl) vl.innerHTML = 'Venue or choose studio <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(start typing to search, or select "studio" below)</span>';
+    // Remove bride language from About you section
+    const aboutSub = document.querySelector(".form-step:nth-of-type(2) .step-sub");
+    if (aboutSub) aboutSub.textContent = "Tell us about yourself.";
+  }
+  if (isWedding || isEvent) { if (!isEvent || val("eventAt", "venue") !== "studio") initMap(STUDIO); }
+  toggleVenueSearch();
+  updateEvLengthHint();
 }
 
 // Live-search-as-you-type: neither "know the venue name exactly" nor "know where to
@@ -573,6 +632,10 @@ document.addEventListener("DOMContentLoaded", () => {
   if (btn) btn.addEventListener("click", lookupTravel);
   const brideHairToggle = el("brideWantsHair");
   if (brideHairToggle) brideHairToggle.addEventListener("change", applyBrideServiceToggle);
+  const eventAtToggle = el("eventAt");
+  if (eventAtToggle) eventAtToggle.addEventListener("change", () => { toggleVenueSearch(); renderEstimate(); });
+  const evHairToggle = el("evHair");
+  if (evHairToggle) evHairToggle.addEventListener("change", updateEvLengthHint);
   wireVenueSearch();
   applyOccasion();
   applyBrideServiceToggle();
