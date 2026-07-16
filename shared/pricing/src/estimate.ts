@@ -182,21 +182,24 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
   // Wedding — full bridal logic. The bride picks makeup, hair, or both, and whether her
   // selection includes the trial — trial and wedding-day sessions are priced identically,
   // so a single unit price × (2 for trial+day, 1 for day-only) covers either service.
+  // Events use the wedding guest pricing path but skip the bride line.
   const trialMult = input.brideWantsTrial ? 2 : 1;
   let total = 0;
-  if (input.brideWantsMakeup) total += PRICING.brideMakeupUnit * trialMult;
-  if (input.brideWantsHair) total += PRICING.brideHairUnit[input.brideHairLen] * trialMult;
-  const brideServiceParts = [
-    input.brideWantsMakeup ? "makeup" : null,
-    input.brideWantsHair ? `hair (${LEN_LABEL[input.brideHairLen]})` : null,
-  ].filter(Boolean);
-  const brideSessionDesc = input.brideWantsTrial ? "trial & wedding day" : "wedding day only";
-  lines.push({ label: `Bride — ${brideServiceParts.join(" + ") || "no services selected"}, ${brideSessionDesc}`, amount: total });
+  if (input.occasion !== "event") {
+    if (input.brideWantsMakeup) total += PRICING.brideMakeupUnit * trialMult;
+    if (input.brideWantsHair) total += PRICING.brideHairUnit[input.brideHairLen] * trialMult;
+    const brideServiceParts = [
+      input.brideWantsMakeup ? "makeup" : null,
+      input.brideWantsHair ? `hair (${LEN_LABEL[input.brideHairLen]})` : null,
+    ].filter(Boolean);
+    const brideSessionDesc = input.brideWantsTrial ? "trial & wedding day" : "wedding day only";
+    lines.push({ label: `Bride — ${brideServiceParts.join(" + ") || "no services selected"}, ${brideSessionDesc}`, amount: total });
+  }
   const paid: number[] = [];        // every full (hair + makeup) look — for the "4+" threshold
   const freebie: number[] = [];     // looks eligible to be comped by the promo (never the bride, never under-12 FG)
   // A "look" means both hair AND makeup — the bride only counts toward the promo threshold
   // (and is still never the comped one, per the rule below) when she's booked both.
-  if (input.brideWantsMakeup && input.brideWantsHair) paid.push(total);
+  if (input.occasion !== "event" && input.brideWantsMakeup && input.brideWantsHair) paid.push(total);
 
   const adultLengths = expandBuckets(input.partyHair);
   let hairIdx = 0;
@@ -227,7 +230,7 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
   let heads = 1;
   heads += addRole("Bridesmaid", input.bmMakeup, input.bmHair, PRICING.makeup.bridesmaid, adultHair, true);
   heads += addRole("Mother", input.momMakeup, input.momHair, PRICING.makeup.mother, adultHair, true);
-  heads += addRole("Guest", input.guestMakeup, input.guestHair, PRICING.makeup.guest, adultHair, true);
+  heads += addRole(input.occasion === "event" ? "Attendee" : "Guest", input.guestMakeup, input.guestHair, PRICING.makeup.guest, adultHair, true);
   const fgUnder = input.fgAge === "under";
   const fgTable = fgUnder ? PRICING.hairFgUnder : PRICING.hairAdult;
   heads += addRole(
