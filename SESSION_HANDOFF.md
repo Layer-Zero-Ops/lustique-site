@@ -4,6 +4,26 @@
 
 ---
 
+## ✅ Built this session (2026-07-17) — Clio event fan-out (event-driven autonomy)
+
+Branch `feature/clio-webhooks` (committed, NOT yet merged to dev/main). Worker-side webhook nervous system so the AI assistant learns of business events as they happen instead of waiting for the 08:00/17:00 digest.
+
+- **`worker/src/booking/clio.ts`** — `notifyClio(event)`: fire-and-forget, signed (HMAC-SHA256, Standard-Webhooks format), **never throws or blocks** a real flow. Persists every event to new `clio_activity` table (migration `0026_clio_activity.sql`) for the admin "Clio" tab feed. No-op when `CLIO_WEBHOOK_URL` unset (receiver not wired yet).
+- **`worker/src/booking/clioInbound.ts`** — `POST /api/clio/webhook`: inbound relay from external systems (Supabase DB webhooks for Zandeline's dashboard actions, Google Calendar push, Brevo bounce/complaint). Verifies the signed body when `CLIO_WEBHOOK_SECRET` is set.
+- **8 call sites wired:** enquiry received, booking requested, confirmed/declined, invoice/quote sent, deposit paid (admin), settled (admin), Yoco card payment landed, Yoco payment failed.
+- **`wrangler.toml`** — documented `CLIO_WEBHOOK_URL` + `CLIO_WEBHOOK_SECRET` (both optional).
+- **`clio.test.ts`** — TDD covers no-op / signed POST / default audience / persist-only / never-throws / unsigned-omit.
+
+**Stills open (follow-up pass — needs Pieter, cannot run autonomously here):**
+1. Apply `supabase/migrations/0026_clio_activity.sql` in the Supabase SQL editor.
+2. Stand up the inbound Hermes/Clio receiver URL + set `CLIO_WEBHOOK_URL` (+ `CLIO_WEBHOOK_SECRET`) via `wrangler secret put`.
+3. Merge `feature/clio-webhooks` → dev (auto-deploys to staging) → PR review → main.
+4. `npm install` + `vitest run` + `tsc --noEmit` must pass (deps not installed in this sandbox — Pieter's terminal).
+
+Note: this session also confirmed the live Supabase `/sql` REST endpoint is unreachable from this environment (client IP-blocked); use the SQL editor for DDL.
+
+---
+
 ## ▶ NEXT (fresh session — BUILD)
 
 ### 1. Apply the one outstanding DB migration (no code needed, just run the SQL)
