@@ -43,6 +43,8 @@ import {
 } from "./booking/admin-actions";
 import { handleCalendarFeed } from "./booking/calendar";
 import { persistEnquiry, insertNotification } from "./booking/db";
+import { notifyClio } from "./booking/clio";
+import { handleClioInbound } from "./booking/clioInbound";
 import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice } from "./booking/enquiries";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
@@ -110,6 +112,10 @@ export interface Env {
   // iCal feed secret — URL key for GET /api/calendar.ics
   // Set via: wrangler secret put ICAL_KEY  (generate with: openssl rand -hex 24)
   ICAL_KEY?: string;
+  // Clio event fan-out (worker/src/booking/clio.ts) — enables reactive/proactive AI.
+  // Unset until the inbound Hermes receiver is wired; notifyClio() is a no-op then.
+  CLIO_WEBHOOK_URL?: string;
+  CLIO_WEBHOOK_SECRET?: string;
   AUDIT: { put(key: string, value: string): Promise<unknown> };
   // Wave D3 — rate-limiting bindings (declared in wrangler.toml [[ratelimits]])
   // Optional so existing tests that don't supply them compile without changes.
@@ -335,6 +341,15 @@ export default {
     // POST /api/booking/yoco-webhook — Yoco payment event (S7; signature verified inside)
     if (req.method === "POST" && url.pathname === "/api/booking/yoco-webhook") {
       return handleYocoWebhook(env, req);
+    }
+
+    // POST /api/clio/webhook — inbound events FROM external systems relayed to Clio.
+    // e.g. Supabase DB webhook (Zandeline's dashboard actions), Google Calendar push,
+    // Brevo bounce/complaint. Receiver-side verifies auth before forwarding to the AI.
+    // Signature-optional: when CLIO_WEBHOOK_SECRET is set, the inbound call must carry
+    // a matching webhook-signature (Standard Webhooks format) — see clio.ts signClioEvent.
+    if (req.method === "POST" && url.pathname === "/api/clio/webhook") {
+      return handleClioInbound(env, req);
     }
 
     // GET /api/booking/invoice?token= — bride's printable invoice (S9; prefetch-safe, read-only)
@@ -707,6 +722,16 @@ export default {
           link: `/api/admin/enquiries/${saved.id}`,
           payload: { enquiry_id: saved.id },
         }).catch(() => { /* bell failure must never block the enquiry response */ });
+
+        // Clio fan-out — let the AI assistant know immediately (Telegram→Zandeline).
+        notifyClio(env, {
+          type: "enquiry.received",
+          title: `New enquiry — ${name}`,
+          body: [body.occasion, body.date, body.town, body.referralSource && `via ${body.referralSource}`].filter(Boolean).join(" · ") || body.email!.trim(),
+          link: `/api/admin/enquiries/${saved.id}`,
+          audience: "zandeline",
+          payload: { enquiry_id: saved.id, referral_source: body.referralSource },
+        });
       }
 
       // 1) Confirm the bride

@@ -10,6 +10,7 @@
  * v1 takes deposits by EFT (no Yoco). S4 swaps the EFT block for a Yoco pay-link.
  */
 import { getBookingByTokenHash, transitionRequestedBooking, getBookingById, transitionBooking, insertNotification, type ConfirmBookingRow } from "./db";
+import { notifyClio } from "./clio";
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken, verifyActionToken } from "./token";
 import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail, getEftSettings, type EftSettings } from "../lib/email";
@@ -189,6 +190,15 @@ export async function handleBookingConfirm(
         fetchImpl);
     }
     await writeAudit(env, { bookingId: b.id, eventType: decline ? "confirm.declined" : "confirm.confirmed", payload: { reference: b.reference } }, fetchImpl);
+    // Clio fan-out — booking confirmed or declined (Telegram→Zandeline).
+    notifyClio(env, {
+      type: decline ? "booking.declined" : "booking.confirmed",
+      title: decline ? `Booking declined — ${b.bride_name}` : `Booking confirmed — ${b.bride_name}`,
+      body: `${b.wedding_date} · ${b.reference}`,
+      link: `/api/admin/booking/${b.id}`,
+      audience: "zandeline",
+      payload: { reference: b.reference, booking_id: b.id, wedding_date: b.wedding_date },
+    });
   } catch {
     await writeAudit(env, { bookingId: b.id, eventType: "confirm.email-failed", payload: { reference: b.reference, action } }, fetchImpl).catch(() => {});
   }

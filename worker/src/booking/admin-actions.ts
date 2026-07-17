@@ -5,6 +5,7 @@
 
 import { getAdminSession, loginRedirect, type AuthEnv } from "./auth";
 import { getBookingById, transitionBooking, transitionRequestedBooking, insertNotification, type ConfirmBookingRow } from "./db";
+import { notifyClio } from "./clio";
 import { writeAudit } from "./audit";
 import { signActionToken } from "./token";
 import {
@@ -342,6 +343,16 @@ export async function handleAdminMarkDepositPaid(
     payload: { reference: booking.reference, markedBy: session.email },
   }, fetchFn).catch(() => {});
 
+  // Clio fan-out — deposit received (Telegram→Zandeline).
+  notifyClio(env, {
+    type: "payment.deposit_paid",
+    title: `Deposit received — ${booking.bride_name}`,
+    body: `${booking.reference} · ${booking.wedding_date} (marked by admin)`,
+    link: `/api/admin/booking/${booking.id}`,
+    audience: "zandeline",
+    payload: { reference: booking.reference, booking_id: booking.id, markedBy: session.email },
+  });
+
   try {
     await sendEmail(
       env,
@@ -400,6 +411,16 @@ export async function handleAdminMarkBalancePaid(
     fetchFn,
   );
   if (!updated) return errorRedirect(bookingId, "Balance already marked — refresh and check status");
+
+  // Clio fan-out — booking fully settled (Telegram→Zandeline).
+  notifyClio(env, {
+    type: "payment.settled",
+    title: `Fully paid — ${booking.bride_name}`,
+    body: `${booking.reference} · ${booking.wedding_date} (marked by admin)`,
+    link: `/api/admin/booking/${booking.id}`,
+    audience: "zandeline",
+    payload: { reference: booking.reference, booking_id: booking.id, markedBy: session.email },
+  });
 
   try {
     await sendEmail(

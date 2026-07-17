@@ -37,6 +37,7 @@ import { writeAudit, type AuditEnv } from "./audit";
 import { recordPayment, type WaveEnv } from "../lib/wave";
 import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail, getEftSettings, type EftSettings } from "../lib/email";
 import { upsertBrevoContact } from "../lib/brevoCampaign";
+import { notifyClio } from "./clio";
 
 export interface YocoWebhookEnv extends AuditEnv, WaveEnv, DbEnv {
   YOCO_WEBHOOK_SECRET: string;
@@ -228,6 +229,15 @@ async function handlePaymentFailure(
       payload: { reference: booking.reference, amountCents },
     }, f).catch(() => {});
     await markPaymentFailureNotified(env, paymentRowId, f);
+    // Clio fan-out — card payment failed (Telegram→Zandeline, high priority).
+    notifyClio(env, {
+      type: "payment.failed",
+      title: `Card payment failed — ${booking.bride_name}`,
+      body: `${booking.reference} · ${fmtZAR(amountCents)} · EFT instructions sent`,
+      link: `/api/admin/booking/${booking.id}`,
+      audience: "zandeline",
+      payload: { reference: booking.reference, booking_id: booking.id, amountCents },
+    }, f);
   } catch (e) {
     await writeAudit(env, { bookingId: booking.id, eventType: "payment.failure-email-failed", payload: { reference: booking.reference, error: String(e) } }, f).catch(() => {});
   }
@@ -296,6 +306,16 @@ export async function handleYocoWebhook(
     }
 
     const booking = await getBookingById(env, bookingId, fetchImpl);
+
+    // Clio fan-out — a real card payment just landed (Telegram→Zandeline).
+    notifyClio(env, {
+      type: isBalance ? "payment.settled" : "payment.deposit_paid",
+      title: isBalance ? `Card payment — fully paid · ${booking?.bride_name ?? ""}` : `Card deposit received · ${booking?.bride_name ?? ""}`,
+      body: booking ? `${booking.reference} · ${booking.wedding_date}` : `checkout ${checkoutId}`,
+      link: booking ? `/api/admin/booking/${booking.id}` : undefined,
+      audience: "zandeline",
+      payload: { reference: booking?.reference, booking_id: bookingId, kind, checkoutId, yocoPaymentId },
+    });
 
     // S8: record in Wave (fire-and-forget)
     if (booking?.wave_invoice_id && (env.WAVE_CLIENT_ID || env.WAVE_API_KEY) && env.WAVE_BUSINESS_ID && env.WAVE_BANK_ACCOUNT_ID) {

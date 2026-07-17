@@ -13,6 +13,7 @@
  * POST = verify → optional amount override → guarded transition → emails → redirect
  */
 import { getBookingByTokenHashForReview, transitionRequestedBooking, updateBookingWaveIds, listExpiredQuotes, transitionBooking, type ReviewBookingRow } from "./db";
+import { notifyClio } from "./clio";
 import { writeAudit, type AuditEnv } from "./audit";
 import { verifyToken, hashToken, signActionToken } from "./token";
 import { createCustomer, createInvoice, type WaveEnv } from "../lib/wave";
@@ -260,6 +261,15 @@ export async function handleReview(
       { bookingId: b.id, eventType: "review.quote-sent", payload: { reference: b.reference, totalCents: finalTotalCents, override: useOverride } },
       fetchImpl,
     );
+    // Clio fan-out — quote/invoice sent to bride (Telegram→Zandeline).
+    notifyClio(env, {
+      type: "invoice.sent",
+      title: `Quote sent — ${b.bride_name}`,
+      body: `${b.wedding_date} · ${fmtZAR(finalTotalCents)} · ${b.reference}`,
+      link: `/api/admin/booking/${b.id}`,
+      audience: "zandeline",
+      payload: { reference: b.reference, booking_id: b.id, totalCents: finalTotalCents },
+    });
   } catch {
     await writeAudit(env, { bookingId: b.id, eventType: "review.email-failed", payload: { reference: b.reference } }, fetchImpl).catch(() => {});
   }

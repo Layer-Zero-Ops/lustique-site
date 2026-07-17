@@ -12,6 +12,7 @@ import { writeAudit, type AuditEnv } from "./audit";
 import { signToken, hashToken } from "./token";
 import { makeReference } from "./util";
 import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail } from "../lib/email";
+import { notifyClio } from "./clio";
 
 // ── env interface ─────────────────────────────────────────────────────────────
 export interface BookingRequestEnv extends AuditEnv {
@@ -272,6 +273,16 @@ ${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
     ).catch(() => {}); // never throw out of the catch
     return json({ ok: false, error: "We couldn't send your confirmation emails — please email info@lustiqueco.co.za and we'll confirm your booking directly." }, 502);
   }
+
+  // Clio fan-out — booking request submitted (Telegram→Zandeline).
+  notifyClio(env, {
+    type: "booking.requested",
+    title: `Booking request — ${body.brideName!.trim()}`,
+    body: `${body.weddingDate} · ${result.heads} looks · ${fmtZAR(totalCents)} · ${reference}`,
+    link: `/api/admin/booking/${bookingId}`,
+    audience: "zandeline",
+    payload: { reference, booking_id: bookingId, wedding_date: body.weddingDate, totalCents },
+  });
 
   return json({ ok: true, reference }, 200);
 }

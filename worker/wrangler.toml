@@ -27,8 +27,14 @@ YOCO_FEE_PCT = "2.95"
 #                         Enables JWT-gated /api/admin/login + /api/admin/dashboard routes.
 # Marketing email (admin-composed Brevo campaigns — see worker/src/booking/marketing.ts):
 #   BREVO_NEWSLETTER_LIST_ID   — numeric Brevo list ID for newsletter signups (see newsletter.ts)
-#   BREVO_PAST_CLIENTS_LIST_ID — numeric Brevo list ID for settled bookings' brides — optional;
-#                                the past-clients audience + its settle-time sync are skipped if unset.
+#   BREVO_PAST_CLIENTS_LIST_ID — numeric Brevo list ID for settled bookings' brides (see marketing.ts) —
+#                                optional; the past-clients audience and its sync are skipped if unset.
+# Clio event fan-out (worker/src/booking/clio.ts):
+#   CLIO_WEBHOOK_URL     — inbound Hermes/Clio receiver URL the Worker POSTs events to.
+#                           Unset until the receiver is wired; notifyClio() is then a no-op.
+#   CLIO_WEBHOOK_SECRET  — optional HMAC secret; when set, BOTH the outbound notifyClio() POST
+#                           and the inbound /api/clio/webhook POST are signed (Standard Webhooks format)
+#                           and verified. Production should set this.
 # iCal feed (D2 replacement):
 #   ICAL_KEY — random URL key for GET /api/calendar.ics?key=<ICAL_KEY>
 #              Generate: openssl rand -hex 24
