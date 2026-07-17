@@ -14,12 +14,14 @@ function mkFetch() {
 }
 
 describe("notifyClio", () => {
-  it("is a no-op when CLIO_WEBHOOK_URL is unset (receiver not wired yet)", async () => {
+  it("is a no-op to the webhook when CLIO_WEBHOOK_URL is unset (receiver not wired yet), but still persists", async () => {
     const f = mkFetch();
     notifyClio({ ...baseEnv, CLIO_WEBHOOK_URL: undefined }, { type: "enquiry.received", title: "New" }, f);
     // allow the microtask to flush
     await new Promise((r) => setTimeout(r, 10));
-    expect(f).not.toHaveBeenCalled();
+    // Only the Supabase persist should have fired — never the webhook.
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(f.mock.calls[0]![0]).toBe("https://db.example/rest/v1/clio_activity");
   });
 
   it("POSTs a signed event to CLIO_WEBHOOK_URL with webhook-* headers", async () => {
@@ -33,8 +35,11 @@ describe("notifyClio", () => {
       payload: { reference: "LUS-2026-AB" },
     }, f);
     await new Promise((r) => setTimeout(r, 10));
-    expect(f).toHaveBeenCalledTimes(1);
-    const [url, opts] = f.mock.calls[0]!;
+    // persist (Supabase) + webhook = 2 calls; assert the webhook specifically.
+    expect(f).toHaveBeenCalledTimes(2);
+    const webhookCall = f.mock.calls.find((c) => c[0] === "https://clio.example/inbound");
+    expect(webhookCall).toBeDefined();
+    const [url, opts] = webhookCall!;
     expect(url).toBe("https://clio.example/inbound");
     const h = (opts as RequestInit).headers as Record<string, string>;
     expect(h["webhook-id"]).toBeDefined();
