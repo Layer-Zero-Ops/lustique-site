@@ -268,7 +268,9 @@ describe("handleAdminDashboard", () => {
           party_size: 6, total_cents: 480000, created_at: "2026-06-10T09:00:00Z",
           availability_conflict: false,
         },
-      ]));
+      ]))
+      // 4th call: quote_revisions lookup (M4 — latest edited total; none here)
+      .mockResolvedValueOnce(json([]));
     const res = await handleAdminDashboard(getReq("/api/admin/dashboard", token), env, f as unknown as typeof fetch);
     expect(res.status).toBe(200);
     const html = await res.text();
@@ -277,6 +279,44 @@ describe("handleAdminDashboard", () => {
     expect(html).toContain("LUS-2026-111111");
     expect(html).toContain("Hartbeespoort");
     expect(html).toContain("requested");
+  });
+
+  it("M2: distinguishes a bride 'rejected' from an admin 'declined' label", async () => {
+    const token = await validAdminJwt();
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }))
+      .mockResolvedValueOnce(json([{ role: "admin", full_name: "Zandeline" }]))
+      .mockResolvedValueOnce(json([
+        { id: "bb-1111", reference: "LUS-2026-111111", status: "rejected", bride_name: "Anke", wedding_date: "2027-11-14", town: "Hartbeespoort", party_size: 6, total_cents: 480000, created_at: "2026-06-10T09:00:00Z", availability_conflict: false },
+        { id: "bb-2222", reference: "LUS-2026-222222", status: "declined", bride_name: "Bianca", wedding_date: "2027-12-01", town: "Pretoria", party_size: 4, total_cents: 320000, created_at: "2026-06-11T09:00:00Z", availability_conflict: false },
+      ]))
+      .mockResolvedValueOnce(json([])); // quote_revisions (M4) — none
+    const res = await handleAdminDashboard(getReq("/api/admin/dashboard", token), env, f as unknown as typeof fetch);
+    const html = await res.text();
+    expect(html).toContain("Bride rejected");   // M2: distinct from "Declined"
+    expect(html).toContain("LUS-2026-111111");
+    expect(html).toContain("LUS-2026-222222");
+    // both must appear, and "Declined" must NOT be used for the bride-reject row
+    expect(html).toContain("Declined");
+  });
+
+  it("M4: shows the latest edited total (quote_revisions) over the request-time estimate", async () => {
+    const token = await validAdminJwt();
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(json({ id: "aaaaaaaa-0000-0000-0000-000000000001", email: "zandeline@lustiqueco.co.za" }))
+      .mockResolvedValueOnce(json([{ role: "admin", full_name: "Zandeline" }]))
+      .mockResolvedValueOnce(json([
+        { id: "bb-3333", reference: "LUS-2026-333333", status: "quote_sent", bride_name: "Chloe", wedding_date: "2027-10-01", town: "Centurion", party_size: 3, total_cents: 500000, created_at: "2026-06-10T09:00:00Z", availability_conflict: false },
+      ]))
+      .mockResolvedValueOnce(json([{ booking_id: "bb-3333", new_total_cents: 450000, created_at: "2026-06-12T09:00:00Z" }])); // edited down to R4,500
+    const res = await handleAdminDashboard(getReq("/api/admin/dashboard", token), env, f as unknown as typeof fetch);
+    const html = await res.text();
+    // NBSP: formatZAR uses toLocaleString which emits U+00A0 between digits.
+    expect(html).toMatch(/R 4\u00A0500/);   // authoritative edited total (R 4 500)
+    expect(html).toContain("✎");          // edited marker
+    expect(html).not.toMatch(/R 5\u00A0000/); // request-time estimate must NOT show
   });
 
   it("shows 'no pending requests' when bookings list is empty", async () => {

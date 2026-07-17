@@ -520,6 +520,11 @@ export default {
       if (req.method === "POST" && url.pathname === "/api/admin/notifications/read") {
         return await handleAdminNotificationsRead(req, dashEnv);
       }
+      // GET /api/admin/clio-activity — recent Clio event count (polled every 15s;
+      // the plan-A.5 documented realtime fallback until Supabase Realtime is wired).
+      if (req.method === "GET" && url.pathname === "/api/admin/clio-activity") {
+        return await handleAdminClioActivity(req, dashEnv);
+      }
 
       // GET /api/admin/staffing — artist assignment overview
       if (req.method === "GET" && url.pathname === "/api/admin/staffing") {

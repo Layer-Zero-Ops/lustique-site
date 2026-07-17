@@ -123,7 +123,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     navLink("/api/admin/promos",     "Promotions"),
     navLink("/api/admin/marketing",  "Marketing"),
     navLink("/api/admin/templates",  "Templates"),
-    navLink("/api/admin/clio",       "Clio"),
+    navLink("/api/admin/clio",       "Clio", "clio-badge"),
   ];
 
   const nav = [
@@ -162,9 +162,9 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   .badge-accepted{background:#e9d8fd;color:#553c9a;}
   .badge-deposit_paid{background:#f0fff4;color:#276749;}
   .badge-settled{background:#c6f6d5;color:#22543d;}
-  .badge-rejected{background:#fff5f5;color:#c53030;}
+  .badge-rejected{background:#fffaf0;color:#b7791f;border:1px solid #f6e0b8;}  /* bride rejected — amber */
   .badge-invoice_expired{background:#f7fafc;color:#718096;}
-  .badge-declined{background:#fff5f5;color:#c53030;}
+  .badge-declined{background:#fff5f5;color:#c53030;border:1px solid #fed7d7;}  /* admin declined — red */
   .badge-cancelled{background:#f7fafc;color:#718096;}
   .conflict{color:#c53030;font-size:.8rem;font-weight:700;margin-left:.4rem;}
   .empty{color:#8a7d72;font-style:italic;padding:2rem 0;}
@@ -222,7 +222,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
         renderItems(d.items);
       }).catch(function(){});
   }
-  var NOTIF_ICON={enquiry_received:'💬',deposit_paid:'💳',balance_due:'⏰',contact_added:'👤',invoice_rejected:'❌',balance_paid:'✅',invoice_expired:'📋',booking_requested:'📝'};
+  var NOTIF_ICON={enquiry_received:'💬',deposit_paid:'💳',balance_due:'⏰',contact_added:'👤',invoice_rejected:'❌',balance_paid:'✅',invoice_expired:'📋',booking_requested:'📝',payment_failed:'⚠️',booking_confirmed:'✅',booking_declined:'🚫',invoice_sent:'📧',payment_settled:'🎉',payment_deposit_paid:'💳',enquiry_received:'💬'};
   function renderItems(items){
     list.textContent='';
     if(!items||!items.length){
@@ -269,6 +269,26 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
     dropdown.style.display=open?'block':'none';
   });
   document.addEventListener('click',function(){dropdown.style.display='none';});
+  var clioBadge=document.getElementById('clio-badge');
+  var clioLastSeen=0;
+  try{clioLastSeen=parseInt(localStorage.getItem('lq-clio-seen')||'0',10)||0;}catch(e){}
+  function pollClio(){
+    fetch('/api/admin/clio-activity')
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(d){
+        if(!d)return;
+        var newest=d.count; // recent-window count; badge if more than last seen
+        if(newest>clioLastSeen){
+          if(clioBadge){clioBadge.textContent=String(newest-clioLastSeen);clioBadge.style.display='inline-block';}
+        } else if(clioBadge){clioBadge.style.display='none';}
+      }).catch(function(){});
+  }
+  function markClioSeen(){try{localStorage.setItem('lq-clio-seen',String(clioLastSeen));}catch(e){}if(clioBadge)clioBadge.style.display='none';}
+  pollClio();
+  setInterval(pollClio,15000);
+  // mark seen when the Clio tab is opened
+  var clioLink=document.querySelector('a[href="/api/admin/clio"]');
+  if(clioLink)clioLink.addEventListener('click',markClioSeen);
   poll();
   setInterval(poll,60000);
 }());
@@ -313,16 +333,20 @@ const STATUS_LABELS: Record<string, string> = {
   accepted: "Awaiting booking fee",
   deposit_paid: "Booking fee paid",
   settled: "Settled",
-  declined: "Declined",
-  rejected: "Declined",
+  declined: "Declined",          // admin declined the request
+  rejected: "Bride rejected",   // bride rejected the invoice
   cancelled: "Cancelled",
   expired: "Expired",
   invoice_expired: "Invoice expired",
 };
 
+// Map a booking status to its badge CSS class. `rejected` (bride) and
+// `declined` (admin) are distinct outcomes and get distinct colours so Zandeline
+// can tell a bride-reject from an admin-decline at a glance.
 function statusBadge(status: string): string {
+  const cls = status.replace(/_/g, "-");   // snake_case → badge-<status>
   const label = STATUS_LABELS[status] ?? status.replace(/_/g, " ");
-  return `<span class="badge badge-${esc(status)}">${esc(label)}</span>`;
+  return `<span class="badge badge-${esc(cls)}">${esc(label)}</span>`;
 }
 
 function conflictFlag(conflict: boolean): string {
@@ -715,18 +739,46 @@ export async function handleAdminDashboard(
     ? ((await bookingsRes.json()) as InboxBooking[])
     : [];
 
+  // M4: show the authoritative total — the latest quote_revisions.new_total_cents
+  // (what Zandeline actually sent), not the request-time estimate. Reduce the
+  // newest revision per booking from a single ordered query.
+  const latestTotals = new Map<string, number>();
+  if (bookings.length) {
+    const revRes = await fetchFn(
+      `${env.SUPABASE_URL}/rest/v1/quote_revisions` +
+        `?booking_id=in.(${bookings.map((b) => b.id).join(",")})` +
+        `&select=booking_id,new_total_cents,created_at` +
+        `&order=created_at.asc`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        },
+      },
+    );
+    if (revRes.ok) {
+      const revs = (await revRes.json()) as Array<{ booking_id: string; new_total_cents: number; created_at: string }>;
+      // ascending order → last write per booking wins
+      for (const r of revs) latestTotals.set(r.booking_id, r.new_total_cents);
+    }
+  }
+
   const rows = bookings.length
     ? bookings
         .map(
-          (b) => `<tr>
+          (b) => {
+            const effective = latestTotals.has(b.id) ? (latestTotals.get(b.id) as number) : b.total_cents;
+            const edited = latestTotals.has(b.id);
+            return `<tr>
   <td><a class="row-link" href="/api/admin/booking/${esc(b.id)}">${esc(b.reference)}</a></td>
   <td>${esc(b.bride_name)}</td>
   <td>${esc(b.wedding_date)}</td>
   <td>${esc(b.town)}</td>
   <td>${b.party_size}</td>
-  <td>${formatZAR(b.total_cents)}</td>
+  <td>${formatZAR(effective)}${edited ? ` <span style="font-size:.7rem;color:#8a7d72;" title="Latest edited total">✎</span>` : ""}</td>
   <td>${statusBadge(b.status)}${conflictFlag(b.availability_conflict)}</td>
-</tr>`,
+</tr>`;
+          },
         )
         .join("\n")
     : `<tr><td colspan="7" class="empty">no pending requests — all clear ✦</td></tr>`;
@@ -1157,7 +1209,7 @@ export async function handleAdminBookingDetail(
           <tr><td style="color:#8a7d72;">Invoice sent</td><td>${fmtDateTime(b.quote_sent_at)}</td></tr>
           <tr><td style="color:#8a7d72;">Booking fee chosen</td><td>${fmtDateTime(b.accepted_at)}</td></tr>
           <tr><td style="color:#8a7d72;">Booking fee %</td><td>${b.deposit_pct != null ? `${b.deposit_pct}%` : "—"}</td></tr>
-          <tr><td style="color:#8a7d72;">Total</td><td><strong>${formatZAR(b.total_cents)}</strong></td></tr>
+          <tr><td style="color:#8a7d72;">Total</td><td><strong>${formatZAR(revisions.length ? revisions[0]!.new_total_cents : b.total_cents)}</strong>${revisions.length ? ` <span style="font-size:.72rem;color:#8a7d72;" title="Latest edited total">✎</span>` : ""}</td></tr>
           <tr><td style="color:#8a7d72;">Booking fee</td><td>${formatZAR(b.deposit_net_cents)}</td></tr>
           <tr><td style="color:#8a7d72;">Balance</td><td>${formatZAR(b.balance_net_cents)}</td></tr>
         </tbody></table>
@@ -1909,7 +1961,7 @@ export async function handleAdminNotificationsRead(
 
 // ── handleAdminClio ───────────────────────────────────────────────────────────
 
-/** GET /api/admin/clio — Clio AI assistant page with Telegram bot link */
+/** GET /api/admin/clio — live Clio activity feed + Telegram bot link */
 export async function handleAdminClio(
   req: Request,
   env: DashboardEnv,
@@ -1918,22 +1970,74 @@ export async function handleAdminClio(
   const user = await getAuthEnvUser(req, env, fetchFn);
   if (!user) return loginRedirect();
 
-  const inner = `<h1>Ask Clio</h1>
-<p style="margin:0 0 1.4rem;font-size:.92rem;color:#5c3d47;line-height:1.65;max-width:580px;">
-  Clio is your AI assistant. Chat with her to get pricing estimates, availability checks, booking guidance, and more — straight from the Lustique knowledge base.
+  // Live feed from the clio_activity table (written by notifyClio on every event).
+  const feedRes = await fetchFn(
+    supabaseUrl(env, `clio_activity?order=created_at.desc&limit=50&select=id,event_type,title,body,audience,link,created_at`),
+    { headers: supabaseHeaders(env) },
+  );
+  interface FeedRow { id: string; event_type: string; title: string; body: string | null; audience: string; link: string | null; created_at: string; }
+  const feed: FeedRow[] = feedRes.ok ? ((await feedRes.json()) as FeedRow[]) : [];
+
+  const rows = feed.length
+    ? feed.map((r) => `<tr>
+  <td style="padding:.55rem .5rem .55rem 0;vertical-align:middle;">${esc(r.title)}</td>
+  <td style="padding:.55rem .5rem;color:#8a7d72;font-size:.82rem;">${esc(r.body ?? "")}</td>
+  <td style="padding:.55rem .5rem;white-space:nowrap;font-size:.78rem;color:#8a7d72;">${esc(r.audience)}</td>
+  <td style="padding:.55rem 0 .55rem .5rem;white-space:nowrap;font-size:.78rem;color:#8a7d72;">${esc(r.created_at.slice(0, 16).replace("T", " "))}</td>
+  <td style="padding:.55rem 0;text-align:right;">${r.link ? `<a class="row-link" href="${esc(r.link)}">Open</a>` : "—"}</td>
+</tr>`).join("\n")
+    : `<tr><td colspan="5" class="empty">No activity yet — events will stream here as they happen.</td></tr>`;
+
+  const inner = `<h1>Clio — live activity</h1>
+<p style="margin:0 0 1.4rem;font-size:.92rem;color:#5c3d47;line-height:1.65;max-width:620px;">
+  Every business event pushes here the moment it happens — new enquiries, payments, confirmations. Clio uses this same stream to message Zandeline on Telegram in real time.
 </p>
-<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem;">
-  <a href="https://t.me/LustiqueCoBot" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:.65rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.2rem 1.6rem;text-decoration:none;color:inherit;transition:border-color .15s;">
-    <span style="font-size:2rem;line-height:1;">🤖</span>
-    <div>
-      <div style="font-weight:700;color:#2b2b2b;">Open in Telegram</div>
-      <div style="font-size:.82rem;color:#8a7d72;">t.me/LustiqueCoBot</div>
-    </div>
+<div style="display:flex;gap:1rem;flex-wrap:wrap;margin:.4rem 0 1.6rem;">
+  <a href="https://t.me/LustiqueCoBot" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:.65rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1rem 1.4rem;text-decoration:none;color:inherit;">
+    <span style="font-size:1.6rem;line-height:1;">🤖</span>
+    <div><div style="font-weight:700;color:#2b2b2b;">Open in Telegram</div><div style="font-size:.82rem;color:#8a7d72;">t.me/LustiqueCoBot</div></div>
   </a>
 </div>
-<p style="margin:1.4rem 0 0;font-size:.84rem;color:#8a7d72;">Chat will be embedded directly in this dashboard soon.</p>`;
+<table>
+<thead><tr>
+  <th>Event</th><th>Detail</th><th>Audience</th><th>When</th><th></th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table>`;
 
-  return htmlResponse(adminShell("Ask Clio", user, inner, new URL(req.url).pathname));
+  return htmlResponse(adminShell("Clio", user, inner, new URL(req.url).pathname));
+}
+
+// ── handleAdminClioActivity ────────────────────────────────────────────────
+/**
+ * GET /api/admin/clio-activity — lightweight count of recent Clio events.
+ * Polled by the dashboard bell every 15s (M5 realtime fallback, plan A.5).
+ * Returns { count } = clio_activity rows in the last 24h. The client tracks
+ * last-seen and shows a badge for anything newer, giving near-live push without
+ * holding a socket (CF Workers can't) and without a SQL migration here.
+ */
+export async function handleAdminClioActivity(
+  req: Request,
+  env: DashboardEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAuthEnvUser(req, env, fetchFn);
+  if (!user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const res = await fetchFn(
+    supabaseUrl(env, `clio_activity?created_at=gte.${encodeURIComponent(since)}&select=id`),
+    { headers: supabaseHeaders(env) },
+  );
+  const rows = res.ok ? ((await res.json()) as Array<{ id: string }>) : [];
+  return new Response(JSON.stringify({ count: rows.length }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
 }
 
 // ── handleAdminWebsite ────────────────────────────────────────────────────────

@@ -51,6 +51,8 @@ interface RequestBody {
   requestedArtists?: unknown;
   promo?: unknown;
   travel?: unknown;
+  referralSource?: string;   // #17: how they heard about us (carried from the quote/book flow)
+  utmSource?: string;       // #17: utm_source if present in the entry URL
 }
 
 const TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -193,6 +195,7 @@ export async function handleBookingRequest(
       balance_net_cents: 0,
       availability_conflict: avail.conflict,
       consent_at: body.consentAt,
+      referral_source: (body.referralSource ?? body.utmSource ?? null)?.trim().slice(0, 80) || null,  // #17 attribution
       confirm_token_hash: tokenHash,
       confirm_token_expires_at: tokenExpiry.toISOString(),
       notes,
@@ -281,7 +284,7 @@ ${notes ? `<p style="color:#b91c1c;">${esc(notes)}</p>` : ""}
     body: `${body.weddingDate} · ${result.heads} looks · ${fmtZAR(totalCents)} · ${reference}`,
     link: `/api/admin/booking/${bookingId}`,
     audience: "zandeline",
-    payload: { reference, booking_id: bookingId, wedding_date: body.weddingDate, totalCents },
+    payload: { reference, booking_id: bookingId, wedding_date: body.weddingDate, totalCents, referral_source: (body.referralSource ?? body.utmSource ?? null)?.trim().slice(0, 80) || null },
   });
 
   return json({ ok: true, reference }, 200);
