@@ -28,9 +28,10 @@ import {
   handleAdminCalendar,
   handleAdminTemplates,
   handleAdminNotifications,
-  handleAdminNotificationsRead,
   handleAdminWebsite,
   handleAdminClio,
+  handleAdminClioActivity,
+  handleAdminClioLearning,
   handleAdminQuoteComposer,
 } from "./booking/dashboard";
 import { handleAssignArtist, handleRemoveArtist } from "./booking/artists";
@@ -60,6 +61,7 @@ import {
   handlePublicBlogPost,
 } from "./booking/blog";
 import { adminShell } from "./booking/dashboard";
+import { learningPass } from "./booking/learning";
 import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLimit";
 
 /* ============================================================
@@ -525,6 +527,11 @@ export default {
       if (req.method === "GET" && url.pathname === "/api/admin/clio-activity") {
         return await handleAdminClioActivity(req, dashEnv);
       }
+      // GET /api/admin/clio/learning — agent self-optimization ground truth
+      // (playbook + open proposals + safe-change allowlist). Read-only.
+      if (req.method === "GET" && url.pathname === "/api/admin/clio/learning") {
+        return await handleAdminClioLearning(req, dashEnv);
+      }
 
       // GET /api/admin/staffing — artist assignment overview
       if (req.method === "GET" && url.pathname === "/api/admin/staffing") {
@@ -794,6 +801,10 @@ export default {
         await balanceSweep(env);
         await pendingPaymentSweep(env);
         await reviewEmailSweep(env);
+        // Self-optimization loop (Clio v2): reads data, proposes ONE config
+        // change behind the human rail. Inert/empty until migrations 0027/0028
+        // are applied; never applies a change itself.
+        await learningPass(env).catch(() => {});
       })().catch(() => {}), // never throw out of the scheduled handler
     );
   },

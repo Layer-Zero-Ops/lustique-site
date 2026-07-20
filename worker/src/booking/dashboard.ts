@@ -2040,6 +2040,47 @@ export async function handleAdminClioActivity(
   });
 }
 
+// ── handleAdminClioLearning ─────────────────────────────────────────────
+/**
+ * GET /api/admin/clio/learning — single-call ground truth for the agent's
+ * self-optimization loop (see docs/ROADMAP-self-optimizing.md).
+ * Returns the persistent playbook (clio_learning), open proposals (clio_proposals
+ * with status 'proposed'|'approved'|'applied'), and the safe-change allowlist
+ * (clio_safe_change) so the agent acts on structure, not by re-reading raw tables.
+ * Read-only; service-key; never queried client-side. Inert until migrations
+ * 0027/0028 are applied (returns empty arrays gracefully if tables are absent).
+ */
+export async function handleAdminClioLearning(
+  req: Request,
+  env: DashboardEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAuthEnvUser(req, env, fetchFn);
+  if (!user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  const get = async (path: string) => {
+    const r = await fetchFn(supabaseUrl(env, path), { headers: supabaseHeaders(env) });
+    return r.ok ? ((await r.json()) as unknown[]) : [];
+  };
+  const [learning, open, safe] = await Promise.all([
+    get("clio_learning?order=created_at.desc&limit=100&select=id,area,lesson,verdict,effect,confidence,scope,tags"),
+    get("clio_proposals?status=in.(proposed,approved,applied)&order=created_at.desc&limit=50&select=id,status,area,hypothesis,expected_effect,rollback,target_doc,target_key,cohort_key"),
+    get("clio_safe_change?select=doc,key,allowed,reason"),
+  ]);
+  return new Response(
+    JSON.stringify({
+      learning: learning as unknown[],
+      open_proposals: open as unknown[],
+      safe_change: safe as unknown[],
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
+}
+
 // ── handleAdminWebsite ────────────────────────────────────────────────────────
 
 /** GET /api/admin/website — placeholder: links to live site + Sanity CMS */
