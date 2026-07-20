@@ -63,6 +63,7 @@ import {
 import { adminShell } from "./booking/dashboard";
 import { learningPass } from "./booking/learning";
 import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLimit";
+import { newRequestId, attachRequestId, reportError } from "./lib/observe";
 
 /* ============================================================
    LUSTIQUE CO. — form-handler Worker (the stable API boundary)
@@ -126,6 +127,10 @@ export interface Env {
   RL_BOOKING?: RateLimitBinding;
   RL_ENQUIRY?: RateLimitBinding;
   RL_ADMIN?: RateLimitBinding;
+  // Observability (optional): if set, unexpected Worker errors are reported to Sentry.
+  // No SDK dependency — worker/src/lib/observe.ts POSTs to the store endpoint directly.
+  // Set via: wrangler secret put SENTRY_DSN  (format: https://<key>@<host>/<project>)
+  SENTRY_DSN?: string;
 }
 
 interface Detail {
@@ -245,8 +250,28 @@ async function brevoEmail(
 }
 
 export default {
+  // Wrapper: assigns a correlation id, dispatches to routeImpl, attaches the id to
+  // EVERY response, and reports unexpected errors to Sentry (if SENTRY_DSN is set).
   async fetch(req: Request, env: Env, _ctx?: ExecutionContext): Promise<Response> {
+    const rid = newRequestId();
     const origin = env.ALLOWED_ORIGIN || "*";
+    try {
+      const resp = await this.routeImpl(req, env, origin);
+      return attachRequestId(resp, rid);
+    } catch (err) {
+      await reportError(env, rid, err);
+      return attachRequestId(
+        new Response(JSON.stringify({ error: "internal", rid }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
+        rid,
+      );
+    }
+  },
+
+  // Route dispatch (extracted so fetch can wrap it with request-id + error handling).
+  async routeImpl(req: Request, env: Env, origin: string): Promise<Response> {
 
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
 
