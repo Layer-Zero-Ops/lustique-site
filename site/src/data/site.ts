@@ -64,9 +64,11 @@ export const SITE_JSONLD = {
   // ideally third-party-linked source.
 };
 
-// GA4 Measurement ID — replace with real ID when GA4 property is created.
-// Consent-gated: GA4 is NOT loaded until the visitor clicks Accept on the cookie banner.
-export const GA_MEASUREMENT_ID = "G-XXXXXXXXXX";
+// GA4 Measurement ID — Lustique GA4 property (created 2026-07-17).
+// Consent-gated: site.js only loads gtag.js after the visitor clicks Accept
+// on the cookie banner (POPIA). Placeholder-skip guard in site.js stays as a
+// safety net should this ever be reset to G-XXXXXXXXXX.
+export const GA_MEASUREMENT_ID = "G-VVNWW17TER";
 
 // Cloudflare Turnstile site key — public (safe to commit).
 // Dev/test: "1x00000000000000000000AA" (always passes). Replace with real key at deploy.
