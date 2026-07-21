@@ -23,6 +23,10 @@ const desc = "This booking has been confirmed and the bride has been sent her de
         if (line) line.innerHTML =
           "Booking <strong>" + ref + "</strong> is confirmed. The bride has been emailed her EFT deposit details; once it lands, her date is secured.";
       }
+      // GA4 conversion: booking_confirmed
+      if (window.LUSTIQUE_GA_ID && window.gtag) {
+        gtag('event', 'booking_confirmed', { event_category: 'engagement', event_label: ref || 'direct' });
+      }
     })();
   </script>
 </BaseLayout>

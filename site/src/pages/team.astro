@@ -17,6 +17,7 @@ const rawArtists = await supabaseGet<Artist>(
 );
 // Zandeline (founder) always first, rest alphabetical — only show artists with a photo
 const withPhoto = rawArtists.filter(a => a.photo_url);
+const isEmpty = withPhoto.length === 0;
 const artists = [
   ...withPhoto.filter(a => a.name.toLowerCase() === "zandeline"),
   ...withPhoto.filter(a => a.name.toLowerCase() !== "zandeline").sort((a, b) => a.name.localeCompare(b.name)),
@@ -30,7 +31,7 @@ function specialismLabel(specialisms: string[]): string {
   return "Bridal Artistry";
 }
 ---
-<BaseLayout slug="team.html" title={title} desc={desc} breadcrumb={[{ name: "The Team" }]}>
+<BaseLayout slug="team.html" title={title} desc={desc} breadcrumb={[{ name: "The Team" }]} robots={isEmpty ? "noindex" : undefined}>
 
   <section class="page-hero">
     <span class="eyebrow">The Team</span>
@@ -42,6 +43,13 @@ function specialismLabel(specialisms: string[]): string {
   </section>
 
   <section class="section" style="padding-top:3rem"><div class="wrap">
+    {isEmpty && (
+      <p class="note center" style="padding:2rem;background:rgba(160,98,94,.06);border-radius:14px;">
+        Our artist profiles are coming soon. In the meantime, every Lustique bride receives the
+        same calm, considered standard — whoever joins you on your day is chosen by skill,
+        availability, and the right fit for your party.
+      </p>
+    )}
     <div class="artist-grid">
       {artists.map((a, i) => (
         <div class={`artist reveal${["", " d1", " d2"][i % 3]}`}>

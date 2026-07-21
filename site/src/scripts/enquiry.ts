@@ -194,6 +194,10 @@ btn?.addEventListener("click", async () => {
     result = await postEnquiry(data);
   }
   if (result.ok) {
+    // GA4 conversion: quote_request
+    if ((window as unknown as Record<string, unknown>).LUSTIQUE_GA_ID && (window as unknown as Record<string, unknown>).gtag) {
+      (window as unknown as Record<string, (event: string, params?: Record<string, unknown>) => void>).gtag('event', 'quote_request', { event_category: 'engagement' });
+    }
     window.location.href = "thank-you.html";
     return;
   }

@@ -481,8 +481,12 @@ ${b.status === "quote_sent" ? `
 ` : ""}
 
   <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
-
 </div>
+${b.status === "deposit_paid" ? `<script is:inline>
+    if (window.LUSTIQUE_GA_ID && window.gtag) {
+      gtag('event', 'deposit_paid', { event_category: 'revenue', value: ${(b.deposit_net_cents / 100).toFixed(2)} });
+    }
+  </script>` : ""}
 </body>
 </html>`;
 }
