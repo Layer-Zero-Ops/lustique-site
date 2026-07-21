@@ -47,6 +47,16 @@ function partyHairSummary(): string {
   return buckets.length ? buckets.join(", ") : "—";
 }
 
+function makeIdempotencyKey(): string {
+  return (() => {
+    try {
+      let k = sessionStorage.getItem("lustique_form_key");
+      if (!k) { k = crypto.randomUUID(); sessionStorage.setItem("lustique_form_key", k); }
+      return k;
+    } catch { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+  })();
+}
+
 function collect() {
   const occasion = val("occasion") || "wedding";
   const date =
@@ -115,6 +125,7 @@ function collect() {
   }
 
   const tsInput = document.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"]');
+  const consent = document.getElementById("consentCheck") as HTMLInputElement | null;
   return {
     name: [val("fName"), val("lName")].filter(Boolean).join(" "),
     email: val("email"),
@@ -127,6 +138,8 @@ function collect() {
     hp_company: val("hp_company"), // honeypot — the Worker drops it if filled
     cfTurnstileToken: tsInput?.value ?? "",
     referralSource: readReferralSource(),
+    consentAt: consent && consent.checked ? new Date().toISOString() : undefined,
+    idempotencyKey: makeIdempotencyKey(),
   };
 }
 
@@ -192,6 +205,8 @@ btn?.addEventListener("click", async () => {
   const label = btn.textContent;
   btn.disabled = true;
   btn.textContent = "Sending…";
+  btn.setAttribute("aria-busy", "true");
+  document.body.style.overflow = "hidden";
   say("");
 
   // Self-heal: one automatic retry on a transient failure before we ask her to email us instead.
@@ -211,4 +226,6 @@ btn?.addEventListener("click", async () => {
 
   btn.disabled = false;
   btn.textContent = label;
+  btn.removeAttribute("aria-busy");
+  document.body.style.overflow = "";
 });

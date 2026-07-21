@@ -450,7 +450,7 @@ function applyOccasion() {
   const isEvent = occ === "event";
   const isLessons = occ === "lessons";
   const show = (id: string, on: boolean) => { const e = el(id); if (e) e.style.display = on ? "" : "none"; };
-  show("weddingDayFields", isWedding || isEvent || occasion === "matric");  // all occasions with a date
+  show("weddingDayFields", isWedding || isEvent || occ === "matric");  // all occasions with a date
   // For weddings/events: keep venue + travel. For matric/lessons: date only.
   const showVenue = isWedding || isEvent;
   show("weddingVenueWrap", showVenue);
@@ -459,7 +459,7 @@ function applyOccasion() {
   show("mapHint", showVenue);
   show("bandWrap", false);
   // Event date label updates (wedding stays as-is)
-  const dateLabel = isWedding ? "Wedding date" : occasion === "matric" ? "Matric date" : isEvent ? "Event date" : "Date";
+  const dateLabel = isWedding ? "Wedding date" : occ === "matric" ? "Matric date" : isEvent ? "Event date" : "Date";
   const dl = document.querySelector("#weddingDayFields label[for='weddingDate']");
   if (dl) dl.textContent = dateLabel;
   // Update heading/subtitle for event / wedding
