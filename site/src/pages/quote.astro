@@ -9,7 +9,16 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-  
+  <script>
+    (function() {
+      try {
+        var p = new URLSearchParams(location.search);
+        var v = p.get('ref') || p.get('utm_source');
+        if (v) sessionStorage.setItem('lustique_referral_source', v.slice(0, 80));
+      } catch (e) { /* best-effort only */ }
+    })();
+  </script>
+
   <section class="page-hero">
     <span class="eyebrow">Get a Quote</span>
     <h1>Tell us about your day.</h1>
@@ -23,7 +32,7 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
     <form id="quoteForm">
       <input type="text" name="company" id="hp_company" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
       <div class="form-step reveal"><h3>Your occasion</h3><p class="step-sub">Choose your occasion and we'll tailor the estimator and quote to you.</p>
-        <div class="field"><label for="occasion">What are we creating for?</label><select id="occasion"><option value="wedding">Wedding</option><option value="matric">Matric farewell</option></select></div>
+        <div class="field"><label for="occasion">What are we creating for?</label><select id="occasion"><option value="wedding">Wedding</option><option value="matric">Matric farewell</option><option value="event">Event</option></select></div>
       </div>
       <div class="form-step reveal"><h3>About you</h3><p class="step-sub">Let’s start with the star of the show.</p>
         <div class="field-row"><div class="field"><label for="fName">First name</label><input id="fName" placeholder="Your name"></div><div class="field"><label for="lName">Last name</label><input id="lName" placeholder="Surname"></div></div>
@@ -31,13 +40,12 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         <div class="field"><label for="source">How did you hear about us?</label><select id="source"><option>Instagram</option><option>Google</option><option>A friend / past bride</option><option>TikTok</option><option>Facebook</option><option>Other</option></select></div>
       </div>
       <div class="form-step reveal" id="weddingDayFields"><h3>Your big day</h3><p class="step-sub">So we can reserve the date and work out the travel from our La Montagne studio.</p>
-        <div class="field-row"><div class="field"><label for="weddingDate">Wedding date</label><input type="date" id="weddingDate"></div><div class="field"><label for="provinceInput">Province</label><select id="provinceInput"><option>Gauteng</option><option>Limpopo</option><option>Mpumalanga</option><option>North West</option><option>Other / outside SA</option></select></div></div>
+        <div class="field"><label for="weddingDate">Wedding date</label><input type="date" id="weddingDate"></div>
         <div class="field" style="position:relative;">
           <label for="venueInput">Venue name or address <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(start typing — we’ll search for it)</span></label>
           <input id="venueInput" placeholder="e.g. Red Ivory Estate, or a street address" autocomplete="off">
           <div id="venueSuggestions" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;background:#fff;border:1px solid rgba(60,42,42,.18);border-radius:10px;margin-top:.3rem;box-shadow:0 8px 24px rgba(60,42,42,.12);max-height:280px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;"></div>
         </div>
-        <div class="field"><label for="townInput">Town / area</label><input id="townInput" placeholder="e.g. Hartbeespoort"></div>
         <button type="button" class="btn btn-ghost" id="checkTravel" style="padding:.7em 1.4em;">Find venue on map</button>
         <div id="venueMap" style="height:300px;border-radius:14px;margin-top:1rem;display:none;"></div>
         <div id="mapHint" style="display:none;margin-top:.75rem;background:rgba(138,90,74,.07);border:1px solid rgba(138,90,74,.18);border-radius:10px;padding:.65rem 1rem;font-size:.88rem;color:#5c5048;">
@@ -47,8 +55,13 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         <div class="field" id="bandWrap" style="display:none;margin-top:1rem;"><label for="travelBand">Distance band (fallback)</label><select id="travelBand"><option value="studio">Within 20 km one-way / 40 km round trip (free)</option><option value="mid">30–80 km</option><option value="far">80–150 km</option><option value="veryfar">150–200 km</option><option value="destination">Over 200 km / destination</option></select></div>
       </div>
       <div id="weddingFields">
-      <div class="form-step reveal"><h3>The bride</h3><p class="step-sub">Your trial and wedding-day hair &amp; makeup — lashes and a touch-up kit included.</p>
-        <div class="field"><label for="brideHairLen">Bride’s hair length</label><select id="brideHairLen"><option value="short">Short (chin)</option><option value="medium" selected>Medium (shoulder)</option><option value="long">Long (mid-back)</option><option value="xlong">X-Long (pantyline)</option></select></div>
+      <div class="form-step reveal"><h3>The bride</h3><p class="step-sub">Choose what you'd like for yourself — lashes and a touch-up kit included whenever makeup is booked.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:1.2rem;margin:.2rem 0 1rem;">
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.92rem;color:#5c5048;"><input type="checkbox" id="brideWantsMakeup" checked style="width:auto;"> Makeup</label>
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.92rem;color:#5c5048;"><input type="checkbox" id="brideWantsHair" checked style="width:auto;"> Hair</label>
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.92rem;color:#5c5048;"><input type="checkbox" id="brideWantsTrial" checked style="width:auto;"> Include a trial</label>
+        </div>
+        <div class="field" id="brideHairLenWrap"><label for="brideHairLen">Bride’s hair length</label><select id="brideHairLen"><option value="short">Short (chin)</option><option value="medium" selected>Medium (shoulder)</option><option value="long">Long (mid-back)</option><option value="xlong">X-Long (pantyline)</option></select></div>
       </div>
       <div class="form-step reveal"><h3>Your bridal party</h3><p class="step-sub">Makeup and hair are priced separately — so tell us exactly who needs what, and only pay for that.</p>
         <p style="font-weight:600;color:var(--mocha);margin:.2rem 0 .6rem;">Bridesmaids</p>
@@ -71,9 +84,16 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
       </div>
       </div>
       <div class="form-step reveal" id="eventFields" style="display:none;"><h3>Who needs makeup &amp; hair?</h3><p class="step-sub">Tell us how many people need each — only pay for what you book.</p>
-        <div class="field"><label for="eventDate">Date of your matric farewell</label><input type="date" id="eventDate"></div>
+        <div class="field"><label for="eventAt">Where should we meet you?</label><select id="eventAt"><option value="venue">At the venue — travel fee applies</option><option value="studio">At the Lustique studio, La Montagne — no travel fee</option></select></div>
+        <p class="note" style="margin:.3rem 0 0;">For groups of 3+, we recommend meeting at your venue — it's more comfortable for everyone, and we come to you.</p>
         <div class="field-row"><div class="field"><label for="evMakeup">Need makeup</label><select id="evMakeup"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div><div class="field"><label for="evHair">Need hair</label><select id="evHair"><option selected>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div></div>
-        <div class="field"><label for="evHairLen">Hair length <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(for any hair styling)</span></label><select id="evHairLen"><option value="short">Short (chin)</option><option value="medium" selected>Medium (shoulder)</option><option value="long">Long (mid-back)</option><option value="xlong">X-Long (pantyline)</option></select></div>
+        <div role="group" aria-labelledby="evHairLabel" id="evHairWrap" style="display:none;margin-top:1rem;">
+          <p id="evHairLabel" class="field-label">Hair length breakdown <span style="font-weight:400;color:#6b5c52;">(choose the length for each person getting hair styling)</span></p>
+          <p class="note" style="margin:.3rem 0 .7rem;">Place the <span id="evHairHeadCount">0</span> looks that need hair, by length:</p>
+          <div class="field-row"><div class="field"><label for="evLenShort">Short</label><input type="number" id="evLenShort" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="evLenMedium">Medium</label><input type="number" id="evLenMedium" min="0" inputmode="numeric" value="0"></div></div>
+          <div class="field-row"><div class="field"><label for="evLenLong">Long</label><input type="number" id="evLenLong" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="evLenXlong">X-Long</label><input type="number" id="evLenXlong" min="0" inputmode="numeric" value="0"></div></div>
+          <p class="note" id="evLengthsCounter" style="margin:.3rem 0 0;"></p>
+        </div>
       </div>
       <div class="form-step reveal"><h3>Your vision</h3><p class="step-sub">The more you share, the more we can tailor your day.</p>
         <div class="field"><label for="style">Style</label><select id="style"><option>Natural &amp; soft</option><option>Soft glam</option><option>Full glam</option><option>Editorial</option><option>Boho</option><option>Not sure yet — guide me</option></select></div>

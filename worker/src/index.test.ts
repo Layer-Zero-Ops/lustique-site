@@ -155,3 +155,21 @@ describe("Rate limiting — passes through when binding allows", () => {
     expect(resp.status).not.toBe(429);
   });
 });
+
+describe("Routing — /api/admin/marketing", () => {
+  it("routes GET /api/admin/marketing to the handler (redirects to login, not a 404)", async () => {
+    const env = baseEnv();
+    const req = makeReq("GET", "/api/admin/marketing");
+    const resp = await worker.fetch(req, env as never, {} as ExecutionContext);
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toContain("/api/admin/login");
+  });
+
+  it("routes POST /api/admin/marketing/sync-past-clients to the handler (redirects to login, not a 404)", async () => {
+    const env = baseEnv();
+    const req = makeReq("POST", "/api/admin/marketing/sync-past-clients");
+    const resp = await worker.fetch(req, env as never, {} as ExecutionContext);
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toContain("/api/admin/login");
+  });
+});

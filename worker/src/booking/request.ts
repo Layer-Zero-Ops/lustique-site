@@ -36,6 +36,9 @@ interface RequestBody {
   hp_company?: string;
   cfTurnstileToken?: string;
   occasion?: string;
+  brideWantsMakeup?: unknown;
+  brideWantsHair?: unknown;
+  brideWantsTrial?: unknown;
   brideHairLen?: string;
   partyHair?: unknown;
   bmMakeup?: unknown; bmHair?: unknown;
@@ -83,6 +86,9 @@ function validate(b: RequestBody): string | "spam" | null {
 function toEstimateInput(b: RequestBody): EstimateInput {
   return {
     occasion: (b.occasion ?? "wedding") as EstimateInput["occasion"],
+    brideWantsMakeup: b.brideWantsMakeup !== false,
+    brideWantsHair: b.brideWantsHair !== false,
+    brideWantsTrial: b.brideWantsTrial !== false,
     brideHairLen: (b.brideHairLen ?? "medium") as EstimateInput["brideHairLen"],
     partyHair: (b.partyHair as EstimateInput["partyHair"]) ?? { short: 0, medium: 0, long: 0, xlong: 0 },
     bmMakeup: n(b.bmMakeup), bmHair: n(b.bmHair),

@@ -205,6 +205,7 @@ export async function handleAdminEnquiryDetail(
           ${e.event_date ? `<tr><td style="color:#8a7d72;padding:3px 12px 3px 0;">Date</td><td>${esc(e.event_date)}</td></tr>` : ""}
           ${e.town ? `<tr><td style="color:#8a7d72;padding:3px 12px 3px 0;">Town</td><td>${esc(e.town)}</td></tr>` : ""}
           ${e.estimate ? `<tr><td style="color:#8a7d72;padding:3px 12px 3px 0;">Estimate</td><td>${esc(e.estimate)}</td></tr>` : ""}
+          ${e.referral_source ? `<tr><td style="color:#8a7d72;padding:3px 12px 3px 0;">Referral source</td><td>${esc(e.referral_source)}</td></tr>` : ""}
           <tr><td style="color:#8a7d72;padding:3px 12px 3px 0;">Received</td><td>${esc(e.created_at.slice(0, 16).replace("T", " "))}</td></tr>
         </table>
         ${detailRows ? `<h2 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a7d72;margin:1.2rem 0 .5rem;">Occasion details</h2>${detailRows}` : ""}

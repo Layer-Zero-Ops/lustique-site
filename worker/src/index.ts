@@ -8,6 +8,7 @@ import { renderRejectPage, handleReject } from "./booking/reject";
 import { handleYocoWebhook, pendingPaymentSweep } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 import { reviewEmailSweep } from "./booking/review-email";
+import { emailShell, ep, firstN } from "./lib/email";
 import { handleAdminBlockedDates } from "./booking/admin";
 import { handleAdminAccounting } from "./booking/accounting";
 import { handleAdminInvoices } from "./booking/invoices";
@@ -29,6 +30,7 @@ import {
   handleAdminNotifications,
   handleAdminNotificationsRead,
   handleAdminWebsite,
+  handleAdminClio,
   handleAdminQuoteComposer,
 } from "./booking/dashboard";
 import { handleAssignArtist, handleRemoveArtist } from "./booking/artists";
@@ -65,8 +67,11 @@ import { checkRateLimit, RATE_LIMITS, type RateLimitBinding } from "./lib/rateLi
                        the enquiry + confirm the bride (Brevo) → 200.
 
    Secrets (set via `wrangler secret put`, never committed):
-     BREVO_API_KEY  — Brevo transactional-email key
-     NOTIFY_EMAIL   — verified Brevo sender + where enquiries land (info@lustiqueco.co.za)
+     BREVO_API_KEY              — Brevo transactional-email key
+     NOTIFY_EMAIL                — verified Brevo sender + where enquiries land (info@lustiqueco.co.za)
+     BREVO_NEWSLETTER_LIST_ID    — numeric Brevo list ID for newsletter signups (see newsletter.ts)
+     BREVO_PAST_CLIENTS_LIST_ID  — numeric Brevo list ID for settled bookings' brides (see marketing.ts) —
+                                    optional; the past-clients audience and its sync are skipped if unset.
 
    This is the seam ARCHITECTURE.md describes: v1 wires it to Brevo (+ later Sheets/CRM);
    AXIS can subscribe to the same boundary later without a site rewrite.
@@ -132,6 +137,8 @@ interface Enquiry {
   details?: Detail[]; // occasion-specific rows (party, hair, style…) built client-side
   hp_company?: string; // honeypot — bots fill it; humans never see it
   cfTurnstileToken?: string;
+  /** Vendor/venue partner slug from a `?ref=<slug>` link, captured client-side. */
+  referralSource?: string;
 }
 
 const esc = (s = "") => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
@@ -465,6 +472,10 @@ export default {
       if (req.method === "GET" && url.pathname === "/api/admin/website") {
         return await handleAdminWebsite(req, dashEnv);
       }
+      // GET /api/admin/clio — Clio AI assistant
+      if (req.method === "GET" && url.pathname === "/api/admin/clio") {
+        return await handleAdminClio(req, dashEnv);
+      }
       // GET /api/admin/payments — payments view
       if (req.method === "GET" && url.pathname === "/api/admin/payments") {
         return await handleAdminPayments(req, dashEnv);
@@ -504,6 +515,18 @@ export default {
       if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/admin/promos") {
         const { handleAdminPromos } = await import("./booking/promos");
         return handleAdminPromos(req, env as Parameters<typeof handleAdminPromos>[1], adminShell);
+      }
+
+      // GET/POST /api/admin/marketing — compose & send a promo campaign
+      if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/admin/marketing") {
+        const { handleAdminMarketing } = await import("./booking/marketing");
+        return handleAdminMarketing(req, env as Parameters<typeof handleAdminMarketing>[1], adminShell);
+      }
+
+      // POST /api/admin/marketing/sync-past-clients — backfill/refresh the past-clients Brevo list
+      if (req.method === "POST" && url.pathname === "/api/admin/marketing/sync-past-clients") {
+        const { handleAdminMarketingSyncPastClients } = await import("./booking/marketing");
+        return handleAdminMarketingSyncPastClients(req, env as Parameters<typeof handleAdminMarketingSyncPastClients>[1]);
       }
 
       // ── Forms ─────────────────────────────────────────────────────────────
@@ -675,6 +698,7 @@ export default {
           message: body.message ? cap(body.message, 2000) : undefined,
           details: Array.isArray(body.details) ? body.details : undefined,
           ip: req.headers.get("cf-connecting-ip") ?? undefined,
+          referral_source: body.referralSource ? cap(body.referralSource, 80) : undefined,
         });
         await insertNotification(env, {
           type: "enquiry_received",
@@ -690,9 +714,12 @@ export default {
         env,
         { email: body.email!.trim(), name },
         "We've received your enquiry — Lustique Co.",
-        `<p>Hi ${esc(name)},</p>
-         <p>Thank you — we have your enquiry and will reply within 24 hours, often sooner.</p>
-         <p>Blessings,<br/>The Lustique Cosmetology Team</p>`,
+        emailShell({
+          preheader: "We've received your enquiry and will reply within 24 hours.",
+          heading: `Thank you, ${esc(firstN(name))}.`,
+          body: ep(`We have your enquiry and will reply within 24 hours, often sooner.`),
+          btnZone: `<a href="https://lustiqueco.co.za" style="display:inline-block;background-color:#9E5F58;color:#FAF6F0;text-decoration:none;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;padding:14px 40px;border-radius:24px;font-family:Arial,Helvetica,sans-serif;font-weight:600;">Visit Lustique Co.</a>`,
+        }),
       );
 
       // 2) Notify Lustique — header lines + the occasion-specific detail rows.

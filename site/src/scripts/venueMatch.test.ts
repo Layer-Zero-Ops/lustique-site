@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findKnownVenue, normalizeVenueName, venueLabel, buildGeocodeQuery, type KnownVenue } from "./venueMatch";
+import { findKnownVenue, normalizeVenueName, venueLabel, buildGeocodeQuery, isPreciseGeocodeResult, type KnownVenue } from "./venueMatch";
 
 const avianto: KnownVenue = {
   name: "Avianto Function Venue",
@@ -72,25 +72,44 @@ describe("findKnownVenue", () => {
 });
 
 describe("buildGeocodeQuery", () => {
-  // Regression test: the quote form's province dropdown defaults to "Gauteng" and most
-  // brides never touch it. Confirmed live against HERE's Geocode API that appending it
-  // as query text hijacks real venues elsewhere (e.g. "Val de Vie Estate", Western Cape)
-  // to a same-ish-named place hundreds of km away in Gauteng instead. The query must
-  // never contain a province, regardless of what the caller might pass around it.
-  it("joins venue, town, and country — never a province", () => {
-    expect(buildGeocodeQuery("Val de Vie Estate", "Paarl")).toBe("Val de Vie Estate, Paarl, South Africa");
+  // Regression test: the quote form used to let a bride-typed town or defaulted-to-
+  // "Gauteng" province leak into the geocode query text. Confirmed live against HERE's
+  // Geocode API that either one can hijack the result — a province default sent a real
+  // Western Cape venue ("Val de Vie Estate") hundreds of km off, and a town name alone
+  // can resolve to that town's centre instead of the actual venue. The query is venue +
+  // country only — no other free-text location ever makes it in.
+  it("joins venue and country", () => {
+    expect(buildGeocodeQuery("Val de Vie Estate")).toBe("Val de Vie Estate, South Africa");
   });
 
-  it("omits an empty town rather than leaving a stray comma", () => {
-    expect(buildGeocodeQuery("Val de Vie Estate", "")).toBe("Val de Vie Estate, South Africa");
+  it("trims whitespace", () => {
+    expect(buildGeocodeQuery("  Val de Vie Estate  ")).toBe("Val de Vie Estate, South Africa");
   });
 
-  it("trims whitespace from both inputs", () => {
-    expect(buildGeocodeQuery("  Val de Vie Estate  ", "  Paarl  ")).toBe("Val de Vie Estate, Paarl, South Africa");
+  it("returns just the country qualifier when venue is empty", () => {
+    expect(buildGeocodeQuery("")).toBe("South Africa");
+  });
+});
+
+describe("isPreciseGeocodeResult", () => {
+  // Regression: "Meulstroom Lodge, Bronkhorstspruit, South Africa" resolved to the
+  // resultType "locality" — i.e. HERE matched the town, not the lodge — and was
+  // silently accepted as the venue's location, underquoting travel by tens of km.
+  it("rejects town/area-level matches", () => {
+    expect(isPreciseGeocodeResult("locality")).toBe(false);
+    expect(isPreciseGeocodeResult("administrativeArea")).toBe(false);
+    expect(isPreciseGeocodeResult("country")).toBe(false);
+    expect(isPreciseGeocodeResult("postalCode")).toBe(false);
   });
 
-  it("still returns a usable query when only a town is given", () => {
-    expect(buildGeocodeQuery("", "Paarl")).toBe("Paarl, South Africa");
+  it("accepts address/POI-level matches", () => {
+    expect(isPreciseGeocodeResult("houseNumber")).toBe(true);
+    expect(isPreciseGeocodeResult("place")).toBe(true);
+    expect(isPreciseGeocodeResult("street")).toBe(true);
+  });
+
+  it("rejects a missing resultType", () => {
+    expect(isPreciseGeocodeResult(undefined)).toBe(false);
   });
 });
 

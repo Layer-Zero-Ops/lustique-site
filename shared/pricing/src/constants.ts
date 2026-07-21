@@ -7,7 +7,12 @@ type LenMap = Record<HairLength, number>;
 // (R7/km round-trip) at each range's midpoint one-way distance — the exact figure comes
 // from the map-pin route (travelForKm) whenever geocoding succeeds.
 export const PRICING = {
-  brideCore: { short: 2690, medium: 2890, long: 3090, xlong: 3290 } as LenMap,
+  // Bride's own tables (PRICING.md §3) — distinct from the party's hairAdult table below.
+  // Trial and wedding-day sessions are priced identically, so a single "unit" price times
+  // 1 (day only) or 2 (trial + day) covers both — the bride picks makeup, hair, both, and
+  // whether to include the trial.
+  brideMakeupUnit: 850,
+  brideHairUnit: { short: 495, medium: 595, long: 695, xlong: 795 } as LenMap,
   makeup: { bridesmaid: 550, mother: 500, guest: 550, fgUnder: 250, fgOver: 500 },
   hairAdult: { short: 395, medium: 495, long: 595, xlong: 695 } as LenMap,
   hairFgUnder: { short: 200, medium: 250, long: 300, xlong: 400 } as LenMap,

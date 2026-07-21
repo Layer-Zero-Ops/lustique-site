@@ -554,6 +554,16 @@ export async function listBookingsDueForBalanceReminder(
   return (await r.json()) as Array<ConfirmBookingRow & { balance_reminder_sent_at: string | null }>;
 }
 
+/** All settled bookings' bride contact info — feeds the past-clients Brevo list backfill. */
+export async function listSettledBookingEmails(
+  env: DbEnv,
+  f: typeof fetch = fetch,
+): Promise<Array<{ bride_email: string; bride_name: string }>> {
+  const r = await f(rest(env, "bookings?status=eq.settled&select=bride_email,bride_name"), { headers: headers(env) });
+  if (!r.ok) throw new Error(`listSettledBookingEmails ${r.status}`);
+  return (await r.json()) as Array<{ bride_email: string; bride_name: string }>;
+}
+
 export interface EnquiryRow {
   name: string;
   email: string;
@@ -565,6 +575,8 @@ export interface EnquiryRow {
   message?: string;
   details?: unknown;
   ip?: string;
+  /** Vendor/venue partner slug from a `?ref=<slug>` link, if the enquiry arrived via one. */
+  referral_source?: string;
 }
 
 /** Persist a /api/enquiry submission so no lead is lost even if email delivery fails. */
@@ -622,10 +634,11 @@ export interface EnquiryCrmRow {
   notes: string | null;
   contacted_at: string | null;
   booking_id: string | null;
+  referral_source: string | null;
 }
 
 const ENQUIRY_COLS =
-  "id,created_at,name,email,phone,occasion,event_date,town,estimate,message,details,status,notes,contacted_at,booking_id";
+  "id,created_at,name,email,phone,occasion,event_date,town,estimate,message,details,status,notes,contacted_at,booking_id,referral_source";
 
 export async function listEnquiries(
   env: DbEnv,

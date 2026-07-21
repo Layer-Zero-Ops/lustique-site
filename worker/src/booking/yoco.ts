@@ -36,11 +36,13 @@ import {
 import { writeAudit, type AuditEnv } from "./audit";
 import { recordPayment, type WaveEnv } from "../lib/wave";
 import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail, getEftSettings, type EftSettings } from "../lib/email";
+import { upsertBrevoContact } from "../lib/brevoCampaign";
 
 export interface YocoWebhookEnv extends AuditEnv, WaveEnv, DbEnv {
   YOCO_WEBHOOK_SECRET: string;
   BREVO_API_KEY: string;
   NOTIFY_EMAIL: string;
+  BREVO_PAST_CLIENTS_LIST_ID?: string;
 }
 
 // ── Standard Webhooks signature verification ──────────────────────────────────
@@ -316,6 +318,15 @@ export async function handleYocoWebhook(
         await writeAudit(env, { bookingId, eventType: `payment.${kind}-paid`, payload: { reference: booking.reference, checkoutId, yocoPaymentId } }, fetchImpl);
       } catch {
         await writeAudit(env, { bookingId, eventType: "payment.email-failed", payload: { reference: booking.reference, checkoutId } }, fetchImpl).catch(() => {});
+      }
+
+      if (isBalance && env.BREVO_PAST_CLIENTS_LIST_ID) {
+        const listId = parseInt(env.BREVO_PAST_CLIENTS_LIST_ID, 10);
+        if (listId) {
+          upsertBrevoContact(env, booking.bride_email, listId, fetchImpl).catch(() => {
+            writeAudit(env, { bookingId, eventType: "marketing.past-client-sync-failed", payload: { reference: booking.reference } }, fetchImpl).catch(() => {});
+          });
+        }
       }
     }
 

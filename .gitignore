@@ -18,6 +18,10 @@ build/
 !.env.local.example
 *.local
 .dev.vars
+*.key
+.brevo-key
+.supabase-*
+.supabase-url
 
 # Sanity
 studio/dist/

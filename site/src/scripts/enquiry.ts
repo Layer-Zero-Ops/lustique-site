@@ -5,6 +5,7 @@
 
 import { computeEstimate } from "@lustique/pricing";
 import { readInput } from "./estimator";
+import { readReferralSource } from "./referral";
 
 type Detail = { label: string; value: string; kind?: "service" };
 
@@ -13,9 +14,13 @@ const val = (id: string): string => {
   return el ? el.value.trim() : "";
 };
 const numv = (id: string): number => parseInt(val(id), 10) || 0;
+const chk = (id: string, d = true): boolean => {
+  const el = document.getElementById(id) as HTMLInputElement | null;
+  return el ? el.checked : d;
+};
 
 const OCCASION: Record<string, string> = {
-  wedding: "Wedding", matric: "Matric farewell",
+  wedding: "Wedding", matric: "Matric farewell", event: "Event",
 };
 const LEN: Record<string, string> = { short: "Short", medium: "Medium", long: "Long", xlong: "X-Long" };
 const lenLabel = (id: string): string => LEN[val(id) || "medium"] ?? "Medium";
@@ -45,7 +50,7 @@ function partyHairSummary(): string {
 function collect() {
   const occasion = val("occasion") || "wedding";
   const date =
-    occasion === "wedding" ? val("weddingDate")
+    occasion === "wedding" || occasion === "event" ? val("weddingDate")
     : occasion === "lessons" ? val("lessonsDate")
     : val("eventDate");
 
@@ -55,9 +60,13 @@ function collect() {
   add("Heard via", val("source"));
 
   if (occasion === "wedding") {
-    add("Province", val("provinceInput"));
     add("Venue", val("venueInput"));
-    add("Bride hair", lenLabel("brideHairLen"));
+    const brideMakeup = chk("brideWantsMakeup");
+    const brideHair = chk("brideWantsHair");
+    const brideTrial = chk("brideWantsTrial");
+    const brideParts = [brideMakeup ? "Makeup" : null, brideHair ? "Hair" : null].filter(Boolean).join(" + ");
+    add("Bride services", `${brideParts || "None selected"}${brideTrial ? " (incl. trial)" : " (wedding day only)"}`);
+    if (brideHair) add("Bride hair length", lenLabel("brideHairLen"));
     add("Party", partySummary());
     add("Party hair", partyHairSummary());
     if (numv("fgHair")) add("Flower-girl hair", `${numv("fgHair")} × ${lenLabel("fgHairLen")}`);
@@ -68,7 +77,15 @@ function collect() {
     add("Attending", val("lessonsAttending"));
   } else {
     add("People", `${numv("evMakeup")} makeup / ${numv("evHair")} hair`);
-    if (numv("evHair")) add("Hair length", lenLabel("evHairLen"));
+    if (numv("evHair")) {
+      const buckets = (["Short", "Medium", "Long", "Xlong"] as const)
+        .map((k) => { const n = numv("evLen" + k); return n ? `${n} ${LEN[k.toLowerCase()] ?? k}` : ""; })
+        .filter(Boolean);
+      add("Hair lengths", buckets.length ? buckets.join(", ") : "—");
+    }
+    // Venue: events get venue from weddingDayFields or "studio"
+    const eventAt = val("eventAt") || "venue";
+    add("Location", eventAt === "studio" ? "Lustique studio, La Montagne" : val("venueInput"));
   }
   add("Style", val("style"));
   add("Inspiration", val("inspo"));
@@ -96,12 +113,12 @@ function collect() {
     phone: val("phone"),
     occasion: OCCASION[occasion] ?? occasion,
     date,
-    town: val("townInput"),
     estimate: (document.getElementById("estimateAmount")?.textContent ?? "").trim(),
     message: val("message"),
     details,
     hp_company: val("hp_company"), // honeypot — the Worker drops it if filled
     cfTurnstileToken: tsInput?.value ?? "",
+    referralSource: readReferralSource(),
   };
 }
 
@@ -143,10 +160,23 @@ btn?.addEventListener("click", async () => {
   }
   // For weddings, the length buckets must account for everyone needing hair — so the quote is exact.
   if ((val("occasion") || "wedding") === "wedding") {
+    if (!chk("brideWantsMakeup") && !chk("brideWantsHair")) {
+      say("Please choose at least makeup or hair for the bride.");
+      return;
+    }
     const need = numv("bmHair") + numv("momHair") + numv("guestHair");
     const placed = numv("lenShort") + numv("lenMedium") + numv("lenLong") + numv("lenXlong");
     if (placed !== need) {
       say(`Almost there — please place all ${need} party hair looks by length (you've placed ${placed}).`);
+      return;
+    }
+  }
+  // Same check for events: if hair is booked, all heads must be placed by length
+  if ((val("occasion") || "") === "event") {
+    const evNeed = numv("evHair");
+    const evPlaced = numv("evLenShort") + numv("evLenMedium") + numv("evLenLong") + numv("evLenXlong");
+    if (evPlaced !== evNeed) {
+      say(`Almost there — please place all ${evNeed} hair looks by length (you've placed ${evPlaced}).`);
       return;
     }
   }

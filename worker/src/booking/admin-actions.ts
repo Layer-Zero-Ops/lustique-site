@@ -21,6 +21,7 @@ import {
   sendEmail,
   type TableRow,
 } from "../lib/email";
+import { upsertBrevoContact } from "../lib/brevoCampaign";
 
 export interface AdminActionsEnv {
   SUPABASE_URL: string;
@@ -31,6 +32,7 @@ export interface AdminActionsEnv {
   NOTIFY_EMAIL: string;
   ALLOWED_ORIGIN: string;
   AUDIT: { put(key: string, value: string): Promise<unknown> };
+  BREVO_PAST_CLIENTS_LIST_ID?: string;
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -422,6 +424,15 @@ export async function handleAdminMarkBalancePaid(
       { bookingId: booking.id, eventType: "admin.balance-email-failed", payload: { reference: booking.reference } },
       fetchFn,
     ).catch(() => {});
+  }
+
+  if (env.BREVO_PAST_CLIENTS_LIST_ID) {
+    const listId = parseInt(env.BREVO_PAST_CLIENTS_LIST_ID, 10);
+    if (listId) {
+      upsertBrevoContact(env, booking.bride_email, listId, fetchFn).catch(() => {
+        writeAudit(env, { bookingId: booking.id, eventType: "marketing.past-client-sync-failed", payload: { reference: booking.reference } }, fetchFn).catch(() => {});
+      });
+    }
   }
 
   return successRedirect(bookingId);

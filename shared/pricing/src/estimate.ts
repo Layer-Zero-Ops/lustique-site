@@ -166,8 +166,9 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
     return { total: addTravel(n * pp), heads: n, destination: trav.destination, occasion: input.occasion, lines, perks: [] };
   }
 
-  // Other non-wedding events — makeup faces × base + hair faces × event-hair. No promos here either.
-  if (input.occasion !== "wedding") {
+  // Non-wedding events (matric/editorial/engagement/corporate/pageant) — simple face counts. No promos.
+  // "event" uses wedding guest pricing — falls through to the wedding path below.
+  if (input.occasion !== "wedding" && input.occasion !== "event") {
     const base = EVENT_BASE[input.occasion] ?? 750;
     const evMakeup = Math.max(0, input.evMakeup ?? 0);
     const evHair = Math.max(0, input.evHair ?? 0);
@@ -178,11 +179,27 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
     return { total: addTravel(total), heads: Math.max(1, evMakeup, evHair), destination: trav.destination, occasion: input.occasion, lines, perks: [] };
   }
 
-  // Wedding — full bridal logic.
-  let total = PRICING.brideCore[input.brideHairLen];
-  lines.push({ label: `Bride — makeup + hair, trial & wedding day (${LEN_LABEL[input.brideHairLen]})`, amount: total });
-  const paid: number[] = [total];   // every paying look (incl. bride + flower girls) — for the "4+" threshold
-  const freebie: number[] = [];     // looks eligible to be comped by the promo (not bride, not under-12 FG)
+  // Wedding — full bridal logic. The bride picks makeup, hair, or both, and whether her
+  // selection includes the trial — trial and wedding-day sessions are priced identically,
+  // so a single unit price × (2 for trial+day, 1 for day-only) covers either service.
+  // Events use the wedding guest pricing path but skip the bride line.
+  const trialMult = input.brideWantsTrial ? 2 : 1;
+  let total = 0;
+  if (input.occasion !== "event") {
+    if (input.brideWantsMakeup) total += PRICING.brideMakeupUnit * trialMult;
+    if (input.brideWantsHair) total += PRICING.brideHairUnit[input.brideHairLen] * trialMult;
+    const brideServiceParts = [
+      input.brideWantsMakeup ? "makeup" : null,
+      input.brideWantsHair ? `hair (${LEN_LABEL[input.brideHairLen]})` : null,
+    ].filter(Boolean);
+    const brideSessionDesc = input.brideWantsTrial ? "trial & wedding day" : "wedding day only";
+    lines.push({ label: `Bride — ${brideServiceParts.join(" + ") || "no services selected"}, ${brideSessionDesc}`, amount: total });
+  }
+  const paid: number[] = [];        // every full (hair + makeup) look — for the "4+" threshold
+  const freebie: number[] = [];     // looks eligible to be comped by the promo (never the bride, never under-12 FG)
+  // A "look" means both hair AND makeup — the bride only counts toward the promo threshold
+  // (and is still never the comped one, per the rule below) when she's booked both.
+  if (input.occasion !== "event" && input.brideWantsMakeup && input.brideWantsHair) paid.push(total);
 
   const adultLengths = expandBuckets(input.partyHair);
   let hairIdx = 0;
@@ -198,8 +215,11 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
       let lookCost = 0;
       if (hasMakeup) { mkSub += mkPrice; lookCost += mkPrice; }
       if (hasHair) { const hc = hairCost(); hrSub += hc; lookCost += hc; }
-      // A "look" at Lustique means both hair AND makeup — partial services never qualify.
-      if (lookCost > 0) { paid.push(lookCost); if (eligible && hasMakeup && hasHair) freebie.push(lookCost); }
+      // A "look" at Lustique means both hair AND makeup — partial (makeup-only or
+      // hair-only) services never qualify, either toward the promo's "4+" party-size
+      // threshold or as the comped item itself. `eligible` further narrows which full
+      // looks may be the one that's comped (e.g. never an under-12 flower girl).
+      if (hasMakeup && hasHair) { paid.push(lookCost); if (eligible) freebie.push(lookCost); }
     }
     if (mkSub > 0) { total += mkSub; lines.push({ label: `${label} Makeup × ${mk}`, amount: mkSub }); }
     if (hrSub > 0) { total += hrSub; lines.push({ label: `${label} Hair Styling × ${hr}`, amount: hrSub }); }
@@ -210,7 +230,7 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
   let heads = 1;
   heads += addRole("Bridesmaid", input.bmMakeup, input.bmHair, PRICING.makeup.bridesmaid, adultHair, true);
   heads += addRole("Mother", input.momMakeup, input.momHair, PRICING.makeup.mother, adultHair, true);
-  heads += addRole("Guest", input.guestMakeup, input.guestHair, PRICING.makeup.guest, adultHair, true);
+  heads += addRole(input.occasion === "event" ? "Attendee" : "Guest", input.guestMakeup, input.guestHair, PRICING.makeup.guest, adultHair, true);
   const fgUnder = input.fgAge === "under";
   const fgTable = fgUnder ? PRICING.hairFgUnder : PRICING.hairAdult;
   heads += addRole(
@@ -238,5 +258,5 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
   total = (effect.travelWaived && !trav.destination) ? total : addTravel(total);
   for (const ln of effect.lines) { total += ln.amount; lines.push(ln); }
 
-  return { total, heads, destination: trav.destination, occasion: "wedding", lines, perks: effect.perks };
+  return { total, heads, destination: trav.destination, occasion: input.occasion, lines, perks: effect.perks };
 }
