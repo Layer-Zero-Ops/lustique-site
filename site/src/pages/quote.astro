@@ -36,11 +36,16 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
       </div>
       <div class="form-step reveal"><h3>About you</h3><p class="step-sub">Let’s start with the star of the show.</p>
         <div class="field-row"><div class="field"><label for="fName">First name</label><input id="fName" placeholder="Your name"></div><div class="field"><label for="lName">Last name</label><input id="lName" placeholder="Surname"></div></div>
-        <div class="field-row"><div class="field"><label for="email">Email</label><input type="email" id="email" placeholder="you@email.com"></div><div class="field"><label for="phone">Mobile / WhatsApp</label><input id="phone" placeholder="067 000 0000"></div></div>
-        <div class="field"><label for="source">How did you hear about us?</label><select id="source"><option>Instagram</option><option>Google</option><option>A friend / past bride</option><option>TikTok</option><option>Facebook</option><option>Other</option></select></div>
+        <div class="field-row"><div class="field"><label for="email">Email</label><input type="email" id="email" placeholder="you@email.com"></div><div class="field"><label for="phone">Mobile / WhatsApp</label><input type="tel" id="phone" minlength="7" placeholder="067 000 0000" required></div></div>
+        <div class="field" style="position:relative;">
+          <label for="townInput">Suburb / area <span style="font-weight:400;color:#6b5c52;">(so we can confirm travel distance)</span></label>
+          <input id="townInput" placeholder="e.g. Brooklyn, Waterkloof, Centurion" autocomplete="off">
+        </div>
+        <div class="field"><label for="source">How did you hear about us?</label><select id="source"><option>Instagram</option><option>Google</option><option>A friend / past bride</option><option>TikTok</option><option>Facebook</option><option>Venue</option><option>Other</option></select></div>
       </div>
       <div class="form-step reveal" id="weddingDayFields"><h3>Your big day</h3><p class="step-sub">So we can reserve the date and work out the travel from our La Montagne studio.</p>
         <div class="field"><label for="weddingDate">Wedding date</label><input type="date" id="weddingDate"></div>
+        <div id="weddingVenueWrap">
         <div class="field" style="position:relative;">
           <label for="venueInput">Venue name or address <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(start typing — we’ll search for it)</span></label>
           <input id="venueInput" placeholder="e.g. Red Ivory Estate, or a street address" autocomplete="off">
@@ -53,6 +58,7 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         </div>
         <p class="note" id="travelResult" style="margin:.85rem 0 0;">We travel from La Montagne, Pretoria — first 40 km round trip is free, then R7/km.</p>
         <div class="field" id="bandWrap" style="display:none;margin-top:1rem;"><label for="travelBand">Distance band (fallback)</label><select id="travelBand"><option value="studio">Within 20 km one-way / 40 km round trip (free)</option><option value="mid">30–80 km</option><option value="far">80–150 km</option><option value="veryfar">150–200 km</option><option value="destination">Over 200 km / destination</option></select></div>
+        </div>
       </div>
       <div id="weddingFields">
       <div class="form-step reveal"><h3>The bride</h3><p class="step-sub">Choose what you'd like for yourself — lashes and a touch-up kit included whenever makeup is booked.</p>

@@ -152,6 +152,8 @@ interface Enquiry {
   cfTurnstileToken?: string;
   /** Vendor/venue partner slug from a `?ref=<slug>` link, captured client-side. */
   referralSource?: string;
+  consentAt?: string;
+  idempotencyKey?: string;
 }
 
 const esc = (s = "") => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
@@ -223,6 +225,12 @@ function validate(e: Enquiry): string | null {
   if (e.hp_company && e.hp_company.trim() !== "") return "spam";
   if (!e.name || e.name.trim().length < 2) return "Please add your name.";
   if (!e.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e.email)) return "Please add a valid email address.";
+  if (!e.phone || e.phone.trim().length < 7) return "Please add a contact number (at least 7 digits).";
+  if (!e.date) return "Please add your date.";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (e.date <= today.toISOString().slice(0, 10)) return "Please choose a future date.";
+  if (!e.consentAt) return "Please tick the consent box to proceed.";
+  if (!e.idempotencyKey) return "Missing submission key — please reload and try again.";
   return null;
 }
 

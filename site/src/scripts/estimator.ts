@@ -450,24 +450,43 @@ function applyOccasion() {
   const isEvent = occ === "event";
   const isLessons = occ === "lessons";
   const show = (id: string, on: boolean) => { const e = el(id); if (e) e.style.display = on ? "" : "none"; };
-  show("weddingDayFields", isWedding || isEvent);  // date + venue + travel — weddings & events
-  show("weddingFields", isWedding);                 // the bride + bridal party — weddings only
-  show("eventFields", !isWedding && !isLessons);    // simple faces + hair — matric & events
-  show("lessonsFields", isLessons);                 // group lessons: attendee count
-  show("promoRow", isWedding);                    // promos — weddings only, not events
-  // Update labels for event
-  if (isEvent) {
+  show("weddingDayFields", isWedding || isEvent || occasion === "matric");  // all occasions with a date
+  // For weddings/events: keep venue + travel. For matric/lessons: date only.
+  const showVenue = isWedding || isEvent;
+  show("weddingVenueWrap", showVenue);
+  show("travelResult", showVenue);
+  show("venueMap", showVenue);
+  show("mapHint", showVenue);
+  show("bandWrap", false);
+  // Event date label updates (wedding stays as-is)
+  const dateLabel = isWedding ? "Wedding date" : occasion === "matric" ? "Matric date" : isEvent ? "Event date" : "Date";
+  const dl = document.querySelector("#weddingDayFields label[for='weddingDate']");
+  if (dl) dl.textContent = dateLabel;
+  // Update heading/subtitle for event / wedding
+  if (isWedding) {
+    const h3 = document.querySelector("#weddingDayFields h3");
+    if (h3) h3.textContent = "Your big day";
+    const sub = document.querySelector("#weddingDayFields .step-sub");
+    if (sub) sub.textContent = "So we can reserve the date and work out the travel from our La Montagne studio.";
+    const vl = document.querySelector("#weddingDayFields label[for='venueInput']");
+    if (vl) vl.innerHTML = 'Venue name or address <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(start typing — we’ll search for it)</span>';
+  } else if (isEvent) {
     const h3 = document.querySelector("#weddingDayFields h3");
     if (h3) h3.textContent = "Your event";
     const sub = document.querySelector("#weddingDayFields .step-sub");
     if (sub) sub.textContent = "Let us know the date and where you'd like us to be.";
-    const dl = document.querySelector("#weddingDayFields label[for='weddingDate']");
-    if (dl) dl.textContent = "Event date";
     const vl = document.querySelector("#weddingDayFields label[for='venueInput']");
     if (vl) vl.innerHTML = 'Venue or choose studio <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(start typing to search, or select "studio" below)</span>';
-    // Remove bride language from About you section
-    const aboutSub = document.querySelector(".form-step:nth-of-type(2) .step-sub");
-    if (aboutSub) aboutSub.textContent = "Tell us about yourself.";
+  }
+  show("weddingFields", isWedding);                 // the bride + bridal party — weddings only
+  show("eventFields", !isWedding && !isLessons);    // simple faces + hair — matric & events
+  show("lessonsFields", isLessons);                 // group lessons: attendee count
+  show("promoRow", isWedding);                      // promos — weddings only, not events
+  // Update bride language in About you
+  const aboutSub = document.querySelector(".form-step:nth-of-type(2) .step-sub");
+  if (aboutSub) {
+    if (isWedding) aboutSub.textContent = "Let’s start with the star of the show.";
+    else aboutSub.textContent = "Tell us about yourself.";
   }
   if (isWedding || isEvent) { if (!isEvent || val("eventAt", "venue") !== "studio") initMap(STUDIO); }
   toggleVenueSearch();

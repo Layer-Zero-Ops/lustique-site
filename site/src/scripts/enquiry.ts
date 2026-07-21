@@ -55,10 +55,17 @@ function collect() {
     : val("eventDate");
 
   const details: Detail[] = [];
-  const add = (label: string, value: string) => { if (value && value !== "—") details.push({ label, value }); };
+  const add = (label: string, value: string) => {
+    if (!value || value === "—") return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    if (details.some(d => d.label === label && d.value === trimmed)) return;
+    details.push({ label, value: trimmed });
+  };
 
   add("Heard via", val("source"));
-
+  add("Area", val("townInput"));
+  add("Phone", val("phone"));
   if (occasion === "wedding") {
     add("Venue", val("venueInput"));
     const brideMakeup = chk("brideWantsMakeup");
@@ -83,7 +90,6 @@ function collect() {
         .filter(Boolean);
       add("Hair lengths", buckets.length ? buckets.join(", ") : "—");
     }
-    // Venue: events get venue from weddingDayFields or "studio"
     const eventAt = val("eventAt") || "venue";
     add("Location", eventAt === "studio" ? "Lustique studio, La Montagne" : val("venueInput"));
   }
@@ -100,7 +106,9 @@ function collect() {
       const result = computeEstimate(readInput());
       for (const line of result.lines) {
         if (line.amount !== 0) {
-          details.push({ label: line.label, value: fmtR(line.amount), kind: "service" });
+          if (!details.some(d => d.label === line.label && d.value === fmtR(line.amount))) {
+            details.push({ label: line.label, value: fmtR(line.amount), kind: "service" });
+          }
         }
       }
     } catch { /* non-critical — enquiry still submits without service lines */ }
@@ -195,9 +203,7 @@ btn?.addEventListener("click", async () => {
   }
   if (result.ok) {
     // GA4 conversion: quote_request
-    if ((window as unknown as Record<string, unknown>).LUSTIQUE_GA_ID && (window as unknown as Record<string, unknown>).gtag) {
-      (window as unknown as Record<string, (event: string, params?: Record<string, unknown>) => void>).gtag('event', 'quote_request', { event_category: 'engagement' });
-    }
+    try { (window as unknown as { gtag: (...a: unknown[]) => void }).gtag('event', 'quote_request', { event_category: 'engagement' }); } catch {}
     window.location.href = "thank-you.html";
     return;
   }
