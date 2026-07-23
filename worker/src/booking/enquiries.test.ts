@@ -253,3 +253,45 @@ describe("handleAdminUpdateEnquiry", () => {
     expect(f).toHaveBeenCalledTimes(3); // authUser + profiles + getEnquiryById, no PATCH
   });
 });
+
+// ── Regression: converted enquiry with no estimate string but service lines
+//    must derive total_cents from quote_lines (not leave it R0). See Cathleen
+//    Benade (LUS-2026-AE61AD): estimate_input {} + parsed estimate 0 → R0 total. ──
+describe("handleAdminGenerateInvoice — total_cents fallback", () => {
+  it("derives total_cents from quote_lines when estimate is blank", async () => {
+    const convEnquiry = {
+      ...ENQUIRY,
+      estimate: null, // no single total string captured
+      details: [
+        { kind: "service", label: "Bride — makeup + hair", value: "R 2 890" },
+        { kind: "service", label: "Bridesmaid Makeup × 6", value: "R 3 300" },
+        { kind: "service", label: "Promo — cheapest look free", value: "− R 945" },
+      ],
+    };
+    let inserted: Record<string, unknown> = {};
+    const f = vi.fn()
+      .mockResolvedValueOnce(authUserRes()).mockResolvedValueOnce(profileRes())   // getAdminSession
+      .mockResolvedValueOnce(res([convEnquiry]))                                  // getEnquiryById
+      .mockImplementation(async (u: Request, init?: RequestInit) => {
+        // vitest Request.url is unavailable; dispatch on body presence instead.
+        if (init?.body && String(init.body).includes("idempotency_key")) { // insertBooking POST
+          inserted = JSON.parse((init.body as string) ?? "{}");
+          return new Response(JSON.stringify([{ id: "b-new", reference: "LUS-TEST" }]), { status: 201, headers: { "content-type": "application/json" } });
+        }
+        // everything else (idempotency SELECT, getEnquiryById, updateEnquiry PATCH)
+        return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
+      });
+    // We call insertBooking indirectly via the handler; replicate the unit path:
+    const { handleAdminGenerateInvoice } = await import("./enquiries");
+    const r = await handleAdminGenerateInvoice(
+      await getReq("/api/admin/enquiries/aaaa-1111/generate-invoice"),
+      env, (_t: string, _u: unknown, inner: string) => `<html>${inner}</html>`, "aaaa-1111",
+      f as unknown as typeof fetch,
+    );
+    expect(r.status).toBe(302); // redirects to the new booking
+    const expected = Math.round((2890 + 3300 - 945) * 100); // 5245.00 → 524500
+    expect(inserted.total_cents).toBe(expected);
+    expect(inserted.total_cents).toBeGreaterThan(0); // the bug was 0
+  });
+});
+

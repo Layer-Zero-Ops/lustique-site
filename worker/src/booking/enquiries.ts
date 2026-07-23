@@ -296,6 +296,14 @@ const OCCASION_KEY: Record<string, string> = {
   "Matric farewell": "matric",
 };
 
+// Sum of quote_lines amounts (rands, not cents) → cents. Used as a fallback
+// total when the enquiry's single estimate string couldn't be parsed but the
+// per-service detail lines were captured (prevents R0 totals on converted leads).
+function sumLinesCents(lines: Array<{ label: string; amount: number }>): number {
+  const rands = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+  return Math.round(rands * 100);
+}
+
 function parseTotalCents(estimate: string | null): number {
   if (!estimate) return 0;
   // "from R 21 229" → strip label + spaces → parse rands → × 100
@@ -362,7 +370,7 @@ export async function handleAdminGenerateInvoice(
     venue: null,
     party_size: 1,
     estimate_input: {},
-    total_cents: parseTotalCents(e.estimate),
+    total_cents: parseTotalCents(e.estimate) || sumLinesCents(parseServiceLines(e.details)),
     quote_lines: parseServiceLines(e.details),
     deposit_pct: null,
     deposit_net_cents: 0,
