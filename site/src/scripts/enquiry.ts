@@ -39,12 +39,20 @@ function partySummary(): string {
   return out.join("; ") || "Bride only";
 }
 
-/** Party hair as she entered it — the four length buckets. */
+/** Party hair, grouped per sub-party (bridesmaids / mothers / other guests). */
 function partyHairSummary(): string {
-  const buckets = (["Short", "Medium", "Long", "Xlong"] as const)
-    .map((k) => { const n = numv("len" + k); return n ? `${n} ${LEN[k.toLowerCase()] ?? k}` : ""; })
-    .filter(Boolean);
-  return buckets.length ? buckets.join(", ") : "—";
+  const group = (prefix: string, label: string): string => {
+    const buckets = (["Short", "Medium", "Long", "Xlong"] as const)
+      .map((k) => { const n = numv(prefix + k); return n ? `${n} ${LEN[k.toLowerCase()] ?? k}` : ""; })
+      .filter(Boolean);
+    return buckets.length ? `${label}: ${buckets.join(", ")}` : "";
+  };
+  const parts = [
+    group("bmHairLen", "Bridesmaids"),
+    group("momHairLen", "Mothers"),
+    group("guestHairLen", "Guests"),
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "—";
 }
 
 function collect() {
@@ -158,17 +166,24 @@ btn?.addEventListener("click", async () => {
     say("Please tick the consent box so we can contact you about your enquiry.");
     return;
   }
-  // For weddings, the length buckets must account for everyone needing hair — so the quote is exact.
+  // For weddings, every sub-party's length buckets must account for that group's hair heads.
   if ((val("occasion") || "wedding") === "wedding") {
     if (!chk("brideWantsMakeup") && !chk("brideWantsHair")) {
       say("Please choose at least makeup or hair for the bride.");
       return;
     }
-    const need = numv("bmHair") + numv("momHair") + numv("guestHair");
-    const placed = numv("lenShort") + numv("lenMedium") + numv("lenLong") + numv("lenXlong");
-    if (placed !== need) {
-      say(`Almost there — please place all ${need} party hair looks by length (you've placed ${placed}).`);
-      return;
+    const groups: Array<[string, string, string]> = [
+      ["bmHair", "bmHairLen", "bridesmaids"],
+      ["momHair", "momHairLen", "mothers"],
+      ["guestHair", "guestHairLen", "guests"],
+    ];
+    for (const [countId, lenPrefix, label] of groups) {
+      const need = numv(countId);
+      const placed = numv(lenPrefix + "Short") + numv(lenPrefix + "Medium") + numv(lenPrefix + "Long") + numv(lenPrefix + "Xlong");
+      if (placed !== need) {
+        say(`Almost there — please place all ${need} ${label}' hair looks by length (you've placed ${placed}).`);
+        return;
+      }
     }
   }
   // Same check for events: if hair is booked, all heads must be placed by length

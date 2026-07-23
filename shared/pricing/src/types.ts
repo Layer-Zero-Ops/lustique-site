@@ -59,6 +59,8 @@ export interface EstimateInput {
   momMakeup: number; momHair: number;
   /** Flower-girls under 12 keep the cheaper hair table AND are never the promo's free look. */
   fgAge: "under" | "over"; fgMakeup: number; fgHair: number; fgHairLen: HairLength;
+  /** Per-sub-party hair lengths (bridesmaids / mothers / other guests) for grouped reporting. */
+  bmHairLen: HairLength; momHairLen: HairLength; guestHairLen: HairLength;
   guestMakeup: number; guestHair: number;
   /**
    * Additional artist(s) the BRIDE requests for a tighter morning (R850 each). NOT auto-added —

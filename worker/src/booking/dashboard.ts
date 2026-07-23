@@ -42,7 +42,7 @@ interface InboxBooking {
 // ── HTML helpers ─────────────────────────────────────────────────────────────
 
 const esc = (s = "") =>
-  s.replace(/[<>&"']/g, (c) =>
+  (s ?? "").replace(/[<>&"']/g, (c) =>
     ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c] as string,
   );
 
@@ -305,6 +305,19 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 
 function formatZAR(cents: number): string {
   return `R ${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+const HAIR_LABEL: Record<string, string> = { short: "Short", medium: "Medium", long: "Long", xlong: "X-Long" };
+
+/** Grouped party-hair block for the booking detail — bridesmaids / mothers / guests kept separate. */
+function partyHairGrouped(b: { bm_hair_len?: string | null; mom_hair_len?: string | null; guest_hair_len?: string | null }): string {
+  const row = (label: string, len?: string | null) =>
+    len ? `<tr><td style="color:#8a7d72;padding-left:1.2rem;">&nbsp;&nbsp;${esc(label)} hair</td><td>${HAIR_LABEL[len] ?? esc(len)}</td></tr>` : "";
+  const bm = row("Bridesmaids", b.bm_hair_len);
+  const mom = row("Mothers", b.mom_hair_len);
+  const guest = row("Guests", b.guest_hair_len);
+  const any = bm || mom || guest;
+  return any ? `<tr><td style="color:#8a7d72;" colspan="2"><em>Party hair by group</em></td></tr>${bm}${mom}${guest}` : "";
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -817,6 +830,9 @@ interface BookingDetail {
   invoice_expired_at: string | null;
   availability_conflict: boolean;
   notes: string | null;
+  bm_hair_len: string | null;
+  mom_hair_len: string | null;
+  guest_hair_len: string | null;
 }
 
 interface PaymentRow {
@@ -937,7 +953,7 @@ export async function handleAdminBookingDetail(
     fetchFn(
       supabaseUrl(
         env,
-        `bookings?id=eq.${encodeURIComponent(id)}&select=id,reference,status,bride_name,bride_email,bride_phone,wedding_date,town,province,venue,party_size,total_cents,deposit_pct,deposit_net_cents,balance_net_cents,occasion,quote_lines,created_at,quote_sent_at,accepted_at,rejected_at,invoice_expired_at,availability_conflict,notes`,
+        `bookings?id=eq.${encodeURIComponent(id)}&select=id,reference,status,bride_name,bride_email,bride_phone,wedding_date,town,province,venue,party_size,total_cents,deposit_pct,deposit_net_cents,balance_net_cents,occasion,quote_lines,created_at,quote_sent_at,accepted_at,rejected_at,invoice_expired_at,availability_conflict,notes,bm_hair_len,mom_hair_len,guest_hair_len`,
       ),
       { headers: hdr },
     ),
@@ -1145,6 +1161,7 @@ export async function handleAdminBookingDetail(
           <tr><td style="color:#8a7d72;">Province</td><td>${esc(b.province ?? "—")}</td></tr>
           <tr><td style="color:#8a7d72;">Venue</td><td>${esc(b.venue ?? "—")}</td></tr>
           <tr><td style="color:#8a7d72;">Party</td><td>${b.party_size}</td></tr>
+${partyHairGrouped(b)}
           <tr><td style="color:#8a7d72;">Occasion</td><td>${esc(b.occasion)}</td></tr>
         </tbody></table>
       </div>
