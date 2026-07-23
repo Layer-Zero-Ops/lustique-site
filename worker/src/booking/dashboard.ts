@@ -102,39 +102,44 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 </div>`;
   }
 
-  const bookingsLinks = [
+  // Workflow-first nav: operational hubs first, config collapsed under Settings.
+  const inboxLinks = [
+    navLink("/api/admin/dashboard",   "Inbox",      "inbox-badge"),
+    navLink("/api/admin/forms",       "Forms",      "enq-badge"),
     navLink("/api/admin/calendar",    "Calendar"),
+  ];
+  const moneyLinks = [
     navLink("/api/admin/quotes",      "Invoices"),
     navLink("/api/admin/rejections",  "Declined"),
   ];
   const clientsLinks = [
-    navLink("/api/admin/forms",      "Forms", "enq-badge"),
-    navLink("/api/admin/contacts",   "Contacts"),
-    navLink("/api/admin/enquiries",  "CRM"),
+    navLink("/api/admin/contacts",    "Contacts"),
+    navLink("/api/admin/enquiries",   "CRM"),
   ];
-  const contentLinks = [
-    navLink("/api/admin/portfolio",  "Portfolio"),
-    navLink("/api/admin/website",    "Website"),
-    navLink("/api/admin/blog",       "Blog"),
+  const studioLinks = [
+    navLink("/api/admin/portfolio",   "Portfolio"),
+    navLink("/api/admin/website",     "Website"),
+    navLink("/api/admin/blog",        "Blog"),
+    navLink("/api/admin/staffing",    "Staffing"),
   ];
-  const adminLinks = [
-    navLink("/api/admin/dashboard",  "Inbox"),
-    navLink("/api/admin/staffing",   "Staffing"),
-    navLink("/api/admin/promos",     "Promotions"),
-    navLink("/api/admin/marketing",  "Marketing"),
-    navLink("/api/admin/templates",  "Templates"),
-    navLink("/api/admin/clio",       "Clio"),
+  const settingsLinks = [
+    navLink("/api/admin/promos",      "Promotions"),
+    navLink("/api/admin/marketing",   "Marketing"),
+    navLink("/api/admin/templates",   "Templates"),
+    navLink("/api/admin/clio",        "Clio"),
   ];
 
   const nav = [
-    navGroup("Admin",    adminLinks,    adminLinks.some((_, i) =>
-      isActive(["/api/admin/dashboard", "/api/admin/staffing", "/api/admin/promos", "/api/admin/marketing", "/api/admin/templates", "/api/admin/clio"][i]!))),
-    navGroup("Bookings", bookingsLinks, bookingsLinks.some((_, i) =>
-      isActive(["/api/admin/calendar", "/api/admin/quotes", "/api/admin/rejections"][i]!))),
-    navGroup("Clients",  clientsLinks,  clientsLinks.some((_, i) =>
-      isActive(["/api/admin/forms", "/api/admin/contacts", "/api/admin/enquiries"][i]!))),
-    navGroup("Content",  contentLinks,  contentLinks.some((_, i) =>
-      isActive(["/api/admin/portfolio", "/api/admin/website", "/api/admin/blog"][i]!))),
+    navGroup("Inbox",   inboxLinks,   inboxLinks.some((_, i) =>
+      isActive(["/api/admin/dashboard", "/api/admin/forms", "/api/admin/calendar"][i]!))),
+    navGroup("Money",   moneyLinks,   moneyLinks.some((_, i) =>
+      isActive(["/api/admin/quotes", "/api/admin/rejections"][i]!))),
+    navGroup("Clients", clientsLinks, clientsLinks.some((_, i) =>
+      isActive(["/api/admin/contacts", "/api/admin/enquiries"][i]!))),
+    navGroup("Studio",  studioLinks,  studioLinks.some((_, i) =>
+      isActive(["/api/admin/portfolio", "/api/admin/website", "/api/admin/blog", "/api/admin/staffing"][i]!))),
+    // Settings collapsed by default — config, not daily work.
+    `<details class="nav-group"><summary>Settings</summary>\n${settingsLinks.join("\n")}\n</details>`,
   ].join("\n");
 
   return `<!doctype html><html lang="en"><head>
@@ -172,6 +177,13 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   a.row-link:hover{text-decoration:underline;}
   .notif-bell{width:100%;padding:.35rem .85rem;font:inherit;font-size:.82rem;font-weight:500;color:#5c3d47;background:none;border:none;cursor:pointer;text-align:left;border-radius:7px;display:flex;align-items:center;gap:.5rem;}
   .notif-bell:hover{background:#f7f3ef;}
+  .nav-group{margin-top:.6rem;border:none;background:none;padding:0;}
+  .nav-group > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:.2rem .85rem .3rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#c0a898;}
+  .nav-group > summary::-webkit-details-marker{display:none;}
+  .nav-group > summary::after{content:"▶";font-size:.58rem;color:#c0a898;transition:transform .2s;}
+  .nav-group[open] > summary::after{transform:rotate(90deg);}
+  .nav-group > a{display:flex;align-items:center;gap:.3rem;padding:.4rem .85rem;border-radius:7px;text-decoration:none;color:#5c3d47;font-weight:500;font-size:.84rem;}
+  .nav-group[open] > a{display:flex;}
   .notif-count{display:none;background:#8a3a52;color:#fff;border-radius:20px;font-size:.7rem;font-weight:700;padding:.1em .5em;min-width:1.3em;text-align:center;}
 </style></head><body>
 <nav class="sidebar">
@@ -218,6 +230,12 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
           var ec=d.items.filter(function(n){return n.type==='enquiry_received';}).length;
           if(ec>0){enqBadge.textContent=ec;enqBadge.style.display='inline-block';}
           else{enqBadge.style.display='none';}
+        }
+        var inboxBadge=document.getElementById('inbox-badge');
+        if(inboxBadge){
+          var ic=d.items.filter(function(n){return n.type==='booking_requested';}).length;
+          if(ic>0){inboxBadge.textContent=ic;inboxBadge.style.display='inline-block';}
+          else{inboxBadge.style.display='none';}
         }
         renderItems(d.items);
       }).catch(function(){});
