@@ -86,9 +86,18 @@ function applyBrideServiceToggle(): void {
 // Adult heads needing hair = the bridesmaid + mother + guest hair counts.
 const adultHairHeads = (): number => num("bmHair") + num("momHair") + num("guestHair");
 
-/** Party hair as a length distribution — the four always-visible buckets. */
+/** Party hair as a length distribution — the combined sum across bridesmaids + mothers + guests. */
 function readPartyHair(): HairBuckets {
-  return { short: num("lenShort"), medium: num("lenMedium"), long: num("lenLong"), xlong: num("lenXlong") };
+  const sum = (p: string): HairBuckets => ({
+    short: num(p + "Short"), medium: num(p + "Medium"), long: num(p + "Long"), xlong: num(p + "Xlong"),
+  });
+  const groups = [sum("bmHairLen"), sum("momHairLen"), sum("guestHairLen")];
+  return {
+    short: groups.reduce((s, g) => s + g.short, 0),
+    medium: groups.reduce((s, g) => s + g.medium, 0),
+    long: groups.reduce((s, g) => s + g.long, 0),
+    xlong: groups.reduce((s, g) => s + g.xlong, 0),
+  };
 }
 
 /** Event hair length distribution — the four event buckets. */
@@ -96,14 +105,21 @@ function readEventHair(): HairBuckets {
   return { short: num("evLenShort"), medium: num("evLenMedium"), long: num("evLenLong"), xlong: num("evLenXlong") };
 }
 
-/** Keep the "N looks need hair" count + the "placed of N" reconciliation note honest as the form changes. */
+/** Keep each sub-party's "N looks need hair" count + "placed of N" note honest. */
 function updateLengthHint(): void {
-  const n = adultHairHeads();
-  const headCount = el("hairHeadCount");
+  reconcileGroup("bmHair", "bmHairHeadCount", "bmLengthsCounter");
+  reconcileGroup("momHair", "momHairHeadCount", "momLengthsCounter");
+  reconcileGroup("guestHair", "guestHairHeadCount", "guestLengthsCounter");
+}
+
+function reconcileGroup(hairCountId: string, headCountId: string, counterId: string): void {
+  const n = num(hairCountId);
+  const headCount = el(headCountId);
   if (headCount) headCount.textContent = String(n);
-  const counter = el("lengthsCounter");
+  const counter = el(counterId);
   if (!counter) return;
-  const placed = num("lenShort") + num("lenMedium") + num("lenLong") + num("lenXlong");
+  const prefix = hairCountId.replace("Hair", "HairLen"); // bmHair -> bmHairLen
+  const placed = num(prefix + "Short") + num(prefix + "Medium") + num(prefix + "Long") + num(prefix + "Xlong");
   if (placed === n) counter.textContent = n ? `✓ all ${n} placed` : "";
   else if (placed < n) counter.textContent = `${placed} of ${n} placed — ${n - placed} to go`;
   else counter.textContent = `${placed} placed — ${placed - n} more than need hair`;
