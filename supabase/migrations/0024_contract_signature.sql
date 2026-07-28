@@ -9,6 +9,7 @@ alter table bookings
   add column if not exists contract_content_hash text,
   add column if not exists contract_version text;
 
-insert into business_settings (key, value)
-values ('contract_enabled', 'false')
-on conflict (key) do nothing;
+-- Enable contract e-signature in the live booking flow.
+update business_settings
+   set value = 'true'
+ where key = 'contract_enabled';
