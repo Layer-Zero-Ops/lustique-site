@@ -183,13 +183,38 @@ export interface ContractEnv {
   SUPABASE_SERVICE_KEY: string;
 }
 
-/** GET /api/booking/contract?token=<same invoice token> — read-only, no signing here. */
+/** GET /api/booking/contract?token=<signed> — read-only, no signing here.
+ *  GET /api/booking/contract?preview=1 — staging preview with dummy data, no token required.
+ */
 export async function renderContractPageHandler(
   env: ContractEnv,
   req: Request,
   fetchImpl: typeof fetch = fetch,
 ): Promise<Response> {
-  const token = new URL(req.url).searchParams.get("token") ?? "";
+  const url = new URL(req.url);
+  const token = url.searchParams.get("token") ?? "";
+  const preview = url.searchParams.get("preview") === "1";
+
+  if (preview) {
+    const dummy: ContractBooking = {
+      reference: "PREVIEW-LQ-0000",
+      bride_name: "Jane Bride",
+      bride_email: "bride@example.com",
+      contact_no: "+27 82 123 4567",
+      wedding_date: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      venue: "Red Ivory Estate",
+      town: "Hartbeespoort",
+      province: "North West",
+      party_size: 4,
+      total_cents: 500000,
+      deposit_pct: 25,
+    };
+    return new Response(renderContractPage(dummy, "preview-token"), {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" },
+    });
+  }
+
   if (!token) return new Response("Missing token", { status: 400, headers: { "content-type": "text/plain" } });
 
   const v = await verifyActionToken(token, env.SIGNING_SECRET, "invoice");
