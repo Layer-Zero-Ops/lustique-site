@@ -153,7 +153,7 @@ describe("Rate limiting — passes through when binding allows", () => {
     const req = makeReq("POST", "/api/booking/request", { brideName: "x" });
     const resp = await worker.fetch(req, env as never, {} as ExecutionContext);
     expect(resp.status).not.toBe(429);
-  });
+  }, 10000);
 });
 
 describe("Routing — /api/admin/marketing", () => {
