@@ -24,8 +24,9 @@ alter table enquiries
   add column if not exists matched_at timestamptz;
 
 -- Backfill: any enquiry already linked to a booking is 'booked'.
+-- (enquiries has created_at, not updated_at)
 update enquiries
-  set lifecycle = 'booked', lifecycle_at = updated_at
+  set lifecycle = 'booked', lifecycle_at = created_at
   where booking_id is not null and lifecycle = 'new';
 
 create index if not exists enquiries_lifecycle_idx on enquiries (lifecycle);
