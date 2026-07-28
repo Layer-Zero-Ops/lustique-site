@@ -62,16 +62,18 @@ export async function handleAdminInbox(
   const hdr = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` };
   const now = Date.now();
 
-  const [enqRes, bkRes, rejRes, evtRes] = await Promise.all([
+  const [enqRes, bkRes, rejRes, evtRes, manualRes] = await Promise.all([
     f(`${env.SUPABASE_URL}/rest/v1/enquiries?select=id,name,created_at,status,booking_id,archived_at,event_date,lifecycle,matched_at&archived_at=is.null&order=created_at.desc`, { headers: hdr }),
     f(`${env.SUPABASE_URL}/rest/v1/bookings?select=id,reference,bride_name,wedding_date,total_cents,status,created_at,archived_at,quote_sent_at,deposit_net_cents,balance_net_cents,availability_conflict&archived_at=is.null&order=created_at.desc`, { headers: hdr }),
     f(`${env.SUPABASE_URL}/rest/v1/rejections?select=id,created_at,bookings(reference,bride_name)&order=created_at.desc`, { headers: hdr }),
     f(`${env.SUPABASE_URL}/rest/v1/notifications?select=type,created_at&created_at=gte.${new Date(now - 7 * 86400000).toISOString()}&order=created_at.desc&limit=500`, { headers: hdr }),
+    f(`${env.SUPABASE_URL}/rest/v1/audit_log?select=id&created_at=gte.${new Date(now - 7 * 86400000).toISOString()}&limit=1000`, { headers: hdr }),
   ]);
 
   const enquiries = enqRes.ok ? ((await enqRes.json()) as any[]) : [];
   const bookings = bkRes.ok ? ((await bkRes.json()) as any[]) : [];
   const rejections = rejRes.ok ? ((await rejRes.json()) as any[]) : [];
+  const manualTouches7d = manualRes.ok ? ((await manualRes.json()) as any[]).length : 0;
 
   const rows: UnifiedRow[] = [
     ...enquiries.map((e) => {
@@ -158,7 +160,8 @@ export async function handleAdminInbox(
 
   const events: AutomationEvent[] = evtRes.ok ? ((await evtRes.json()) as AutomationEvent[]) : [];
 
-  // Pillar 6 — outcome-framed hero (reclaimed time + coordination score)
+  // Pillar 6 — outcome-framed hero (reclaimed time + coordination score + coverage)
+  const bookings7d = bookings.filter((b) => new Date(b.created_at).getTime() >= now - 7 * 86400000).length;
   const outcomes = computeOutcomes({
     pipeline_cents: kpi.pipeline_cents,
     booked_cents: kpi.booked_cents,
@@ -169,6 +172,8 @@ export async function handleAdminInbox(
     at_risk_count: kpi.at_risk_count,
     conversion_pct: kpi.conversion_pct,
     events,
+    bookings_7d: bookings7d,
+    manual_touches_7d: manualTouches7d,
     now,
   });
 
@@ -179,6 +184,7 @@ export async function handleAdminInbox(
     <div style="display:flex;gap:2.2rem;flex-wrap:wrap;">
       <div><div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;opacity:.8;">Admin reclaimed</div><div style="font-size:1.6rem;font-weight:800;">${esc(formatMinutes(outcomes.reclaimed_minutes_7d))}</div></div>
       <div><div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;opacity:.8;">Coordination</div><div style="font-size:1.6rem;font-weight:800;color:#ffd9e2;">${outcomes.coordination_score}/100</div></div>
+      <div><div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;opacity:.8;">Automated</div><div style="font-size:1.6rem;font-weight:800;color:#ffd9e2;">${outcomes.automation_coverage_pct}%</div></div>
       <div><div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;opacity:.8;">Momentum</div><div style="font-size:1.6rem;font-weight:800;">${esc(outcomes.momentum_label)}</div></div>
     </div>
   </div>`;

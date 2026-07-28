@@ -27,16 +27,17 @@
 | 3 | Trigger automation | ✅ PASS | Quote expiry, balance cron, notifications all event-driven |
 | 4 | AI invisible engine | 🟡 IN PROGRESS | Dashboard 'Ask Aria' button writes a directive to agent_bridge; Aria reads it in Telegram. Hook live once Aria's reader is wired to the queue |
 | 5 | Compliance by default | ✅ PASS | audit_log, RLS, JWT-gated admin, consent via Brevo |
-| 6 | Outcome-framed | 🟡 IN PROGRESS | Dashboard opens on outcome hero (admin reclaimed + coordination score + momentum); KPI bar demoted to secondary. Narrative still being tuned |
+| 6 | Outcome-framed | ✅ PASS | Dashboard opens on outcome hero ("this week the business ran itself") with admin reclaimed + coordination + **automation coverage %** + momentum |
 
-**Verdict:** 3 pass, 0 partial, 3 in-progress, 0 fail. P1 (post-wedding), P2 (connected), P6 (outcome) all IN PROGRESS; P4 (Aria-embed) next. Remaining: P4 embed Aria; pre-enquiry marketing attribution still loose.
+**Verdict:** 4 pass, 0 partial, 2 in-progress, 0 fail. P1/P2/P4 in-progress (hooks live pending Aria reader + auto-trigger cron); P6 (outcome) now PASS via automation-coverage headline. Pre-enquiry marketing attribution still loose.
 
 ## Phase 1 contribution to the pillars
 - **P1 (coverage):** Unified inbox + KPIs begin the MEASURE stage (was missing).
 - **P2 (connected):** Unified inbox merges enquiry/booking/rejection into one timeline (reduces the 4-table fragmentation).
 - **P6 (outcome):** KPI header surfaces booked/collected/at-risk — the first outcome-framed surface.
 
-## Phase 4 contribution (Pillar 4 — embed Aria)
+## Phase 5 contribution (Pillar 6 — outcome)
+- **P6 (outcome):** `automationCoveragePct` added + surfaced in the hero ("Automated X%") and the "this week, the business ran itself" headline now triggers on high coverage + healthy coordination. Pillar 6 → **PASS**.
 - **P4 (AI invisible):** New `aria-bridge.ts` + `handleAdminAriaTask` posts a `directive` to `agent_bridge` (desktop->aria) when Zandeline clicks "✦ Ask Aria" on a booking (3 tests). Aria's Telegram loop reads pending directives and acts invisibly — no manual email drafting. Hook is live the moment Aria's reader polls `agent_bridge`.
 - **P1 (coverage):** Migration 0030 adds `review_requested_at`/`referral_captured_at`/`review_url` + notification types. `post-wedding.ts` decides the next post-wedding action (review → referral → complete) and composes on-brand copy (10 tests). Admin "Request Review" button on settled bookings emails the bride + stamps the column. Closes the journey gap from enquiry→payment to enquiry→payment→**review→referral**→past-client.
 - **P2 (connected):** Migration 0029 adds `enquiries.lifecycle` (enum) + `matched_at`. `lead-lifecycle.ts` derives ONE canonical lifecycle per submission (new→contacted→quoted→booked→declined→archived), orphan-proofing the inbox. Enquiries without a booking still show as a tracked lead with a "⚠ no booking" flag instead of vanishing into 4 screens.

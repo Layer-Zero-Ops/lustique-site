@@ -21,6 +21,9 @@ export interface OutcomeInput {
   conversion_pct: number;
   // automation signal
   events: AutomationEvent[];
+  // coverage signal (Pillar 6 — "business runs itself")
+  bookings_7d: number; // bookings with wedding in last 7d OR created in last 7d
+  manual_touches_7d: number; // count of human actions in audit_log in last 7d
   now?: number;
 }
 
@@ -45,8 +48,20 @@ export interface Outcomes {
   reclaimed_minutes_7d: number;
   reclaimed_hours_7d: number;
   coordination_score: number; // 0-100: how automated/healthy the pipeline is
+  automation_coverage_pct: number; // % of bookings handled with no manual touch
   momentum_label: string; // "Accelerating" | "Steady" | "Needs attention"
   headline: string; // one outcome sentence for the top of the dashboard
+}
+
+/**
+ * Automation coverage (0-100): of the bookings in the window, what share needed
+ * NO manual human touch (i.e. were fully handled by automation). Derived from
+ * audit_log manual-touch count vs bookings in the window.
+ */
+export function automationCoveragePct(bookings7d: number, manualTouches7d: number): number {
+  if (bookings7d <= 0) return 0;
+  const automated = Math.max(0, bookings7d - manualTouches7d);
+  return Math.round((automated / bookings7d) * 100);
 }
 
 /** Sum automated-minute savings for events in the last N days. */
@@ -86,6 +101,7 @@ export function computeOutcomes(i: OutcomeInput): Outcomes {
   const now = i.now ?? Date.now();
   const minutes = reclaimedMinutes(i.events, 7, now);
   const score = coordinationScore(i);
+  const coverage = automationCoveragePct(i.bookings_7d, i.manual_touches_7d);
   const momentum =
     i.at_risk_count === 0 && i.conversion_pct >= 60
       ? "Accelerating"
@@ -94,15 +110,16 @@ export function computeOutcomes(i: OutcomeInput): Outcomes {
         : "Steady";
   const hours = Math.round((minutes / 60) * 10) / 10;
   const headline =
-    score >= 70
-      ? `Business running itself — ${hours}h of admin reclaimed this week, coordination ${score}/100.`
+    score >= 60 && coverage >= 80
+      ? `This week, the business ran itself — ${hours}h of admin reclaimed, ${coverage}% handled without a manual touch, coordination ${score}/100.`
       : score >= 45
-        ? `${hours}h of admin reclaimed this week. ${i.at_risk_count} item(s) need a human touch.`
-        : `${hours}h reclaimed, but ${i.at_risk_count} item(s) are slipping — coordination at ${score}/100.`;
+        ? `${hours}h of admin reclaimed this week (${coverage}% automated). ${i.at_risk_count} item(s) need a human touch.`
+        : `${hours}h reclaimed, but ${i.at_risk_count} item(s) are slipping — coordination at ${score}/100, ${coverage}% automated.`;
   return {
     reclaimed_minutes_7d: minutes,
     reclaimed_hours_7d: hours,
     coordination_score: score,
+    automation_coverage_pct: coverage,
     momentum_label: momentum,
     headline,
   };

@@ -4,6 +4,7 @@ import {
   reclaimedMinutes,
   coordinationScore,
   computeOutcomes,
+  automationCoveragePct,
   formatMinutes,
   type OutcomeInput,
 } from "./dashboard-outcomes";
@@ -22,6 +23,8 @@ function base(): OutcomeInput {
     at_risk_count: 2,
     conversion_pct: 50,
     events: [],
+    bookings_7d: 10,
+    manual_touches_7d: 1,
   };
 }
 
@@ -75,6 +78,29 @@ describe("computeOutcomes", () => {
     const o = computeOutcomes({ ...i, now: NOW });
     expect(o.momentum_label).toBe("Accelerating");
     expect(o.coordination_score).toBe(64);
+  });
+});
+
+describe("automationCoveragePct", () => {
+  it("100% when no manual touches", () => {
+    expect(automationCoveragePct(10, 0)).toBe(100);
+  });
+  it("zero when no bookings", () => {
+    expect(automationCoveragePct(0, 5)).toBe(0);
+  });
+  it("partial coverage", () => {
+    expect(automationCoveragePct(10, 3)).toBe(70);
+  });
+});
+
+describe("computeOutcomes coverage", () => {
+  it("includes automation_coverage_pct and 'ran itself' headline at high scores", () => {
+    const i = { ...base(), collection_pct: 100, at_risk_count: 0, conversion_pct: 70, open_enquiries: 5,
+      bookings_7d: 10, manual_touches_7d: 0,
+      events: [{ type: "invoice_sent", created_at: dayAgo(1) }] };
+    const o = computeOutcomes({ ...i, now: NOW });
+    expect(o.automation_coverage_pct).toBe(100);
+    expect(o.headline).toContain("the business ran itself");
   });
 });
 
