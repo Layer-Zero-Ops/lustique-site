@@ -47,6 +47,7 @@ import { persistEnquiry, insertNotification } from "./booking/db";
 import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice } from "./booking/enquiries";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
 import { handleAdminInbox, handleAdminInboxArchive } from "./booking/inbox";
+import { handleAdminAriaTask } from "./booking/aria-bridge";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
 import { handleAdminStaffing } from "./booking/staffing";
 import { handleAdminPortfolio, handleAdminPortfolioDelete, handleAdminPortfolioReorder, handleAdminPortfolioPositions } from "./booking/portfolio";
@@ -447,7 +448,11 @@ export default {
         const id = url.pathname.slice("/api/admin/booking/".length, -"/mark-balance".length);
         if (id) return await handleAdminMarkBalancePaid(req, dashEnv, id);
       }
-      // POST /api/admin/booking/:id/review-request — post-wedding review ask (Phase 3)
+      // POST /api/admin/booking/:id/aria-task — hand a task to Aria (Phase 4)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/aria-task")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/aria-task".length);
+        return await handleAdminAriaTask(req, dashEnv, id);
+      }
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/review-request")) {
         const id = url.pathname.slice("/api/admin/booking/".length, -"/review-request".length);
         return await handleAdminReviewRequest(req, dashEnv, id);

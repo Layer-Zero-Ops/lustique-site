@@ -1164,9 +1164,16 @@ export async function handleAdminBookingDetail(
               Request Review →
             </button>
           </form>`;
+      const ariaBtn = `<form method="POST" action="/api/admin/booking/${esc(id)}/aria-task">
+            <button type="submit" style="font:inherit;font-weight:700;background:#5c3d47;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Ask Aria to draft a follow-up for ${esc(b.bride_name.replace(/'/g, "\\'"))}? She will pick this up in Telegram.')">
+              ✦ Ask Aria
+            </button>
+          </form>`;
       return `<h2>Actions</h2>
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
           ${reviewBtn}
+          ${ariaBtn}
           ${resendInvoiceBtn}
         </div>`;
     }

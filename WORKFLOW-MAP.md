@@ -25,7 +25,7 @@
 | 1 | Full-journey coverage | 🟡 IN PROGRESS | Post-wedding now a real stage: review_requested_at/referral_captured_at + review-request action; auto-trigger cron pending |
 | 2 | Connected, not point tools | 🟡 IN PROGRESS | Unified inbox merges sources; enquiries now carry a canonical `lifecycle` (0029) so enquiry→booking is one tracked lead. `leads` view not yet materialised |
 | 3 | Trigger automation | ✅ PASS | Quote expiry, balance cron, notifications all event-driven |
-| 4 | AI invisible engine | 🟡 IN PROGRESS | Aria grounded + drift sweep live; not yet embedded in dashboard actions |
+| 4 | AI invisible engine | 🟡 IN PROGRESS | Dashboard 'Ask Aria' button writes a directive to agent_bridge; Aria reads it in Telegram. Hook live once Aria's reader is wired to the queue |
 | 5 | Compliance by default | ✅ PASS | audit_log, RLS, JWT-gated admin, consent via Brevo |
 | 6 | Outcome-framed | 🟡 IN PROGRESS | Dashboard opens on outcome hero (admin reclaimed + coordination score + momentum); KPI bar demoted to secondary. Narrative still being tuned |
 
@@ -36,7 +36,8 @@
 - **P2 (connected):** Unified inbox merges enquiry/booking/rejection into one timeline (reduces the 4-table fragmentation).
 - **P6 (outcome):** KPI header surfaces booked/collected/at-risk — the first outcome-framed surface.
 
-## Phase 3 contribution (Pillar 1 — post-wedding)
+## Phase 4 contribution (Pillar 4 — embed Aria)
+- **P4 (AI invisible):** New `aria-bridge.ts` + `handleAdminAriaTask` posts a `directive` to `agent_bridge` (desktop->aria) when Zandeline clicks "✦ Ask Aria" on a booking (3 tests). Aria's Telegram loop reads pending directives and acts invisibly — no manual email drafting. Hook is live the moment Aria's reader polls `agent_bridge`.
 - **P1 (coverage):** Migration 0030 adds `review_requested_at`/`referral_captured_at`/`review_url` + notification types. `post-wedding.ts` decides the next post-wedding action (review → referral → complete) and composes on-brand copy (10 tests). Admin "Request Review" button on settled bookings emails the bride + stamps the column. Closes the journey gap from enquiry→payment to enquiry→payment→**review→referral**→past-client.
 - **P2 (connected):** Migration 0029 adds `enquiries.lifecycle` (enum) + `matched_at`. `lead-lifecycle.ts` derives ONE canonical lifecycle per submission (new→contacted→quoted→booked→declined→archived), orphan-proofing the inbox. Enquiries without a booking still show as a tracked lead with a "⚠ no booking" flag instead of vanishing into 4 screens.
 - **P6 (outcome):** Dashboard opens on an outcome hero — "This week, the business ran itself" — with admin-hours reclaimed (computed from real automation events in `notifications`), coordination score /100, and momentum label. KPI table demoted to secondary detail. Closes the pillar-6 FAIL.
