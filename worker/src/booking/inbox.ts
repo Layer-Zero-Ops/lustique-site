@@ -5,6 +5,7 @@
 
 import { getAdminSession, type AdminUser } from "./auth";
 import { computeKpis, formatZAR, isZeroTotal, isQuoteExpired, isBalanceOverdue, type KpiBooking, type KpiEnquiry } from "./dashboard-kpi";
+import { computeOutcomes, formatMinutes, type AutomationEvent } from "./dashboard-outcomes";
 import type { Env } from "../index";
 
 export type ShellFn = (title: string, user: AdminUser, inner: string, currentPath?: string) => string;
@@ -60,10 +61,11 @@ export async function handleAdminInbox(
   const hdr = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` };
   const now = Date.now();
 
-  const [enqRes, bkRes, rejRes] = await Promise.all([
+  const [enqRes, bkRes, rejRes, evtRes] = await Promise.all([
     f(`${env.SUPABASE_URL}/rest/v1/enquiries?select=id,name,created_at,status,booking_id,archived_at,event_date&archived_at=is.null&order=created_at.desc`, { headers: hdr }),
     f(`${env.SUPABASE_URL}/rest/v1/bookings?select=id,reference,bride_name,wedding_date,total_cents,status,created_at,archived_at,quote_sent_at,deposit_net_cents,balance_net_cents,availability_conflict&archived_at=is.null&order=created_at.desc`, { headers: hdr }),
     f(`${env.SUPABASE_URL}/rest/v1/rejections?select=id,created_at,bookings(reference,bride_name)&order=created_at.desc`, { headers: hdr }),
+    f(`${env.SUPABASE_URL}/rest/v1/notifications?select=type,created_at&created_at=gte.${new Date(now - 7 * 86400000).toISOString()}&order=created_at.desc&limit=500`, { headers: hdr }),
   ]);
 
   const enquiries = enqRes.ok ? ((await enqRes.json()) as any[]) : [];
@@ -137,7 +139,34 @@ export async function handleAdminInbox(
     now,
   );
 
-  const kpiBar = `<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+  const events: AutomationEvent[] = evtRes.ok ? ((await evtRes.json()) as AutomationEvent[]) : [];
+
+  // Pillar 6 — outcome-framed hero (reclaimed time + coordination score)
+  const outcomes = computeOutcomes({
+    pipeline_cents: kpi.pipeline_cents,
+    booked_cents: kpi.booked_cents,
+    collected_cents: kpi.collected_cents,
+    owed_cents: kpi.owed_cents,
+    collection_pct: kpi.collection_pct,
+    open_enquiries: kpi.open_enquiries,
+    at_risk_count: kpi.at_risk_count,
+    conversion_pct: kpi.conversion_pct,
+    events,
+    now,
+  });
+
+  const scoreColor = outcomes.coordination_score >= 70 ? "#276749" : outcomes.coordination_score >= 45 ? "#b7791f" : "#c53030";
+  const hero = `<div style="background:linear-gradient(135deg,#8a3a52,#5c3d47);border-radius:16px;padding:1.6rem 1.8rem;color:#fff;margin-bottom:1.5rem;">
+    <div style="font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;opacity:.85;font-weight:700;">This week, the business ran itself</div>
+    <div style="font-size:1.35rem;font-weight:800;margin:.4rem 0 .9rem;line-height:1.35;">${esc(outcomes.headline)}</div>
+    <div style="display:flex;gap:2.2rem;flex-wrap:wrap;">
+      <div><div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;opacity:.8;">Admin reclaimed</div><div style="font-size:1.6rem;font-weight:800;">${esc(formatMinutes(outcomes.reclaimed_minutes_7d))}</div></div>
+      <div><div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;opacity:.8;">Coordination</div><div style="font-size:1.6rem;font-weight:800;color:#ffd9e2;">${outcomes.coordination_score}/100</div></div>
+      <div><div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;opacity:.8;">Momentum</div><div style="font-size:1.6rem;font-weight:800;">${esc(outcomes.momentum_label)}</div></div>
+    </div>
+  </div>`;
+
+  const kpiBar = `<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.2rem;">
     ${kpiCard("Pipeline", formatZAR(kpi.pipeline_cents))}
     ${kpiCard("Booked", formatZAR(kpi.booked_cents))}
     ${kpiCard("Collected", formatZAR(kpi.collected_cents))}
@@ -172,7 +201,7 @@ export async function handleAdminInbox(
       </tbody></table></form>`
     : `<p class="empty">${onlyRisk ? "Nothing needs attention right now ✦" : "Inbox is clear ✦"}</p>`;
 
-  return htmlResponse(shell("Unified Inbox", user, kpiBar + (visible.length ? body.replace(filterBar, "") : filterBar + body), url.pathname));
+  return htmlResponse(shell("Unified Inbox", user, hero + kpiBar + (visible.length ? body.replace(filterBar, "") : filterBar + body), url.pathname));
 }
 
 function kpiCard(label: string, value: string, color = "#2b2b2b"): string {

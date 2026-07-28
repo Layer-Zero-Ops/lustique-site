@@ -30,9 +30,10 @@ describe("daysUntil", () => {
   it("returns null for null", () => {
     expect(daysUntil(null)).toBeNull();
   });
-  it("computes positive days", () => {
-    const future = new Date(NOW + 5 * 86400000).toISOString();
-    expect(daysUntil(future)).toBe(5);
+  it("computes positive days deterministically", () => {
+    const now = new Date("2026-07-27T12:00:00Z").getTime();
+    const future = new Date(now + 5 * 86400000).toISOString();
+    expect(daysUntil(future, now)).toBe(5);
   });
 });
 

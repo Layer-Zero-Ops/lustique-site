@@ -36,9 +36,9 @@ const OPEN_QUOTE = new Set(["requested", "quote_sent"]);
 const BOOKED = new Set(["accepted", "deposit_paid", "settled"]);
 
 /** Days from now until an ISO date (negative = past). */
-export function daysUntil(iso: string | null): number | null {
+export function daysUntil(iso: string | null, now = Date.now()): number | null {
   if (!iso) return null;
-  const ms = new Date(iso).getTime() - Date.now();
+  const ms = new Date(iso).getTime() - now;
   return Math.ceil(ms / 86400000);
 }
 
