@@ -77,8 +77,10 @@ header.nav.scrolled { box-shadow: 0 8px 30px -22px rgba(92,67,50,.5); }
 .nav-links a:hover::after, .nav-links a.active::after { width: 100%; }
 .nav-links a.active { color: var(--burgundy); }
 .nav-cta { display: flex; align-items: center; gap: 1.25rem; }
+.nav-cta .btn-whatsapp { background:#25D366; color:#fff; border-color:#25D366; }
+.nav-cta .btn-whatsapp:hover { background:#1fb855; transform: translateY(-2px); box-shadow: 0 10px 24px -12px rgba(37,211,102,.55); }
 .nav-toggle { display: none; background: none; border: 0; font-size: 1.5rem; color: var(--mocha); cursor: pointer; }
-@media (max-width: 960px) {
+@media (max-width: 760px) {
   .nav-links { position: absolute; top: 100%; left: 0; right: 0; background: var(--ivory); flex-direction: column; gap: 0; padding: 1rem var(--gut) 2rem; border-bottom: 1px solid rgba(92,67,50,.1); transform: translateY(-10px); opacity: 0; pointer-events: none; transition: .35s var(--ease); }
   .nav-links.open { transform: none; opacity: 1; pointer-events: auto; }
   .nav-links a { padding: .9rem 0; width: 100%; border-bottom: 1px solid rgba(92,67,50,.07); }
