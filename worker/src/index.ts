@@ -34,6 +34,7 @@ import {
   handleAdminQuoteComposer,
 } from "./booking/dashboard";
 import { handleAssignArtist, handleRemoveArtist } from "./booking/artists";
+import { handleAdminArtists } from "./booking/artist-media";
 import {
   handleAdminSendQuote,
   handleAdminDeclineBooking,
@@ -47,6 +48,7 @@ import { getAdminSession } from "./booking/auth";
 import { persistEnquiry, insertNotification } from "./booking/db";
 import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice, handleAdminDeleteEnquiry } from "./booking/enquiries";
 import { buildTidyPlan, runTidy, type TidyEnquiry, type TidyBooking } from "./booking/dashboard-tidy";
+import { handleAdminAriaChat, handleAdminAriaMessage, handleAdminAriaApprove } from "./booking/aria-chat";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
 import { handleAdminInbox, handleAdminInboxArchive } from "./booking/inbox";
 import { handleAdminAriaTask } from "./booking/aria-bridge";
@@ -431,6 +433,18 @@ export default {
         await insertNotification(env, { type: "system", title: "Dashboard tidied", body: summary, link: "/api/admin/dashboard" }).catch(() => {});
         return new Response(null, { status: 302, headers: { Location: "/api/admin/dashboard?tidied=1" } });
       }
+      // GET /api/admin/aria — Aria chat UI
+      if (req.method === "GET" && url.pathname === "/api/admin/aria") {
+        return handleAdminAriaChat(req, env as Parameters<typeof handleAdminAriaChat>[1], adminShell);
+      }
+      // POST /api/admin/aria/message — Zandeline sends a request to Aria
+      if (req.method === "POST" && url.pathname === "/api/admin/aria/message") {
+        return handleAdminAriaMessage(req, env as Parameters<typeof handleAdminAriaMessage>[1]);
+      }
+      // POST /api/admin/aria/approve — Zandeline approves/rejects a queued HIGH action
+      if (req.method === "POST" && url.pathname === "/api/admin/aria/approve") {
+        return handleAdminAriaApprove(req, env as Parameters<typeof handleAdminAriaApprove>[1]);
+      }
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.endsWith("/generate-invoice")) {
         const id = url.pathname.split("/")[4]!;
         return handleAdminGenerateInvoice(req, env as Parameters<typeof handleAdminGenerateInvoice>[1], adminShell, id);
@@ -618,6 +632,20 @@ export default {
       // POST /api/admin/portfolio/positions — save drag-and-drop order
       if (req.method === "POST" && url.pathname === "/api/admin/portfolio/positions") {
         return handleAdminPortfolioPositions(req, env as Parameters<typeof handleAdminPortfolioPositions>[1]);
+      }
+
+      // ── Artists ────────────────────────────────────────────────────────────
+      if ((req.method === "GET") && url.pathname === "/api/admin/artists") {
+        return handleAdminArtists(req, env as Parameters<typeof handleAdminArtists>[1], adminShell);
+      }
+      if (req.method === "POST" && url.pathname === "/api/admin/artists/bio") {
+        return handleAdminArtists(req, env as Parameters<typeof handleAdminArtists>[1], adminShell);
+      }
+      if (req.method === "POST" && url.pathname === "/api/admin/artists/photo") {
+        return handleAdminArtists(req, env as Parameters<typeof handleAdminArtists>[1], adminShell);
+      }
+      if (req.method === "POST" && url.pathname === "/api/admin/artists/order") {
+        return handleAdminArtists(req, env as Parameters<typeof handleAdminArtists>[1], adminShell);
       }
 
       // ── Blog ──────────────────────────────────────────────────────────────

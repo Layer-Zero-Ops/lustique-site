@@ -105,6 +105,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   // Workflow-first nav: operational hubs first, config collapsed under Settings.
   const inboxLinks = [
     navLink("/api/admin/inbox",      "Inbox",      "inbox-badge"),
+    navLink("/api/admin/aria",       "✦ Aria"),
     navLink("/api/admin/forms",       "Forms",      "enq-badge"),
     navLink("/api/admin/calendar",    "Calendar"),
   ];
