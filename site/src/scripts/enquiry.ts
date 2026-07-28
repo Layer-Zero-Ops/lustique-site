@@ -134,20 +134,24 @@ const btn = document.getElementById("sendEnquiry") as HTMLButtonElement | null;
 const statusEl = document.getElementById("enquiryStatus");
 const say = (msg: string) => { if (statusEl) statusEl.textContent = msg; };
 
-/** One POST attempt with a 15s timeout. `retriable` = transient (network / timeout / 5xx) → worth one auto-retry. */
-async function postEnquiry(data: unknown): Promise<{ ok: boolean; error?: string; retriable: boolean }> {
+/** One POST attempt with a 15s timeout. `retriable` = transient (network / timeout / 5xx) → worth one auto-retry.
+ *  `forceNoToken` = strip the Turnstile token (used on the security-fail fallback so a blocked captcha
+ *  never loses the lead — the Worker persists + flags for review instead of rejecting). */
+async function postEnquiry(data: unknown, forceNoToken = false): Promise<{ ok: boolean; error?: string; retriable: boolean; securityFail?: boolean }> {
+  const payload = forceNoToken ? { ...(data as Record<string, unknown>), cfTurnstileToken: "" } : data;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
     const res = await fetch("/api/enquiry", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
       signal: ctrl.signal,
     });
     const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
     if (res.ok && out.ok) return { ok: true, retriable: false };
-    return { ok: false, error: out.error, retriable: res.status >= 500 }; // 4xx (validation) is the user's to fix
+    const securityFail = res.status === 422 && /security check failed/i.test(out.error ?? "");
+    return { ok: false, error: out.error, retriable: res.status >= 500, securityFail };
   } catch {
     return { ok: false, retriable: true }; // network error or the 15s timeout aborted it
   } finally {
@@ -201,12 +205,25 @@ btn?.addEventListener("click", async () => {
   btn.textContent = "Sending…";
   say("");
 
+  // If Turnstile didn't load (ad-blocker / privacy extension), tell her it'll be
+  // reviewed manually — the Worker still saves the lead. Never hard-block on it.
+  const tsInput = document.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"]');
+  if (!tsInput || !tsInput.value) {
+    say("Security check unavailable — we'll verify your request manually.");
+  }
+
   // Self-heal: one automatic retry on a transient failure before we ask her to email us instead.
   let result = await postEnquiry(data);
   if (!result.ok && result.retriable) {
     say("Connection hiccup — trying once more…");
     await new Promise((r) => setTimeout(r, 1200));
     result = await postEnquiry(data);
+  }
+  // If the captcha was rejected, retry ONCE without the token — the Worker persists
+  // the lead and flags it for review, so a blocked captcha can never lose the enquiry.
+  if (!result.ok && result.securityFail) {
+    say("Verifying another way — one moment…");
+    result = await postEnquiry(data, true);
   }
   if (result.ok) {
     window.location.href = "thank-you.html";
