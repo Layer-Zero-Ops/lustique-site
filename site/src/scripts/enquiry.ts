@@ -39,12 +39,20 @@ function partySummary(): string {
   return out.join("; ") || "Bride only";
 }
 
-/** Party hair as she entered it — the four length buckets. */
+/** Party hair, grouped per sub-party (bridesmaids / mothers / other guests). */
 function partyHairSummary(): string {
-  const buckets = (["Short", "Medium", "Long", "Xlong"] as const)
-    .map((k) => { const n = numv("len" + k); return n ? `${n} ${LEN[k.toLowerCase()] ?? k}` : ""; })
-    .filter(Boolean);
-  return buckets.length ? buckets.join(", ") : "—";
+  const group = (prefix: string, label: string): string => {
+    const buckets = (["Short", "Medium", "Long", "Xlong"] as const)
+      .map((k) => { const n = numv(prefix + k); return n ? `${n} ${LEN[k.toLowerCase()] ?? k}` : ""; })
+      .filter(Boolean);
+    return buckets.length ? `${label}: ${buckets.join(", ")}` : "";
+  };
+  const parts = [
+    group("bmHairLen", "Bridesmaids"),
+    group("momHairLen", "Mothers"),
+    group("guestHairLen", "Guests"),
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "—";
 }
 
 function collect() {
@@ -126,20 +134,24 @@ const btn = document.getElementById("sendEnquiry") as HTMLButtonElement | null;
 const statusEl = document.getElementById("enquiryStatus");
 const say = (msg: string) => { if (statusEl) statusEl.textContent = msg; };
 
-/** One POST attempt with a 15s timeout. `retriable` = transient (network / timeout / 5xx) → worth one auto-retry. */
-async function postEnquiry(data: unknown): Promise<{ ok: boolean; error?: string; retriable: boolean }> {
+/** One POST attempt with a 15s timeout. `retriable` = transient (network / timeout / 5xx) → worth one auto-retry.
+ *  `forceNoToken` = strip the Turnstile token (used on the security-fail fallback so a blocked captcha
+ *  never loses the lead — the Worker persists + flags for review instead of rejecting). */
+async function postEnquiry(data: unknown, forceNoToken = false): Promise<{ ok: boolean; error?: string; retriable: boolean; securityFail?: boolean }> {
+  const payload = forceNoToken ? { ...(data as Record<string, unknown>), cfTurnstileToken: "" } : data;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
     const res = await fetch("/api/enquiry", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
       signal: ctrl.signal,
     });
     const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
     if (res.ok && out.ok) return { ok: true, retriable: false };
-    return { ok: false, error: out.error, retriable: res.status >= 500 }; // 4xx (validation) is the user's to fix
+    const securityFail = res.status === 422 && /security check failed/i.test(out.error ?? "");
+    return { ok: false, error: out.error, retriable: res.status >= 500, securityFail };
   } catch {
     return { ok: false, retriable: true }; // network error or the 15s timeout aborted it
   } finally {
@@ -158,17 +170,24 @@ btn?.addEventListener("click", async () => {
     say("Please tick the consent box so we can contact you about your enquiry.");
     return;
   }
-  // For weddings, the length buckets must account for everyone needing hair — so the quote is exact.
+  // For weddings, every sub-party's length buckets must account for that group's hair heads.
   if ((val("occasion") || "wedding") === "wedding") {
     if (!chk("brideWantsMakeup") && !chk("brideWantsHair")) {
       say("Please choose at least makeup or hair for the bride.");
       return;
     }
-    const need = numv("bmHair") + numv("momHair") + numv("guestHair");
-    const placed = numv("lenShort") + numv("lenMedium") + numv("lenLong") + numv("lenXlong");
-    if (placed !== need) {
-      say(`Almost there — please place all ${need} party hair looks by length (you've placed ${placed}).`);
-      return;
+    const groups: Array<[string, string, string]> = [
+      ["bmHair", "bmHairLen", "bridesmaids"],
+      ["momHair", "momHairLen", "mothers"],
+      ["guestHair", "guestHairLen", "guests"],
+    ];
+    for (const [countId, lenPrefix, label] of groups) {
+      const need = numv(countId);
+      const placed = numv(lenPrefix + "Short") + numv(lenPrefix + "Medium") + numv(lenPrefix + "Long") + numv(lenPrefix + "Xlong");
+      if (placed !== need) {
+        say(`Almost there — please place all ${need} ${label}' hair looks by length (you've placed ${placed}).`);
+        return;
+      }
     }
   }
   // Same check for events: if hair is booked, all heads must be placed by length
@@ -186,12 +205,25 @@ btn?.addEventListener("click", async () => {
   btn.textContent = "Sending…";
   say("");
 
+  // If Turnstile didn't load (ad-blocker / privacy extension), tell her it'll be
+  // reviewed manually — the Worker still saves the lead. Never hard-block on it.
+  const tsInput = document.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"]');
+  if (!tsInput || !tsInput.value) {
+    say("Security check unavailable — we'll verify your request manually.");
+  }
+
   // Self-heal: one automatic retry on a transient failure before we ask her to email us instead.
   let result = await postEnquiry(data);
   if (!result.ok && result.retriable) {
     say("Connection hiccup — trying once more…");
     await new Promise((r) => setTimeout(r, 1200));
     result = await postEnquiry(data);
+  }
+  // If the captcha was rejected, retry ONCE without the token — the Worker persists
+  // the lead and flags it for review, so a blocked captcha can never lose the enquiry.
+  if (!result.ok && result.securityFail) {
+    say("Verifying another way — one moment…");
+    result = await postEnquiry(data, true);
   }
   if (result.ok) {
     window.location.href = "thank-you.html";

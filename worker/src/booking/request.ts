@@ -45,6 +45,7 @@ interface RequestBody {
   momMakeup?: unknown; momHair?: unknown;
   fgAge?: string; fgMakeup?: unknown; fgHair?: unknown; fgHairLen?: string;
   guestMakeup?: unknown; guestHair?: unknown;
+  bmHairLen?: string; momHairLen?: string; guestHairLen?: string;
   evMakeup?: unknown; evHair?: unknown; evHairLen?: string;
   lessonsAttending?: unknown;
   requestedArtists?: unknown;
@@ -97,6 +98,9 @@ function toEstimateInput(b: RequestBody): EstimateInput {
     fgMakeup: n(b.fgMakeup), fgHair: n(b.fgHair),
     fgHairLen: (b.fgHairLen ?? "medium") as EstimateInput["fgHairLen"],
     guestMakeup: n(b.guestMakeup), guestHair: n(b.guestHair),
+    bmHairLen: (b.bmHairLen ?? "medium") as EstimateInput["bmHairLen"],
+    momHairLen: (b.momHairLen ?? "medium") as EstimateInput["momHairLen"],
+    guestHairLen: (b.guestHairLen ?? "medium") as EstimateInput["guestHairLen"],
     evMakeup: n(b.evMakeup), evHair: n(b.evHair),
     evHairLen: (b.evHairLen ?? "medium") as EstimateInput["evHairLen"],
     lessonsAttending: n(b.lessonsAttending),
@@ -184,6 +188,9 @@ export async function handleBookingRequest(
       province: body.province?.trim() || null,
       venue: body.venue?.trim() || null,
       party_size: result.heads,
+      bm_hair_len: estimateInput.bmHairLen,
+      mom_hair_len: estimateInput.momHairLen,
+      guest_hair_len: estimateInput.guestHairLen,
       estimate_input: estimateInput,
       total_cents: totalCents,
       quote_lines: result.lines,

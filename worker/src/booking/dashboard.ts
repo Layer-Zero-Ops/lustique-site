@@ -42,7 +42,7 @@ interface InboxBooking {
 // ── HTML helpers ─────────────────────────────────────────────────────────────
 
 const esc = (s = "") =>
-  s.replace(/[<>&"']/g, (c) =>
+  (s ?? "").replace(/[<>&"']/g, (c) =>
     ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c] as string,
   );
 
@@ -102,39 +102,44 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 </div>`;
   }
 
-  const bookingsLinks = [
+  // Workflow-first nav: operational hubs first, config collapsed under Settings.
+  const inboxLinks = [
+    navLink("/api/admin/inbox",      "Inbox",      "inbox-badge"),
+    navLink("/api/admin/forms",       "Forms",      "enq-badge"),
     navLink("/api/admin/calendar",    "Calendar"),
+  ];
+  const moneyLinks = [
     navLink("/api/admin/quotes",      "Invoices"),
     navLink("/api/admin/rejections",  "Declined"),
   ];
   const clientsLinks = [
-    navLink("/api/admin/forms",      "Forms", "enq-badge"),
-    navLink("/api/admin/contacts",   "Contacts"),
-    navLink("/api/admin/enquiries",  "CRM"),
+    navLink("/api/admin/contacts",    "Contacts"),
+    navLink("/api/admin/enquiries",   "CRM"),
   ];
-  const contentLinks = [
-    navLink("/api/admin/portfolio",  "Portfolio"),
-    navLink("/api/admin/website",    "Website"),
-    navLink("/api/admin/blog",       "Blog"),
+  const studioLinks = [
+    navLink("/api/admin/portfolio",   "Portfolio"),
+    navLink("/api/admin/website",     "Website"),
+    navLink("/api/admin/blog",        "Blog"),
+    navLink("/api/admin/staffing",    "Staffing"),
   ];
-  const adminLinks = [
-    navLink("/api/admin/dashboard",  "Inbox"),
-    navLink("/api/admin/staffing",   "Staffing"),
-    navLink("/api/admin/promos",     "Promotions"),
-    navLink("/api/admin/marketing",  "Marketing"),
-    navLink("/api/admin/templates",  "Templates"),
-    navLink("/api/admin/clio",       "Clio"),
+  const settingsLinks = [
+    navLink("/api/admin/promos",      "Promotions"),
+    navLink("/api/admin/marketing",   "Marketing"),
+    navLink("/api/admin/templates",   "Templates"),
+    navLink("/api/admin/clio",        "Clio"),
   ];
 
   const nav = [
-    navGroup("Admin",    adminLinks,    adminLinks.some((_, i) =>
-      isActive(["/api/admin/dashboard", "/api/admin/staffing", "/api/admin/promos", "/api/admin/marketing", "/api/admin/templates", "/api/admin/clio"][i]!))),
-    navGroup("Bookings", bookingsLinks, bookingsLinks.some((_, i) =>
-      isActive(["/api/admin/calendar", "/api/admin/quotes", "/api/admin/rejections"][i]!))),
-    navGroup("Clients",  clientsLinks,  clientsLinks.some((_, i) =>
-      isActive(["/api/admin/forms", "/api/admin/contacts", "/api/admin/enquiries"][i]!))),
-    navGroup("Content",  contentLinks,  contentLinks.some((_, i) =>
-      isActive(["/api/admin/portfolio", "/api/admin/website", "/api/admin/blog"][i]!))),
+    navGroup("Inbox",   inboxLinks,   inboxLinks.some((_, i) =>
+      isActive(["/api/admin/dashboard", "/api/admin/forms", "/api/admin/calendar"][i]!))),
+    navGroup("Money",   moneyLinks,   moneyLinks.some((_, i) =>
+      isActive(["/api/admin/quotes", "/api/admin/rejections"][i]!))),
+    navGroup("Clients", clientsLinks, clientsLinks.some((_, i) =>
+      isActive(["/api/admin/contacts", "/api/admin/enquiries"][i]!))),
+    navGroup("Studio",  studioLinks,  studioLinks.some((_, i) =>
+      isActive(["/api/admin/portfolio", "/api/admin/website", "/api/admin/blog", "/api/admin/staffing"][i]!))),
+    // Settings collapsed by default — config, not daily work.
+    `<details class="nav-group"><summary>Settings</summary>\n${settingsLinks.join("\n")}\n</details>`,
   ].join("\n");
 
   return `<!doctype html><html lang="en"><head>
@@ -172,6 +177,13 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
   a.row-link:hover{text-decoration:underline;}
   .notif-bell{width:100%;padding:.35rem .85rem;font:inherit;font-size:.82rem;font-weight:500;color:#5c3d47;background:none;border:none;cursor:pointer;text-align:left;border-radius:7px;display:flex;align-items:center;gap:.5rem;}
   .notif-bell:hover{background:#f7f3ef;}
+  .nav-group{margin-top:.6rem;border:none;background:none;padding:0;}
+  .nav-group > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:.2rem .85rem .3rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#c0a898;}
+  .nav-group > summary::-webkit-details-marker{display:none;}
+  .nav-group > summary::after{content:"▶";font-size:.58rem;color:#c0a898;transition:transform .2s;}
+  .nav-group[open] > summary::after{transform:rotate(90deg);}
+  .nav-group > a{display:flex;align-items:center;gap:.3rem;padding:.4rem .85rem;border-radius:7px;text-decoration:none;color:#5c3d47;font-weight:500;font-size:.84rem;}
+  .nav-group[open] > a{display:flex;}
   .notif-count{display:none;background:#8a3a52;color:#fff;border-radius:20px;font-size:.7rem;font-weight:700;padding:.1em .5em;min-width:1.3em;text-align:center;}
 </style></head><body>
 <nav class="sidebar">
@@ -218,6 +230,12 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
           var ec=d.items.filter(function(n){return n.type==='enquiry_received';}).length;
           if(ec>0){enqBadge.textContent=ec;enqBadge.style.display='inline-block';}
           else{enqBadge.style.display='none';}
+        }
+        var inboxBadge=document.getElementById('inbox-badge');
+        if(inboxBadge){
+          var ic=d.items.filter(function(n){return n.type==='booking_requested';}).length;
+          if(ic>0){inboxBadge.textContent=ic;inboxBadge.style.display='inline-block';}
+          else{inboxBadge.style.display='none';}
         }
         renderItems(d.items);
       }).catch(function(){});
@@ -305,6 +323,19 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 
 function formatZAR(cents: number): string {
   return `R ${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+const HAIR_LABEL: Record<string, string> = { short: "Short", medium: "Medium", long: "Long", xlong: "X-Long" };
+
+/** Grouped party-hair block for the booking detail — bridesmaids / mothers / guests kept separate. */
+function partyHairGrouped(b: { bm_hair_len?: string | null; mom_hair_len?: string | null; guest_hair_len?: string | null }): string {
+  const row = (label: string, len?: string | null) =>
+    len ? `<tr><td style="color:#8a7d72;padding-left:1.2rem;">&nbsp;&nbsp;${esc(label)} hair</td><td>${HAIR_LABEL[len] ?? esc(len)}</td></tr>` : "";
+  const bm = row("Bridesmaids", b.bm_hair_len);
+  const mom = row("Mothers", b.mom_hair_len);
+  const guest = row("Guests", b.guest_hair_len);
+  const any = bm || mom || guest;
+  return any ? `<tr><td style="color:#8a7d72;" colspan="2"><em>Party hair by group</em></td></tr>${bm}${mom}${guest}` : "";
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -817,6 +848,11 @@ interface BookingDetail {
   invoice_expired_at: string | null;
   availability_conflict: boolean;
   notes: string | null;
+  bm_hair_len: string | null;
+  mom_hair_len: string | null;
+  guest_hair_len: string | null;
+  review_requested_at: string | null;
+  referral_captured_at: string | null;
 }
 
 interface PaymentRow {
@@ -937,7 +973,7 @@ export async function handleAdminBookingDetail(
     fetchFn(
       supabaseUrl(
         env,
-        `bookings?id=eq.${encodeURIComponent(id)}&select=id,reference,status,bride_name,bride_email,bride_phone,wedding_date,town,province,venue,party_size,total_cents,deposit_pct,deposit_net_cents,balance_net_cents,occasion,quote_lines,created_at,quote_sent_at,accepted_at,rejected_at,invoice_expired_at,availability_conflict,notes`,
+        `bookings?id=eq.${encodeURIComponent(id)}&select=id,reference,status,bride_name,bride_email,bride_phone,wedding_date,town,province,venue,party_size,total_cents,deposit_pct,deposit_net_cents,balance_net_cents,occasion,quote_lines,created_at,quote_sent_at,accepted_at,rejected_at,invoice_expired_at,availability_conflict,notes,bm_hair_len,mom_hair_len,guest_hair_len`,
       ),
       { headers: hdr },
     ),
@@ -1120,8 +1156,24 @@ export async function handleAdminBookingDetail(
         </div>`;
     }
     if (b.status === "settled") {
+      const reviewBtn = b.review_requested_at
+        ? `<span style="font:inherit;font-size:.86rem;font-weight:600;color:#276749;border:1.5px solid #c6f6d5;background:#f0fff4;border-radius:8px;padding:.55em 1.3em;">✓ Review requested</span>`
+        : `<form method="POST" action="/api/admin/booking/${esc(id)}/review-request">
+            <button type="submit" style="font:inherit;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Send ${esc(b.bride_name.replace(/'/g, "\\'"))} a review request? She will receive a quiet-luxury follow-up email.')">
+              Request Review →
+            </button>
+          </form>`;
+      const ariaBtn = `<form method="POST" action="/api/admin/booking/${esc(id)}/aria-task">
+            <button type="submit" style="font:inherit;font-weight:700;background:#5c3d47;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Ask Aria to draft a follow-up for ${esc(b.bride_name.replace(/'/g, "\\'"))}? She will pick this up in Telegram.')">
+              ✦ Ask Aria
+            </button>
+          </form>`;
       return `<h2>Actions</h2>
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
+          ${reviewBtn}
+          ${ariaBtn}
           ${resendInvoiceBtn}
         </div>`;
     }
@@ -1145,6 +1197,7 @@ export async function handleAdminBookingDetail(
           <tr><td style="color:#8a7d72;">Province</td><td>${esc(b.province ?? "—")}</td></tr>
           <tr><td style="color:#8a7d72;">Venue</td><td>${esc(b.venue ?? "—")}</td></tr>
           <tr><td style="color:#8a7d72;">Party</td><td>${b.party_size}</td></tr>
+${partyHairGrouped(b)}
           <tr><td style="color:#8a7d72;">Occasion</td><td>${esc(b.occasion)}</td></tr>
         </tbody></table>
       </div>
@@ -1918,20 +1971,18 @@ export async function handleAdminClio(
   const user = await getAuthEnvUser(req, env, fetchFn);
   if (!user) return loginRedirect();
 
-  const inner = `<h1>Ask Clio</h1>
-<p style="margin:0 0 1.4rem;font-size:.92rem;color:#5c3d47;line-height:1.65;max-width:580px;">
-  Clio is your AI assistant. Chat with her to get pricing estimates, availability checks, booking guidance, and more — straight from the Lustique knowledge base.
-</p>
-<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem;">
-  <a href="https://t.me/LustiqueCoBot" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:.65rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.2rem 1.6rem;text-decoration:none;color:inherit;transition:border-color .15s;">
-    <span style="font-size:2rem;line-height:1;">🤖</span>
-    <div>
-      <div style="font-weight:700;color:#2b2b2b;">Open in Telegram</div>
-      <div style="font-size:.82rem;color:#8a7d72;">t.me/LustiqueCoBot</div>
-    </div>
-  </a>
-</div>
-<p style="margin:1.4rem 0 0;font-size:.84rem;color:#8a7d72;">Chat will be embedded directly in this dashboard soon.</p>`;
+  const inner = `<h1 style="margin:0 0 1rem;font-size:1.8rem;color:#2b2b2b;">Ask Clio</h1>
+  <p style="margin:0 0 1.2rem;font-size:.92rem;color:#5c3d47;line-height:1.65;max-width:580px;">
+    Chat with Clio, your AI assistant, for pricing estimates, availability checks, booking guidance, and more — powered by the Lustique knowledge base.
+  </p>
+  <div style="border-radius:12px;overflow:hidden;border:1.5px solid #ede7e0;background:#fff;">
+    <iframe
+      src="https://lustique-chat.fly.dev/aria"
+      title="Clio AI Assistant"
+      style="display:block;width:100%;height:640px;border:none;"
+      allow="clipboard-write"
+    ></iframe>
+  </div>`;
 
   return htmlResponse(adminShell("Ask Clio", user, inner, new URL(req.url).pathname));
 }

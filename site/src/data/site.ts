@@ -66,7 +66,7 @@ export const SITE_JSONLD = {
 
 // GA4 Measurement ID — replace with real ID when GA4 property is created.
 // Consent-gated: GA4 is NOT loaded until the visitor clicks Accept on the cookie banner.
-export const GA_MEASUREMENT_ID = "G-XXXXXXXXXX";
+export const GA_MEASUREMENT_ID = "G-VVNWW17TER";
 
 // Cloudflare Turnstile site key — public (safe to commit).
 // Dev/test: "1x00000000000000000000AA" (always passes). Replace with real key at deploy.

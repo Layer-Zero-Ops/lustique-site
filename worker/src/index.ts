@@ -40,11 +40,16 @@ import {
   handleAdminMarkDepositPaid,
   handleAdminMarkBalancePaid,
   handleAdminResendInvoice,
+  handleAdminReviewRequest,
 } from "./booking/admin-actions";
 import { handleCalendarFeed } from "./booking/calendar";
+import { getAdminSession } from "./booking/auth";
 import { persistEnquiry, insertNotification } from "./booking/db";
-import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice } from "./booking/enquiries";
+import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice, handleAdminDeleteEnquiry } from "./booking/enquiries";
+import { buildTidyPlan, runTidy, type TidyEnquiry, type TidyBooking } from "./booking/dashboard-tidy";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
+import { handleAdminInbox, handleAdminInboxArchive } from "./booking/inbox";
+import { handleAdminAriaTask } from "./booking/aria-bridge";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
 import { handleAdminStaffing } from "./booking/staffing";
 import { handleAdminPortfolio, handleAdminPortfolioDelete, handleAdminPortfolioReorder, handleAdminPortfolioPositions } from "./booking/portfolio";
@@ -400,7 +405,32 @@ export default {
         const id = url.pathname.slice("/api/admin/enquiries/".length);
         return handleAdminEnquiryDetail(req, env as Parameters<typeof handleAdminEnquiryDetail>[1], adminShell, id);
       }
-      // POST /api/admin/enquiries/:id/generate-invoice — create booking from enquiry
+      // POST /api/admin/enquiries/:id/delete — soft-delete (hide from dashboard)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.endsWith("/delete")) {
+        const id = url.pathname.split("/")[4]!;
+        return handleAdminDeleteEnquiry(req, env as Parameters<typeof handleAdminDeleteEnquiry>[1], id);
+      }
+      // POST /api/admin/dashboard/tidy — Aria's dashboard tidy worker (soft-archive stale items)
+      if (req.method === "POST" && url.pathname === "/api/admin/dashboard/tidy") {
+        const session = await getAdminSession(req, env as Parameters<typeof getAdminSession>[1]);
+        if (!session) return new Response(null, { status: 302, headers: { Location: "/api/admin/login?msg=session-expired" } });
+        const aHdr = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` };
+        const [eRes, bRes] = await Promise.all([
+          fetch(`${env.SUPABASE_URL}/rest/v1/enquiries?select=id,status,created_at,deleted_at&deleted_at=is.null&order=created_at.desc&limit=500`, { headers: aHdr }),
+          fetch(`${env.SUPABASE_URL}/rest/v1/bookings?select=id,status,wedding_date,archived_at,deleted_at&order=wedding_date.desc&limit=500`, { headers: aHdr }),
+        ]);
+        const enquiries = (eRes.ok ? ((await eRes.json()) as TidyEnquiry[]) : []);
+        const bookings = (bRes.ok ? ((await bRes.json()) as TidyBooking[]) : []);
+        const flaggedIds = await fetch(`${env.SUPABASE_URL}/rest/v1/notifications?select=payload&type=eq.enquiry_review&limit=200`, { headers: aHdr })
+          .then((r) => (r.ok ? (r.json() as Promise<Array<{ payload?: { enquiry_id?: string } }>>) : Promise.resolve([])))
+          .then((rows) => new Set((rows as Array<{ payload?: { enquiry_id?: string } }>).map((r) => r.payload?.enquiry_id).filter(Boolean) as string[]))
+          .catch(() => new Set<string>());
+        const enquiriesTagged = enquiries.map((e) => ({ ...e, flagged_review: flaggedIds.has(e.id) }));
+        const plan = buildTidyPlan(enquiriesTagged, bookings);
+        const summary = await runTidy(env, plan);
+        await insertNotification(env, { type: "system", title: "Dashboard tidied", body: summary, link: "/api/admin/dashboard" }).catch(() => {});
+        return new Response(null, { status: 302, headers: { Location: "/api/admin/dashboard?tidied=1" } });
+      }
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.endsWith("/generate-invoice")) {
         const id = url.pathname.split("/")[4]!;
         return handleAdminGenerateInvoice(req, env as Parameters<typeof handleAdminGenerateInvoice>[1], adminShell, id);
@@ -414,6 +444,16 @@ export default {
       // GET /api/admin/dashboard — Inbox view (requires valid session)
       if (req.method === "GET" && url.pathname === "/api/admin/dashboard") {
         return await handleAdminDashboard(req, dashEnv);
+      }
+
+      // GET /api/admin/inbox — Phase 1 unified inbox (enquiries + bookings + rejections)
+      if (req.method === "GET" && url.pathname === "/api/admin/inbox") {
+        return await handleAdminInbox(req, dashEnv, adminShell);
+      }
+
+      // POST /api/admin/inbox/archive — bulk soft-archive selected items
+      if (req.method === "POST" && url.pathname === "/api/admin/inbox/archive") {
+        return await handleAdminInboxArchive(req, dashEnv);
       }
       // POST /api/admin/booking/:id/send-quote — send quote email to bride (D5)
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/send-quote")) {
@@ -435,7 +475,15 @@ export default {
         const id = url.pathname.slice("/api/admin/booking/".length, -"/mark-balance".length);
         if (id) return await handleAdminMarkBalancePaid(req, dashEnv, id);
       }
-      // POST /api/admin/booking/:id/resend-invoice — re-send invoice link (any post-quote status)
+      // POST /api/admin/booking/:id/aria-task — hand a task to Aria (Phase 4)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/aria-task")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/aria-task".length);
+        return await handleAdminAriaTask(req, dashEnv, id);
+      }
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/review-request")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/review-request".length);
+        return await handleAdminReviewRequest(req, dashEnv, id);
+      }
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/resend-invoice")) {
         const id = url.pathname.slice("/api/admin/booking/".length, -"/resend-invoice".length);
         if (id) return await handleAdminResendInvoice(req, dashEnv, id);
@@ -676,17 +724,14 @@ export default {
     if (problem === "spam") return json({ ok: true }, 200, origin); // silently swallow bots
     if (problem) return json({ ok: false, error: problem }, 422, origin);
 
-    // Turnstile bot-check on enquiry (Wave-S) — mirrors /api/booking/request
-    if (env.TURNSTILE_SECRET) {
-      const tsOk = await verifyTurnstile(body.cfTurnstileToken ?? "", env.TURNSTILE_SECRET);
-      if (!tsOk) return json({ ok: false, error: "Security check failed. Please refresh and try again." }, 422, origin);
-    }
-
     const name = body.name!.trim();
-    try {
-      // 0) Persist enquiry first — no lead is lost even if email delivery fails.
-      //    Then ring the admin bell so Zandeline sees it in the dashboard even if Brevo is down.
-      if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
+
+    // FAIL-SAFE: persist the enquiry FIRST, before any external gate (Turnstile,
+    // email). A blocked/failed captcha or a downstream outage must NEVER discard a
+    // real lead — it is saved here, then surfaced to Zandeline for review.
+    let savedId: string | null = null;
+    if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
+      try {
         const saved = await persistEnquiry(env, {
           name,
           email: body.email!.trim(),
@@ -700,15 +745,44 @@ export default {
           ip: req.headers.get("cf-connecting-ip") ?? undefined,
           referral_source: body.referralSource ? cap(body.referralSource, 80) : undefined,
         });
+        savedId = saved.id;
         await insertNotification(env, {
           type: "enquiry_received",
           title: `New enquiry — ${name}`,
           body: [body.occasion, body.date, body.town].filter(Boolean).join(" · ") || body.email!.trim(),
           link: `/api/admin/enquiries/${saved.id}`,
           payload: { enquiry_id: saved.id },
-        }).catch(() => { /* bell failure must never block the enquiry response */ });
+        }).catch(() => {});
+      } catch {
+        // Persistence itself failed — surface it so the user can email us directly.
+        return json(
+          { ok: false, error: "We couldn't save that just now — please email info@lustiqueco.co.za and we'll jump on it." },
+          502,
+          origin,
+        );
       }
+    }
 
+    // Turnstile bot-check (Wave-S) — runs AFTER persistence so a failed/blocked
+    // captcha never loses the lead. On failure we flag the saved enquiry for review
+    // and still let the bride through to the thank-you page.
+    if (env.TURNSTILE_SECRET) {
+      const tsOk = await verifyTurnstile(body.cfTurnstileToken ?? "", env.TURNSTILE_SECRET);
+      if (!tsOk) {
+        if (savedId) {
+          await insertNotification(env, {
+            type: "enquiry_review",
+            title: `Captcha failed — manual review: ${name}`,
+            body: `Enquiry saved but Turnstile failed. Confirm it's human before replying. ${body.email!.trim()}`,
+            link: `/api/admin/enquiries/${savedId}`,
+            payload: { enquiry_id: savedId, flag: "turnstile_failed" },
+          }).catch(() => {});
+        }
+        return json({ ok: true, review: true }, 200, origin);
+      }
+    }
+
+    try {
       // 1) Confirm the bride
       await brevoEmail(
         env,

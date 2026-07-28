@@ -22,6 +22,7 @@ import {
   type TableRow,
 } from "../lib/email";
 import { upsertBrevoContact } from "../lib/brevoCampaign";
+import { composeReviewRequest } from "./post-wedding";
 
 export interface AdminActionsEnv {
   SUPABASE_URL: string;
@@ -438,7 +439,52 @@ export async function handleAdminMarkBalancePaid(
   return successRedirect(bookingId);
 }
 
-/** POST /api/admin/booking/:id/resend-invoice — re-send invoice link to bride (any post-quote status). */
+// ── Phase 3 (Pillar 1) — post-wedding review request ───────────────────────────
+
+/** POST /api/admin/booking/:id/review-request — email bride a review ask + stamp review_requested_at. */
+export async function handleAdminReviewRequest(
+  req: Request,
+  env: AdminActionsEnv,
+  bookingId: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  const session = await authedSession(req, env, fetchFn);
+  if (session instanceof Response) return session;
+
+  let booking: ConfirmBookingRow | null;
+  try {
+    booking = await getBookingById(env, bookingId, fetchFn);
+  } catch {
+    return errorRedirect(bookingId, "Could not fetch booking");
+  }
+  if (!booking) return errorRedirect(bookingId, "Booking not found");
+
+  const reviewUrl = (env as any).REVIEW_URL || "https://g.page/lustique-co";
+  const copy = composeReviewRequest(booking.bride_name, booking.reference, reviewUrl);
+
+  try {
+    await sendEmail(env, { email: booking.bride_email, name: booking.bride_name }, copy.subject, copy.body.replace(/\n/g, "<br>"), fetchFn);
+    await fetchFn(`${env.SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}`, {
+      method: "PATCH",
+      headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`, "content-type": "application/json", prefer: "return=minimal" },
+      body: JSON.stringify({ review_requested_at: new Date().toISOString() }),
+    });
+    await insertNotification(env, {
+      type: "review_requested",
+      title: `Review requested — ${booking.bride_name}`,
+      body: `${booking.reference} · post-wedding follow-up`,
+      link: `/api/admin/booking/${booking.id}`,
+      booking_id: booking.id,
+      payload: { reference: booking.reference, sentBy: session.email },
+    }, fetchFn).catch(() => {});
+    await writeAudit(env, { bookingId: booking.id, eventType: "admin.review-requested", payload: { reference: booking.reference, sentBy: session.email } }, fetchFn);
+  } catch {
+    return errorRedirect(bookingId, "Review email failed to send");
+  }
+
+  return successRedirect(bookingId);
+}
+
 export async function handleAdminResendInvoice(
   req: Request,
   env: AdminActionsEnv,

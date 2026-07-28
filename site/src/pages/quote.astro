@@ -23,6 +23,10 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
     <span class="eyebrow">Get a Quote</span>
     <h1>Tell us about your day.</h1>
     <p>Every bride deserves a look as unique as her story. Build your estimate below — it updates live — then send it through for a personalised quote within 24 hours.</p>
+    <div style="display:inline-flex;flex-wrap:wrap;gap:.6rem;margin-top:1.1rem;opacity:.92;">
+      <span style="font-size:.85rem;">💬 Prefer WhatsApp? <a href="https://wa.me/27679253894" target="_blank" rel="noopener" style="color:var(--ivory);text-decoration:underline;">Chat to us here</a></span>
+      <span style="font-size:.85rem;">🔒 50% deposit secures the date · balance due 14 business days before</span>
+    </div>
   </section>
   <section class="section"><div class="wrap form-wrap">
     <div class="estimate-box" id="estimateBar">
@@ -75,10 +79,27 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         <div class="field-row"><div class="field"><label for="guestMakeup">Need makeup</label><select id="guestMakeup"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div><div class="field"><label for="guestHair">Need hair</label><select id="guestHair"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div></div>
         <div role="group" aria-labelledby="partyHairLabel" id="partyHairWrap" style="margin-top:1rem;">
           <p id="partyHairLabel" class="field-label">Your bridal party’s hair length <span style="font-weight:400;color:#6b5c52;">(of those needing hair — we’ll confirm each at the trial)</span></p>
-          <p class="note" style="margin:.3rem 0 .7rem;">Place the <span id="hairHeadCount">0</span> looks that need hair, by length:</p>
-          <div class="field-row"><div class="field"><label for="lenShort">Short</label><input type="number" id="lenShort" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="lenMedium">Medium</label><input type="number" id="lenMedium" min="0" inputmode="numeric" value="0"></div></div>
-          <div class="field-row"><div class="field"><label for="lenLong">Long</label><input type="number" id="lenLong" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="lenXlong">X-Long</label><input type="number" id="lenXlong" min="0" inputmode="numeric" value="0"></div></div>
-          <p class="note" id="lengthsCounter" style="margin:.3rem 0 0;"></p>
+          <div style="border:1px solid #ece4da;border-radius:10px;padding:.9rem 1rem;margin:.4rem 0 .6rem;background:#fcf9f5;">
+            <p style="font-weight:600;color:var(--mocha);margin:.1rem 0 .5rem;font-size:.9rem;">Bridesmaids</p>
+            <p class="note" style="margin:.2rem 0 .5rem;">Place the <span id="bmHairHeadCount">0</span> looks that need hair, by length:</p>
+            <div class="field-row"><div class="field"><label for="bmHairLenShort">Short</label><input type="number" id="bmHairLenShort" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="bmHairLenMedium">Medium</label><input type="number" id="bmHairLenMedium" min="0" inputmode="numeric" value="0"></div></div>
+            <div class="field-row"><div class="field"><label for="bmHairLenLong">Long</label><input type="number" id="bmHairLenLong" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="bmHairLenXlong">X-Long</label><input type="number" id="bmHairLenXlong" min="0" inputmode="numeric" value="0"></div></div>
+            <p class="note" id="bmLengthsCounter" style="margin:.3rem 0 0;"></p>
+          </div>
+          <div style="border:1px solid #ece4da;border-radius:10px;padding:.9rem 1rem;margin:.4rem 0 .6rem;background:#fcf9f5;">
+            <p style="font-weight:600;color:var(--mocha);margin:.1rem 0 .5rem;font-size:.9rem;">Mothers (of the bride &amp; groom)</p>
+            <p class="note" style="margin:.2rem 0 .5rem;">Place the <span id="momHairHeadCount">0</span> looks that need hair, by length:</p>
+            <div class="field-row"><div class="field"><label for="momHairLenShort">Short</label><input type="number" id="momHairLenShort" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="momHairLenMedium">Medium</label><input type="number" id="momHairLenMedium" min="0" inputmode="numeric" value="0"></div></div>
+            <div class="field-row"><div class="field"><label for="momHairLenLong">Long</label><input type="number" id="momHairLenLong" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="momHairLenXlong">X-Long</label><input type="number" id="momHairLenXlong" min="0" inputmode="numeric" value="0"></div></div>
+            <p class="note" id="momLengthsCounter" style="margin:.3rem 0 0;"></p>
+          </div>
+          <div style="border:1px solid #ece4da;border-radius:10px;padding:.9rem 1rem;margin:.4rem 0 .6rem;background:#fcf9f5;">
+            <p style="font-weight:600;color:var(--mocha);margin:.1rem 0 .5rem;font-size:.9rem;">Other guests</p>
+            <p class="note" style="margin:.2rem 0 .5rem;">Place the <span id="guestHairHeadCount">0</span> looks that need hair, by length:</p>
+            <div class="field-row"><div class="field"><label for="guestHairLenShort">Short</label><input type="number" id="guestHairLenShort" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="guestHairLenMedium">Medium</label><input type="number" id="guestHairLenMedium" min="0" inputmode="numeric" value="0"></div></div>
+            <div class="field-row"><div class="field"><label for="guestHairLenLong">Long</label><input type="number" id="guestHairLenLong" min="0" inputmode="numeric" value="0"></div><div class="field"><label for="guestHairLenXlong">X-Long</label><input type="number" id="guestHairLenXlong" min="0" inputmode="numeric" value="0"></div></div>
+            <p class="note" id="guestLengthsCounter" style="margin:.3rem 0 0;"></p>
+          </div>
         </div>
         <div class="field" style="margin-top:1.2rem;"><label for="requestedArtists">Additional artist for a faster morning? <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(optional — R850 each, only if your timeline is tight. Larger parties already include the help.)</span></label><select id="requestedArtists"><option value="0">No, the team is enough</option><option value="1">Yes — 1 extra artist</option><option value="2">Yes — 2 extra artists</option></select></div>
       </div>
