@@ -697,17 +697,14 @@ export default {
     if (problem === "spam") return json({ ok: true }, 200, origin); // silently swallow bots
     if (problem) return json({ ok: false, error: problem }, 422, origin);
 
-    // Turnstile bot-check on enquiry (Wave-S) — mirrors /api/booking/request
-    if (env.TURNSTILE_SECRET) {
-      const tsOk = await verifyTurnstile(body.cfTurnstileToken ?? "", env.TURNSTILE_SECRET);
-      if (!tsOk) return json({ ok: false, error: "Security check failed. Please refresh and try again." }, 422, origin);
-    }
-
     const name = body.name!.trim();
-    try {
-      // 0) Persist enquiry first — no lead is lost even if email delivery fails.
-      //    Then ring the admin bell so Zandeline sees it in the dashboard even if Brevo is down.
-      if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
+
+    // FAIL-SAFE: persist the enquiry FIRST, before any external gate (Turnstile,
+    // email). A blocked/failed captcha or a downstream outage must NEVER discard a
+    // real lead — it is saved here, then surfaced to Zandeline for review.
+    let savedId: string | null = null;
+    if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
+      try {
         const saved = await persistEnquiry(env, {
           name,
           email: body.email!.trim(),
@@ -721,15 +718,44 @@ export default {
           ip: req.headers.get("cf-connecting-ip") ?? undefined,
           referral_source: body.referralSource ? cap(body.referralSource, 80) : undefined,
         });
+        savedId = saved.id;
         await insertNotification(env, {
           type: "enquiry_received",
           title: `New enquiry — ${name}`,
           body: [body.occasion, body.date, body.town].filter(Boolean).join(" · ") || body.email!.trim(),
           link: `/api/admin/enquiries/${saved.id}`,
           payload: { enquiry_id: saved.id },
-        }).catch(() => { /* bell failure must never block the enquiry response */ });
+        }).catch(() => {});
+      } catch {
+        // Persistence itself failed — surface it so the user can email us directly.
+        return json(
+          { ok: false, error: "We couldn't save that just now — please email info@lustiqueco.co.za and we'll jump on it." },
+          502,
+          origin,
+        );
       }
+    }
 
+    // Turnstile bot-check (Wave-S) — runs AFTER persistence so a failed/blocked
+    // captcha never loses the lead. On failure we flag the saved enquiry for review
+    // and still let the bride through to the thank-you page.
+    if (env.TURNSTILE_SECRET) {
+      const tsOk = await verifyTurnstile(body.cfTurnstileToken ?? "", env.TURNSTILE_SECRET);
+      if (!tsOk) {
+        if (savedId) {
+          await insertNotification(env, {
+            type: "enquiry_review",
+            title: `Captcha failed — manual review: ${name}`,
+            body: `Enquiry saved but Turnstile failed. Confirm it's human before replying. ${body.email!.trim()}`,
+            link: `/api/admin/enquiries/${savedId}`,
+            payload: { enquiry_id: savedId, flag: "turnstile_failed" },
+          }).catch(() => {});
+        }
+        return json({ ok: true, review: true }, 200, origin);
+      }
+    }
+
+    try {
       // 1) Confirm the bride
       await brevoEmail(
         env,
