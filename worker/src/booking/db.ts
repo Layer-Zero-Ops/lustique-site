@@ -645,7 +645,7 @@ export async function listEnquiries(
   statusFilter: string | null = null,
   f: typeof fetch = fetch,
 ): Promise<EnquiryCrmRow[]> {
-  let q = `enquiries?select=${ENQUIRY_COLS}&order=created_at.desc`;
+  let q = `enquiries?select=${ENQUIRY_COLS}&order=created_at.desc&deleted_at=is.null`;
   if (statusFilter) q += `&status=eq.${encodeURIComponent(statusFilter)}`;
   const r = await f(rest(env, q), { headers: headers(env) });
   if (!r.ok) throw new Error(`listEnquiries ${r.status}`);

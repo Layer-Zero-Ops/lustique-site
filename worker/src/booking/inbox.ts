@@ -207,6 +207,9 @@ export async function handleAdminInbox(
       <span style="font-size:.82rem;color:#8a7d72;">Select items, then</span>
       <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#fff;background:#8a3a52;border:none;cursor:pointer;">Archive selected</button>
     </form>
+    <form method="POST" action="/api/admin/dashboard/tidy" style="display:flex;gap:.5rem;align-items:center;" onsubmit="return confirm('Let Aria tidy the dashboard? Resolved items older than 120 days will be archived automatically.');">
+      <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#5c3d47;background:#ede7e0;border:none;cursor:pointer;">✦ Tidy dashboard</button>
+    </form>
   </div>`;
 
   const body = visible.length

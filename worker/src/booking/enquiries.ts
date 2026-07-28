@@ -4,6 +4,7 @@
 
 import { getAdminSession, type AdminUser } from "./auth";
 import { listEnquiries, getEnquiryById, updateEnquiry, insertBooking, type EnquiryCrmRow } from "./db";
+import { writeAudit } from "./audit";
 import { signToken, hashToken } from "./token";
 import { makeReference } from "./util";
 import type { Env } from "../index";
@@ -240,8 +241,15 @@ export async function handleAdminEnquiryDetail(
                   Generate Invoice
                 </button>
                 <p style="font-size:.78rem;color:#8a7d72;margin:.5rem 0 0;">Creates a booking record in Invoices using this enquiry's data. You can edit the total before sending.</p>
-              </form>`
-          }
+              </form>`}
+          <form method="POST" action="/api/admin/enquiries/${esc(e.id)}/delete" style="margin-top:1rem;">
+            <button type="submit"
+              style="font:inherit;font-size:.82rem;font-weight:600;padding:.4em 1em;background:#fff;color:#c53030;border:1.5px solid #c53030;border-radius:8px;cursor:pointer;"
+              onclick="return confirm('Delete this enquiry from the dashboard? The record is kept for safety but hidden everywhere. This cannot be undone from the dashboard.')">
+              Delete from dashboard
+            </button>
+          </form>
+        </div>
         </div>
       </div>
     </div>`;
@@ -249,7 +257,34 @@ export async function handleAdminEnquiryDetail(
   return htmlResponse(shell(`${e.name} — Enquiry`, user, inner, url.pathname));
 }
 
-// ── Update (POST handler — PRG pattern) ──────────────────────────────────────
+// ── Soft-delete (POST handler) ───────────────────────────────────────────────
+// Sets deleted_at so the enquiry vanishes from all admin views but the row is
+// kept (recoverable via SQL). JWT-gated + audited.
+export async function handleAdminDeleteEnquiry(
+  req: Request,
+  env: EnquiriesEnv,
+  id: string,
+  f: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAdminSession(req, env, f);
+  if (!user) return redirect("/api/admin/login?msg=session-expired");
+
+  const existing = await getEnquiryById(env, id, f);
+  if (!existing) return redirect("/api/admin/enquiries");
+
+  try {
+    await f(`${env.SUPABASE_URL}/rest/v1/enquiries?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`, "content-type": "application/json", prefer: "return=minimal" },
+      body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+    });
+    await writeAudit(env, { bookingId: null, eventType: "enquiry.soft-deleted", payload: { enquiry_id: id, by: user.email } }, f).catch(() => {});
+  } catch {
+    return redirect(`/api/admin/enquiries/${id}?error=delete-failed`);
+  }
+
+  return redirect("/api/admin/enquiries");
+}
 
 export async function handleAdminUpdateEnquiry(
   req: Request,

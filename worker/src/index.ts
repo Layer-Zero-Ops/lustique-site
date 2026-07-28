@@ -43,8 +43,10 @@ import {
   handleAdminReviewRequest,
 } from "./booking/admin-actions";
 import { handleCalendarFeed } from "./booking/calendar";
+import { getAdminSession } from "./booking/auth";
 import { persistEnquiry, insertNotification } from "./booking/db";
-import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice } from "./booking/enquiries";
+import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice, handleAdminDeleteEnquiry } from "./booking/enquiries";
+import { buildTidyPlan, runTidy, type TidyEnquiry, type TidyBooking } from "./booking/dashboard-tidy";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
 import { handleAdminInbox, handleAdminInboxArchive } from "./booking/inbox";
 import { handleAdminAriaTask } from "./booking/aria-bridge";
@@ -403,7 +405,32 @@ export default {
         const id = url.pathname.slice("/api/admin/enquiries/".length);
         return handleAdminEnquiryDetail(req, env as Parameters<typeof handleAdminEnquiryDetail>[1], adminShell, id);
       }
-      // POST /api/admin/enquiries/:id/generate-invoice — create booking from enquiry
+      // POST /api/admin/enquiries/:id/delete — soft-delete (hide from dashboard)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.endsWith("/delete")) {
+        const id = url.pathname.split("/")[4]!;
+        return handleAdminDeleteEnquiry(req, env as Parameters<typeof handleAdminDeleteEnquiry>[1], id);
+      }
+      // POST /api/admin/dashboard/tidy — Aria's dashboard tidy worker (soft-archive stale items)
+      if (req.method === "POST" && url.pathname === "/api/admin/dashboard/tidy") {
+        const session = await getAdminSession(req, env as Parameters<typeof getAdminSession>[1]);
+        if (!session) return new Response(null, { status: 302, headers: { Location: "/api/admin/login?msg=session-expired" } });
+        const aHdr = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` };
+        const [eRes, bRes] = await Promise.all([
+          fetch(`${env.SUPABASE_URL}/rest/v1/enquiries?select=id,status,created_at,deleted_at&deleted_at=is.null&order=created_at.desc&limit=500`, { headers: aHdr }),
+          fetch(`${env.SUPABASE_URL}/rest/v1/bookings?select=id,status,wedding_date,archived_at,deleted_at&order=wedding_date.desc&limit=500`, { headers: aHdr }),
+        ]);
+        const enquiries = (eRes.ok ? ((await eRes.json()) as TidyEnquiry[]) : []);
+        const bookings = (bRes.ok ? ((await bRes.json()) as TidyBooking[]) : []);
+        const flaggedIds = await fetch(`${env.SUPABASE_URL}/rest/v1/notifications?select=payload&type=eq.enquiry_review&limit=200`, { headers: aHdr })
+          .then((r) => (r.ok ? (r.json() as Promise<Array<{ payload?: { enquiry_id?: string } }>>) : Promise.resolve([])))
+          .then((rows) => new Set((rows as Array<{ payload?: { enquiry_id?: string } }>).map((r) => r.payload?.enquiry_id).filter(Boolean) as string[]))
+          .catch(() => new Set<string>());
+        const enquiriesTagged = enquiries.map((e) => ({ ...e, flagged_review: flaggedIds.has(e.id) }));
+        const plan = buildTidyPlan(enquiriesTagged, bookings);
+        const summary = await runTidy(env, plan);
+        await insertNotification(env, { type: "system", title: "Dashboard tidied", body: summary, link: "/api/admin/dashboard" }).catch(() => {});
+        return new Response(null, { status: 302, headers: { Location: "/api/admin/dashboard?tidied=1" } });
+      }
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.endsWith("/generate-invoice")) {
         const id = url.pathname.split("/")[4]!;
         return handleAdminGenerateInvoice(req, env as Parameters<typeof handleAdminGenerateInvoice>[1], adminShell, id);
