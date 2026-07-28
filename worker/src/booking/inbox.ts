@@ -6,6 +6,7 @@
 import { getAdminSession, type AdminUser } from "./auth";
 import { computeKpis, formatZAR, isZeroTotal, isQuoteExpired, isBalanceOverdue, type KpiBooking, type KpiEnquiry } from "./dashboard-kpi";
 import { computeOutcomes, formatMinutes, type AutomationEvent } from "./dashboard-outcomes";
+import { deriveLifecycle, isOrphanRisk } from "./lead-lifecycle";
 import type { Env } from "../index";
 
 export type ShellFn = (title: string, user: AdminUser, inner: string, currentPath?: string) => string;
@@ -62,7 +63,7 @@ export async function handleAdminInbox(
   const now = Date.now();
 
   const [enqRes, bkRes, rejRes, evtRes] = await Promise.all([
-    f(`${env.SUPABASE_URL}/rest/v1/enquiries?select=id,name,created_at,status,booking_id,archived_at,event_date&archived_at=is.null&order=created_at.desc`, { headers: hdr }),
+    f(`${env.SUPABASE_URL}/rest/v1/enquiries?select=id,name,created_at,status,booking_id,archived_at,event_date,lifecycle,matched_at&archived_at=is.null&order=created_at.desc`, { headers: hdr }),
     f(`${env.SUPABASE_URL}/rest/v1/bookings?select=id,reference,bride_name,wedding_date,total_cents,status,created_at,archived_at,quote_sent_at,deposit_net_cents,balance_net_cents,availability_conflict&archived_at=is.null&order=created_at.desc`, { headers: hdr }),
     f(`${env.SUPABASE_URL}/rest/v1/rejections?select=id,created_at,bookings(reference,bride_name)&order=created_at.desc`, { headers: hdr }),
     f(`${env.SUPABASE_URL}/rest/v1/notifications?select=type,created_at&created_at=gte.${new Date(now - 7 * 86400000).toISOString()}&order=created_at.desc&limit=500`, { headers: hdr }),
@@ -73,17 +74,33 @@ export async function handleAdminInbox(
   const rejections = rejRes.ok ? ((await rejRes.json()) as any[]) : [];
 
   const rows: UnifiedRow[] = [
-    ...enquiries.map((e) => ({
-      kind: "enquiry" as const,
-      id: e.id,
-      name: e.name ?? "—",
-      date: e.event_date ?? "—",
-      received: e.created_at,
-      status: e.status ?? "new",
-      total_cents: 0,
-      at_risk: !e.booking_id && daysSince(e.created_at) > 7,
-      detailHref: `/api/admin/enquiries/${e.id}`,
-    })),
+    ...enquiries.map((e) => {
+      // Pillar 2 unification: one canonical lifecycle per submission,
+      // regardless of whether a booking exists yet (kills orphans).
+      const lifecycle = deriveLifecycle({
+        enquiry_status: e.status,
+        booking_id: e.booking_id,
+        booking_status: null,
+        archived_at: e.archived_at,
+      });
+      const orphan = isOrphanRisk({
+        enquiry_status: e.status,
+        booking_id: e.booking_id,
+        booking_status: null,
+        archived_at: e.archived_at,
+      });
+      return {
+        kind: "enquiry" as const,
+        id: e.id,
+        name: e.name ?? "—",
+        date: e.event_date ?? "—",
+        received: e.created_at,
+        status: lifecycle,
+        total_cents: 0,
+        at_risk: orphan || daysSince(e.created_at) > 7,
+        detailHref: `/api/admin/enquiries/${e.id}`,
+      };
+    }),
     ...bookings.map((b) => {
       const kb: KpiBooking = {
         status: b.status,
@@ -192,7 +209,7 @@ export async function handleAdminInbox(
       ${visible.map((r) => `<tr style="${r.at_risk ? "background:#fff5f5;" : ""}">
         <td><input type="checkbox" name="ids" value="${esc(r.kind)}:${esc(r.id)}"></td>
         <td>${typeBadge(r.kind)}</td>
-        <td><a class="row-link" href="${esc(r.detailHref)}">${esc(r.name)}</a></td>
+        <td><a class="row-link" href="${esc(r.detailHref)}">${esc(r.name)}</a>${r.kind === "enquiry" && r.at_risk ? ' <span style="font-size:.68rem;color:#c53030;font-weight:700;">⚠ no booking</span>' : ""}</td>
         <td>${fmtDate(r.date)}</td>
         <td style="color:#8a7d72;font-size:.82rem;">${fmtDate(r.received)}</td>
         <td>${statusBadge(r.status)}</td>
