@@ -851,6 +851,8 @@ interface BookingDetail {
   bm_hair_len: string | null;
   mom_hair_len: string | null;
   guest_hair_len: string | null;
+  review_requested_at: string | null;
+  referral_captured_at: string | null;
 }
 
 interface PaymentRow {
@@ -1154,8 +1156,17 @@ export async function handleAdminBookingDetail(
         </div>`;
     }
     if (b.status === "settled") {
+      const reviewBtn = b.review_requested_at
+        ? `<span style="font:inherit;font-size:.86rem;font-weight:600;color:#276749;border:1.5px solid #c6f6d5;background:#f0fff4;border-radius:8px;padding:.55em 1.3em;">✓ Review requested</span>`
+        : `<form method="POST" action="/api/admin/booking/${esc(id)}/review-request">
+            <button type="submit" style="font:inherit;font-weight:700;background:#8a3a52;color:#fff;border:none;border-radius:8px;padding:.55em 1.3em;cursor:pointer;"
+              onclick="return confirm('Send ${esc(b.bride_name.replace(/'/g, "\\'"))} a review request? She will receive a quiet-luxury follow-up email.')">
+              Request Review →
+            </button>
+          </form>`;
       return `<h2>Actions</h2>
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;">
+          ${reviewBtn}
           ${resendInvoiceBtn}
         </div>`;
     }

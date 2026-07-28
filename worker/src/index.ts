@@ -40,6 +40,7 @@ import {
   handleAdminMarkDepositPaid,
   handleAdminMarkBalancePaid,
   handleAdminResendInvoice,
+  handleAdminReviewRequest,
 } from "./booking/admin-actions";
 import { handleCalendarFeed } from "./booking/calendar";
 import { persistEnquiry, insertNotification } from "./booking/db";
@@ -446,7 +447,11 @@ export default {
         const id = url.pathname.slice("/api/admin/booking/".length, -"/mark-balance".length);
         if (id) return await handleAdminMarkBalancePaid(req, dashEnv, id);
       }
-      // POST /api/admin/booking/:id/resend-invoice — re-send invoice link (any post-quote status)
+      // POST /api/admin/booking/:id/review-request — post-wedding review ask (Phase 3)
+      if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/review-request")) {
+        const id = url.pathname.slice("/api/admin/booking/".length, -"/review-request".length);
+        return await handleAdminReviewRequest(req, dashEnv, id);
+      }
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/resend-invoice")) {
         const id = url.pathname.slice("/api/admin/booking/".length, -"/resend-invoice".length);
         if (id) return await handleAdminResendInvoice(req, dashEnv, id);

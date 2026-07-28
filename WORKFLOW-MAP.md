@@ -22,21 +22,22 @@
 
 | # | Pillar | Score | Evidence |
 |---|---|---|---|
-| 1 | Full-journey coverage | ⚠️ PARTIAL | Covers inquiry→payment; gaps post-wedding (review/referral) + pre-enquiry (marketing attribution) |
+| 1 | Full-journey coverage | 🟡 IN PROGRESS | Post-wedding now a real stage: review_requested_at/referral_captured_at + review-request action; auto-trigger cron pending |
 | 2 | Connected, not point tools | 🟡 IN PROGRESS | Unified inbox merges sources; enquiries now carry a canonical `lifecycle` (0029) so enquiry→booking is one tracked lead. `leads` view not yet materialised |
 | 3 | Trigger automation | ✅ PASS | Quote expiry, balance cron, notifications all event-driven |
 | 4 | AI invisible engine | 🟡 IN PROGRESS | Aria grounded + drift sweep live; not yet embedded in dashboard actions |
 | 5 | Compliance by default | ✅ PASS | audit_log, RLS, JWT-gated admin, consent via Brevo |
 | 6 | Outcome-framed | 🟡 IN PROGRESS | Dashboard opens on outcome hero (admin reclaimed + coordination score + momentum); KPI bar demoted to secondary. Narrative still being tuned |
 
-**Verdict:** 3 pass, 1 in-progress, 1 partial, 0 fail. P6 (outcome) and P2 (connected) closed from FAIL/PARTIAL → IN PROGRESS via Phase 2 outcome hero + Phase 2-unification lifecycle. Remaining: P1 post-wedding, P4 Aria-embed.
+**Verdict:** 3 pass, 0 partial, 3 in-progress, 0 fail. P1 (post-wedding), P2 (connected), P6 (outcome) all IN PROGRESS; P4 (Aria-embed) next. Remaining: P4 embed Aria; pre-enquiry marketing attribution still loose.
 
 ## Phase 1 contribution to the pillars
 - **P1 (coverage):** Unified inbox + KPIs begin the MEASURE stage (was missing).
 - **P2 (connected):** Unified inbox merges enquiry/booking/rejection into one timeline (reduces the 4-table fragmentation).
 - **P6 (outcome):** KPI header surfaces booked/collected/at-risk — the first outcome-framed surface.
 
-## Phase 2-unification contribution (Pillar 2)
+## Phase 3 contribution (Pillar 1 — post-wedding)
+- **P1 (coverage):** Migration 0030 adds `review_requested_at`/`referral_captured_at`/`review_url` + notification types. `post-wedding.ts` decides the next post-wedding action (review → referral → complete) and composes on-brand copy (10 tests). Admin "Request Review" button on settled bookings emails the bride + stamps the column. Closes the journey gap from enquiry→payment to enquiry→payment→**review→referral**→past-client.
 - **P2 (connected):** Migration 0029 adds `enquiries.lifecycle` (enum) + `matched_at`. `lead-lifecycle.ts` derives ONE canonical lifecycle per submission (new→contacted→quoted→booked→declined→archived), orphan-proofing the inbox. Enquiries without a booking still show as a tracked lead with a "⚠ no booking" flag instead of vanishing into 4 screens.
 - **P6 (outcome):** Dashboard opens on an outcome hero — "This week, the business ran itself" — with admin-hours reclaimed (computed from real automation events in `notifications`), coordination score /100, and momentum label. KPI table demoted to secondary detail. Closes the pillar-6 FAIL.
 
