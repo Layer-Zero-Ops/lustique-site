@@ -45,6 +45,7 @@ import { handleCalendarFeed } from "./booking/calendar";
 import { persistEnquiry, insertNotification } from "./booking/db";
 import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice } from "./booking/enquiries";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
+import { handleAdminInbox, handleAdminInboxArchive } from "./booking/inbox";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
 import { handleAdminStaffing } from "./booking/staffing";
 import { handleAdminPortfolio, handleAdminPortfolioDelete, handleAdminPortfolioReorder, handleAdminPortfolioPositions } from "./booking/portfolio";
@@ -414,6 +415,16 @@ export default {
       // GET /api/admin/dashboard — Inbox view (requires valid session)
       if (req.method === "GET" && url.pathname === "/api/admin/dashboard") {
         return await handleAdminDashboard(req, dashEnv);
+      }
+
+      // GET /api/admin/inbox — Phase 1 unified inbox (enquiries + bookings + rejections)
+      if (req.method === "GET" && url.pathname === "/api/admin/inbox") {
+        return await handleAdminInbox(req, dashEnv, adminShell);
+      }
+
+      // POST /api/admin/inbox/archive — bulk soft-archive selected items
+      if (req.method === "POST" && url.pathname === "/api/admin/inbox/archive") {
+        return await handleAdminInboxArchive(req, dashEnv);
       }
       // POST /api/admin/booking/:id/send-quote — send quote email to bride (D5)
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/send-quote")) {

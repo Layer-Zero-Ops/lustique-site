@@ -104,7 +104,7 @@ export function adminShell(title: string, user: AdminUser, inner: string, curren
 
   // Workflow-first nav: operational hubs first, config collapsed under Settings.
   const inboxLinks = [
-    navLink("/api/admin/dashboard",   "Inbox",      "inbox-badge"),
+    navLink("/api/admin/inbox",      "Inbox",      "inbox-badge"),
     navLink("/api/admin/forms",       "Forms",      "enq-badge"),
     navLink("/api/admin/calendar",    "Calendar"),
   ];
@@ -1953,20 +1953,18 @@ export async function handleAdminClio(
   const user = await getAuthEnvUser(req, env, fetchFn);
   if (!user) return loginRedirect();
 
-  const inner = `<h1>Ask Clio</h1>
-<p style="margin:0 0 1.4rem;font-size:.92rem;color:#5c3d47;line-height:1.65;max-width:580px;">
-  Clio is your AI assistant. Chat with her to get pricing estimates, availability checks, booking guidance, and more — straight from the Lustique knowledge base.
-</p>
-<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem;">
-  <a href="https://t.me/LustiqueCoBot" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:.65rem;background:#fff;border:1.5px solid #ede7e0;border-radius:12px;padding:1.2rem 1.6rem;text-decoration:none;color:inherit;transition:border-color .15s;">
-    <span style="font-size:2rem;line-height:1;">🤖</span>
-    <div>
-      <div style="font-weight:700;color:#2b2b2b;">Open in Telegram</div>
-      <div style="font-size:.82rem;color:#8a7d72;">t.me/LustiqueCoBot</div>
-    </div>
-  </a>
-</div>
-<p style="margin:1.4rem 0 0;font-size:.84rem;color:#8a7d72;">Chat will be embedded directly in this dashboard soon.</p>`;
+  const inner = `<h1 style="margin:0 0 1rem;font-size:1.8rem;color:#2b2b2b;">Ask Clio</h1>
+  <p style="margin:0 0 1.2rem;font-size:.92rem;color:#5c3d47;line-height:1.65;max-width:580px;">
+    Chat with Clio, your AI assistant, for pricing estimates, availability checks, booking guidance, and more — powered by the Lustique knowledge base.
+  </p>
+  <div style="border-radius:12px;overflow:hidden;border:1.5px solid #ede7e0;background:#fff;">
+    <iframe
+      src="https://lustique-chat.fly.dev/aria"
+      title="Clio AI Assistant"
+      style="display:block;width:100%;height:640px;border:none;"
+      allow="clipboard-write"
+    ></iframe>
+  </div>`;
 
   return htmlResponse(adminShell("Ask Clio", user, inner, new URL(req.url).pathname));
 }
