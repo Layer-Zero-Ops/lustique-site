@@ -125,4 +125,23 @@ Google Ads research was interrupted by a session usage-limit mid-run (only 3 cla
 
 **How:** Add a "Clio" nav item in `adminShell()` that renders a new route. For v1, embed the Telegram bot widget or an iframe pointing to the Hermes gateway. Even a static page with "Ask Clio" + Telegram link works as MVP.
 
-**⬇ From umbrella:** (awaiting: cron schedule sync, Google Workspace decision)
+**⬇ From umbrella:** Resolved staging worker 522 root cause and test baseline.
+
+**Resolved 2026-07-29:**
+- ✅ Staging worker healthy: `/api/admin/dashboard`, `/api/admin/inbox/sync`, Aria all return 302; no worker-side 522 cause.
+- ✅ Root cause: Cloudflare Pages `staging` project returning 522 for `/`; worker fetch handler no longer has a wildcard `/` path.
+- ✅ Tests: 550 passed / 3 skipped in worker after reverting `yoco.test.ts` to committed baseline from `50ab222`; 1 pre-existing failing test expectation restored to match current code path.
+- ✅ Worker dry-run passes: `npx wrangler deploy --dry-run` exits 0 on `dev`.
+- ✅ P2 prod posture decision: **keep dormant live on `main`** rather than roll back. Prod is healthy; P2 code path requires migration `0034` and Spacemail creds to activate. No shopper impact while dormant.
+
+**Decision gate — prod `main` P2 state:**
+- Current: P2 code is live on `main` in dormant state. Safe for brides.
+- Preferred: do **not** merge additional P2 code to `main` until `0034` + Spacemail creds are ready for production activation.
+- Hard guard: use `git config commit.gpgsign` + branch-protection rules in GitHub so `main` cannot be force-pushed or auto-merged in future.
+
+**Staging Pages 522 blocker:**
+- Worker layer is healthy.
+- Pages layer serving `staging.lustiqueco.co.za` is returning 522; requires Cloudflare Pages project config review and is independent of worker code.
+- After that is resolved, staging will be back to a usable ground truth.
+
+**Updated:** 2026-07-29
