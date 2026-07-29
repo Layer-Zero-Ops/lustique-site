@@ -8,6 +8,7 @@ import { renderRejectPage, handleReject } from "./booking/reject";
 import { handleYocoWebhook, pendingPaymentSweep } from "./booking/yoco";
 import { renderMarkBalancePaidPage, handleMarkBalancePaid, balanceSweep } from "./booking/balance";
 import { reviewEmailSweep } from "./booking/review-email";
+import { renderPortalPage } from "./booking/portal";
 import { emailShell, ep, firstN } from "./lib/email";
 import { handleAdminBlockedDates } from "./booking/admin";
 import { handleAdminAccounting } from "./booking/accounting";
@@ -51,6 +52,7 @@ import { buildTidyPlan, runTidy, type TidyEnquiry, type TidyBooking } from "./bo
 import { handleAdminAriaChat, handleAdminAriaMessage, handleAdminAriaApprove } from "./booking/aria-chat";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
 import { handleAdminInbox, handleAdminInboxArchive } from "./booking/inbox";
+import { handleAdminMailSync } from "./booking/inbox-mail";
 import { handleAdminAriaTask } from "./booking/aria-bridge";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
 import { handleAdminStaffing } from "./booking/staffing";
@@ -364,6 +366,11 @@ export default {
       return withSec(await renderContractPageHandler(env, req), { html: true, noindex: true });
     }
 
+    // GET /api/booking/portal?token= — read-only booking portal for bride + artists
+    if (req.method === "GET" && url.pathname === "/api/booking/portal") {
+      return withSec(await renderPortalPage(env as Parameters<typeof renderPortalPage>[0], req), { html: true, noindex: true });
+    }
+
     // Wave D3: single RL_ADMIN check covers all /api/admin/* (JWT-gated AND legacy routes).
     // Placed before the SUPABASE_JWT_SECRET block so it fires exactly once per request.
     if (url.pathname.startsWith("/api/admin/") && env.RL_ADMIN) {
@@ -468,6 +475,10 @@ export default {
       // POST /api/admin/inbox/archive — bulk soft-archive selected items
       if (req.method === "POST" && url.pathname === "/api/admin/inbox/archive") {
         return await handleAdminInboxArchive(req, dashEnv);
+      }
+      // POST /api/admin/inbox/sync — manual trigger: sync mail from Spacemail
+      if (req.method === "POST" && url.pathname === "/api/admin/inbox/sync") {
+        return await handleAdminMailSync(req, dashEnv);
       }
       // POST /api/admin/booking/:id/send-quote — send quote email to bride (D5)
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/booking/") && url.pathname.endsWith("/send-quote")) {

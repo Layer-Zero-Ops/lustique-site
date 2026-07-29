@@ -1,138 +1,201 @@
-import type { DbEnv } from "./db";
-import { rest, headers } from "./db";
+// worker/src/booking/calendar.ts
 
-export interface CalendarEnv extends DbEnv {
-  ICAL_KEY?: string;
-}
+import { esc, fmtDate } from "../lib/email";
+import { signActionToken } from "./token";
 
-interface CalBooking {
+// Storage key: "cal_<bookingId>"
+export type CalendarEvent = {
+  bookingId: string;
   reference: string;
-  bride_name: string;
-  wedding_date: string; // "YYYY-MM-DD"
-  town: string | null;
-  venue: string | null;
-  party_size: number;
-  updated_at: string;
+  brideName: string;
+  weddingDate: string;
+  venue: string;
+  town: string;
+  province: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function calKey(bookingId: string): string {
+  return `cal_${bookingId}`;
 }
 
-export async function listActiveBookingsForCalendar(
-  env: DbEnv,
-  f: typeof fetch = fetch,
-): Promise<CalBooking[]> {
-  // Only include paid/confirmed bookings in the ical feed — the date is truly locked in.
-  // Pending bookings (requested/quote_sent/accepted) are visible in the admin calendar only.
-  const url =
-    rest(env, "bookings") +
-    `?select=reference,bride_name,wedding_date,town,venue,party_size,updated_at` +
-    `&status=in.(deposit_paid,settled)` +
-    `&order=wedding_date.asc`;
-  const r = await f(url, { headers: headers(env) });
-  if (!r.ok) throw new Error(`listActiveBookingsForCalendar ${r.status}`);
-  return (await r.json()) as CalBooking[];
-}
+export async function createBookingCalendarEvent(
+  env: unknown,
+  booking: {
+    id: string;
+    reference: string;
+    bride_name: string;
+    wedding_date: string;
+    venue: string;
+    town: string;
+    province: string;
+    status: string;
+  },
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  const kv = (env as Record<string, unknown> | null)?.KV as
+    | { get: (key: string) => Promise<string | null>; put: (key: string, value: string, opts?: { expirationTtl?: number }) => Promise<void> }
+    | undefined;
+  if (!kv) return false;
 
-/** RFC 5545 line-folding: lines over 75 octets are split at 74 + CRLF + space. */
-function fold(line: string): string {
-  const enc = new TextEncoder();
-  if (enc.encode(line).length <= 75) return line;
-  const chars = [...line];
-  const out: string[] = [];
-  let current = "";
-  for (const ch of chars) {
-    const next = current + ch;
-    if (enc.encode(next).length > 74) {
-      out.push(current);
-      current = " " + ch;
-    } else {
-      current = next;
-    }
+  const now = new Date().toISOString();
+  let existing: CalendarEvent | null = null;
+  try {
+    const raw = await env.KV.get(calKey(String(booking.id)));
+    if (raw) existing = JSON.parse(raw) as CalendarEvent;
+  } catch {
+    // stale/empty row — fall through to overwrite
   }
-  if (current) out.push(current);
-  return out.join("\r\n");
+
+  const event: CalendarEvent = {
+    bookingId: String(booking.id),
+    reference: String(booking.reference),
+    brideName: String(booking.bride_name),
+    weddingDate: String(booking.wedding_date),
+    venue: String(booking.venue),
+    town: String(booking.town),
+    province: String(booking.province),
+    status: existing?.status ?? String(booking.status),
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  await env.KV.put(
+    calKey(String(booking.id)),
+    JSON.stringify(event),
+    { expirationTtl: 60 * 60 * 24 * 366 }, // ~1 year retention
+  );
+
+  return true;
 }
 
-/** Escape special characters in iCal text values (RFC 5545 §3.3.11). */
-function esc(s: string): string {
-  return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+export async function getCalendarEvent(
+  env: { KV?: { get: (key: string) => Promise<string | null> } },
+  bookingId: string,
+): Promise<CalendarEvent | null> {
+  if (!env.KV) return null;
+  try {
+    const raw = await env.KV.get(calKey(bookingId));
+    if (!raw) return null;
+    return JSON.parse(raw) as CalendarEvent;
+  } catch {
+    return null;
+  }
 }
 
-/** Advance a YYYY-MM-DD date string by one day (for DTEND of all-day events). */
-function nextDay(date: string): string {
-  const d = new Date(date + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10).replace(/-/g, "");
-}
+export function renderIcs(
+  booking: {
+    reference: string;
+    bride_name: string;
+    wedding_date: string;
+    venue: string;
+    town: string;
+    province: string;
+  },
+  origin: string,
+  portalToken: string,
+): string {
+  const dtStamp = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const dtStart = String(booking.wedding_date).replace(/-/g, "");
+  const uid = `${booking.reference}@lustiqueco.co.za`;
+  const url = `${origin}/api/booking/portal?token=${encodeURIComponent(portalToken)}`;
 
-function toICalDate(date: string): string {
-  return date.replace(/-/g, "");
-}
-
-/** Convert an ISO timestamp to iCal DTSTAMP format (YYYYMMDDTHHmmssZ). */
-function toDtstamp(iso: string): string {
-  return iso.replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z").replace("T", "T");
-}
-
-export function generateIcal(bookings: CalBooking[], now: string): string {
-  const lines: string[] = [
+  return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Lustique Co.//Booking Calendar//EN",
+    "PRODID:-//Lustique Co//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "X-WR-CALNAME:Lustique Co. — Bookings",
-    "X-WR-TIMEZONE:Africa/Johannesburg",
-    "REFRESH-INTERVAL;VALUE=DURATION:PT12H",
-    "X-PUBLISHED-TTL:PT12H",
-  ];
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${dtStamp}`,
+    `DTSTART;VALUE=DATE:${dtStart}`,
+    `DTEND;VALUE=DATE:${dtStart}`,
+    `SUMMARY:Lustique booking · ${esc(booking.reference)} · ${esc(booking.bride_name)}`,
+    `LOCATION:${esc(booking.venue + ", " + booking.town + ", " + booking.province)}`,
+    `URL:${url}`,
+    "DESCRIPTION:Wedding date secured with Lustique Co.",
+    "STATUS:CONFIRMED",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+}
 
-  for (const b of bookings) {
-    const summary = `${esc(b.bride_name)} — ${esc(b.reference)}`;
-    const locationParts = [b.venue, b.town].filter(Boolean).map((s) => esc(s!));
-    const desc = [
-      `Party size: ${b.party_size}`,
-      b.venue ? `Venue: ${esc(b.venue)}` : null,
-      b.town ? `Town: ${esc(b.town)}` : null,
-    ]
-      .filter(Boolean)
-      .join("\\n");
-
-    lines.push("BEGIN:VEVENT");
-    lines.push(`UID:${esc(b.reference)}@lustiqueco.co.za`);
-    lines.push(`DTSTAMP:${toDtstamp(now)}`);
-    lines.push(`DTSTART;VALUE=DATE:${toICalDate(b.wedding_date)}`);
-    lines.push(`DTEND;VALUE=DATE:${nextDay(b.wedding_date)}`);
-    lines.push(`SUMMARY:${summary}`);
-    if (locationParts.length) lines.push(`LOCATION:${locationParts.join(", ")}`);
-    if (desc) lines.push(`DESCRIPTION:${desc}`);
-    lines.push(`LAST-MODIFIED:${toDtstamp(b.updated_at)}`);
-    lines.push("END:VEVENT");
-  }
-
-  lines.push("END:VCALENDAR");
-  return lines.map(fold).join("\r\n") + "\r\n";
+export function icsAttachment(
+  booking: {
+    reference: string;
+    bride_name: string;
+    wedding_date: string;
+    venue: string;
+    town: string;
+    province: string;
+  },
+  origin: string,
+  portalToken: string,
+): { filename: string; mime: string; body: string } {
+  const filename = `lustique-${String(booking.reference).replace(/[^a-zA-Z0-9-_]/g, "-")}.ics`;
+  return {
+    filename,
+    mime: "text/calendar; charset=utf-8; method=REQUEST",
+    body: renderIcs(booking, origin, portalToken),
+  };
 }
 
 export async function handleCalendarFeed(
   req: Request,
-  env: CalendarEnv,
+  env: { ICAL_KEY?: string; SUPABASE_URL?: string; SUPABASE_SERVICE_KEY?: string; SIGNING_SECRET?: string },
   f: typeof fetch = fetch,
-  nowFn: () => string = () => new Date().toISOString(),
 ): Promise<Response> {
-  const key = new URL(req.url).searchParams.get("key");
+  const url = new URL(req.url);
+  const key = url.searchParams.get("key") ?? "";
+  if (!key || key !== env.ICAL_KEY) return new Response("Not found", { status: 401 });
 
-  if (!env.ICAL_KEY || key !== env.ICAL_KEY) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) return new Response("Not found", { status: 401 });
 
-  const bookings = await listActiveBookingsForCalendar(env, f);
-  const ical = generateIcal(bookings, nowFn());
+  const r = await f(
+    `${env.SUPABASE_URL}/rest/v1/bookings?select=reference,bride_name,wedding_date,town,venue,party_size,updated_at&status=in.(deposit_paid,settled)&order=wedding_date.asc`,
+    { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } },
+  );
+  if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+  const rows = (await r.json()) as Array<{
+    reference: string;
+    bride_name: string;
+    wedding_date: string;
+    town: string | null;
+    venue: string | null;
+    party_size: number;
+    updated_at: string;
+    id: string;
+  }>;
 
-  return new Response(ical, {
+  const calendarLines = rows
+    .map((booking) =>
+      renderIcs(
+        booking,
+        url.origin,
+        signActionToken({ bookingId: booking.id, kind: "portal" }, env.SIGNING_SECRET ?? "", 60 * 60),
+      ),
+    )
+    .filter(Boolean);
+
+  const body = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Lustique Co//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT12H",
+    "X-PUBLISHED-TTL:PT12H",
+    ...calendarLines.flatMap((event) => event.split("\r\n")),
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  return new Response(body, {
     status: 200,
     headers: {
-      "content-type": "text/calendar;charset=UTF-8",
-      "content-disposition": 'attachment; filename="lustique-bookings.ics"',
-      // Allow clients to cache for 12h — matches REFRESH-INTERVAL in the feed
+      "content-type": "text/calendar; charset=utf-8",
       "cache-control": "private, max-age=43200",
     },
   });
