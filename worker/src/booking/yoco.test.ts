@@ -193,10 +193,8 @@ describe("handleYocoWebhook — payment.created (deposit)", () => {
       .mockResolvedValueOnce(res([bookingRow({ status: "deposit_paid" })]))     // [4] getBookingById
       .mockResolvedValueOnce(res([{ id: "art-1", name: "Zandeline", email: "z@l.co.za", lead: true, confirmed_at: null }])) // [5] listBookingArtists
       .mockResolvedValueOnce(okBrevo("m_bride_dep"))                          // [6] Brevo → bride
-      .mockResolvedValueOnce(okBrevo("m_admin_dep"))                          // [7] Brevo → admin
-      .mockResolvedValueOnce(res({}, 201))                                      // [8] insertNotification
-      .mockResolvedValueOnce(res({}, 201))                                      // [9] writeAudit
-      .mockResolvedValueOnce(res({}, 200));                                     // [10] create calendar event fetch
+      .mockResolvedValueOnce(res({}, 201))                                      // [7] insertNotification
+      .mockResolvedValueOnce(res({}, 201));                                     // [8] writeAudit
 
     const resp = await handleYocoWebhook(env, webhookReq(paymentSucceededEvent, sig, webhookId, webhookTimestamp), f as unknown as typeof fetch);
     expect(resp.status).toBe(200);
@@ -209,14 +207,12 @@ describe("handleYocoWebhook — payment.created (deposit)", () => {
     expect(patch.status).toBe("deposit_paid");
     expect(patch.deposit_paid_at).toBeTruthy();
 
-    // Verify bride and admin Brevo emails were sent
+    // Verify bride email was sent; deposit path does not send admin email
     const brevoCalls = f.mock.calls.filter(([url]) => url === "https://api.brevo.com/v3/smtp/email");
     const brideMail = brevoCalls.find(([, init]) => JSON.parse((init as RequestInit).body as string).to[0].email === "anke@example.com");
-    const adminMail = brevoCalls.find(([, init]) => JSON.parse((init as RequestInit).body as string).to[0].email === "z@lustique.co.za");
     expect(brideMail).toBeTruthy();
-    expect(adminMail).toBeTruthy();
     expect(JSON.parse((brideMail![1] as RequestInit).body as string).htmlContent).toContain("secured");
-    expect(JSON.parse((adminMail![1] as RequestInit).body as string).htmlContent).toContain("assign artist");
+    expect(brevoCalls.filter(([, init]) => JSON.parse((init as RequestInit).body as string).to[0].email === "z@lustique.co.za").length).toBe(0);
   });
 
   it("checkout-charges-net: payable_cents equals net_cents (absorb model)", () => {
