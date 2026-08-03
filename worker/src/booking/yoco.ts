@@ -52,66 +52,7 @@ export interface YocoWebhookEnv extends AuditEnv, WaveEnv, DbEnv {
   BREVO_PAST_CLIENTS_LIST_ID?: string;
 }
 
-// ── Standard Webhooks signature verification ─────────────────────────────────
-
-const enc = new TextEncoder();
-
-/**
- * Decode the webhook secret. Yoco dispatches it with a "whsec_" prefix (Standard Webhooks
- * convention) whose value is base64-encoded key bytes. Strip the prefix then base64-decode;
- * fall back to UTF-8 for un-prefixed plain strings (test environments).
- */
-function decodeSecret(secret: string): Uint8Array {
-  const b64 = secret.startsWith("whsec_") ? secret.slice(6) : secret;
-  try {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes;
-  } catch {
-    return enc.encode(secret);
-  }
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-/**
- * Standard Webhooks verification (https://www.standardwebhooks.com/).
- * Signed content = "${webhookId}.${webhookTimestamp}.${rawBody}"
- * Signature header = one or more "v1,<base64>" values separated by spaces.
- * Timestamp must be within 3 minutes of now (replay protection).
- */
-async function verifyStandardWebhook(
-  rawBody: string,
-  webhookId: string,
-  webhookTimestamp: string,
-  sigHeader: string,
-  secret: string,
-  nowMs: number = Date.now(),
-): Promise<boolean> {
-  // Reject stale timestamps (±3 minutes)
-  const ts = parseInt(webhookTimestamp, 10);
-  if (isNaN(ts) || Math.abs(nowMs - ts * 1000) > 3 * 60 * 1000) return false;
-
-  const keyBytes = decodeSecret(secret);
-  const key = await crypto.subtle.importKey(
-    "raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
-  );
-  const toSign = `${webhookId}.${webhookTimestamp}.${rawBody}`;
-  const buf = await crypto.subtle.sign("HMAC", key, enc.encode(toSign));
-  const computed = btoa(String.fromCharCode(...new Uint8Array(buf)));
-
-  // Header may contain multiple "v1,<base64>" entries (space-separated) — accept any one
-  return sigHeader.split(" ").some((part) => {
-    if (!part.startsWith("v1,")) return false;
-    return timingSafeEqual(computed, part.slice(3));
-  });
-}
+import { verifyStandardWebhook } from "./yoco-webhook-verify";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
