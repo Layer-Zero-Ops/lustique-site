@@ -12,6 +12,7 @@ import {
   type AdminUser,
 } from "./auth";
 import { listArtists, listBookingArtists, type ArtistRow, type BookingArtistRow } from "./artists";
+import { nextBookingStage } from "./lifecycle-actions";
 import type { Env } from "../index";
 import { checkRateLimit, RATE_LIMITS } from "../lib/rateLimit";
 import { sendEmail, emailShell, ep, em as emFn, esc as emailEsc } from "../lib/email";
@@ -1305,6 +1306,7 @@ export async function handleAdminQuotes(
             ? `<span style="color:#b7791f;font-weight:600;">Needs invoice</span>`
             : `<span style="color:${urgent ? "#c53030" : "#276749"};font-weight:700;">${daysLeft}d left</span>`;
           return `<tr>
+            <td><input type="checkbox" name="ids" value="${esc(b.id)}"></td>
             <td><a class="row-link" href="/api/admin/booking/${esc(b.id)}">${esc(b.reference)}</a></td>
             <td>${esc(b.bride_name)}</td>
             <td><a href="mailto:${esc(b.bride_email)}" style="color:#8a3a52;">${esc(b.bride_email)}</a></td>
@@ -1316,11 +1318,27 @@ export async function handleAdminQuotes(
             <td>${expiresCell}</td>
           </tr>`;
         }).join("\n")
-      : `<tr><td colspan="9" class="empty">no pending invoices ✦</td></tr>`;
-    body = `<table><thead><tr>
-      <th>Reference</th><th>Bride</th><th>Email</th><th>Wedding</th><th>Town</th>
-      <th>Party</th><th>Total</th><th>Status</th><th>Expires</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
+      : `<tr><td colspan="10" class="empty">no pending invoices ✦</td></tr>`;
+    const bulkBar = bookings.length
+      ? `<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.9rem;flex-wrap:wrap;">
+          <input type="checkbox" id="select-all" onchange="document.querySelectorAll('#quotes-form input[name=ids]').forEach(c=>c.checked=this.checked);" style="margin-right:.2rem;">
+          <label for="select-all" style="font-size:.8rem;color:#6b5d52;margin-right:.6rem;">Select all</label>
+          <form method="POST" action="/api/admin/quotes/bulk" style="display:inline-flex;gap:.5rem;align-items:center;margin:0;" onsubmit="return confirm('Advance selected bookings to the next stage? This stamps the stage timestamp.');">
+            <input type="hidden" name="action" value="advance">
+            <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#fff;background:#2b6cb0;border:none;cursor:pointer;">Advance selected ▸</button>
+          </form>
+          <form method="POST" action="/api/admin/quotes/bulk" style="display:inline-flex;gap:.5rem;align-items:center;margin:0;" onsubmit="return confirm('Delete selected invoices from the dashboard? Records are kept for safety but hidden everywhere.');">
+            <input type="hidden" name="action" value="delete">
+            <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#c53030;background:#fff;border:1.5px solid #c53030;cursor:pointer;">Delete selected</button>
+          </form>
+        </div>`
+      : "";
+    body = `${bulkBar}<form id="quotes-form" method="POST" action="/api/admin/quotes/bulk">
+      <table><thead><tr>
+        <th></th>
+        <th>Reference</th><th>Bride</th><th>Email</th><th>Wedding</th><th>Town</th>
+        <th>Party</th><th>Total</th><th>Status</th><th>Expires</th>
+      </tr></thead><tbody>${rows}</tbody></table></form>`;
 
   } else if (tab === "invoices") {
     const res = await fetchFn(
@@ -1330,6 +1348,7 @@ export async function handleAdminQuotes(
     const bookings: InvoiceBooking[] = res.ok ? ((await res.json()) as InvoiceBooking[]) : [];
     const rows = bookings.length
       ? bookings.map((b) => `<tr>
+          <td><input type="checkbox" name="ids" value="${esc(b.id)}"></td>
           <td><a class="row-link" href="/api/admin/booking/${esc(b.id)}">${esc(b.reference)}</a></td>
           <td>${esc(b.bride_name)}</td>
           <td>${esc(b.wedding_date)}</td>
@@ -1338,11 +1357,27 @@ export async function handleAdminQuotes(
           <td>${formatZAR(b.total_cents)}</td>
           <td>${statusBadge(b.status)}</td>
         </tr>`).join("\n")
-      : `<tr><td colspan="7" class="empty">no active invoices ✦</td></tr>`;
-    body = `<table><thead><tr>
-      <th>Reference</th><th>Bride</th><th>Wedding</th><th>Town</th>
-      <th>Party</th><th>Total</th><th>Status</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
+      : `<tr><td colspan="8" class="empty">no active invoices ✦</td></tr>`;
+    const bulkBar = bookings.length
+      ? `<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.9rem;flex-wrap:wrap;">
+          <input type="checkbox" id="select-all" onchange="document.querySelectorAll('#invoices-form input[name=ids]').forEach(c=>c.checked=this.checked);" style="margin-right:.2rem;">
+          <label for="select-all" style="font-size:.8rem;color:#6b5d52;margin-right:.6rem;">Select all</label>
+          <form method="POST" action="/api/admin/quotes/bulk" style="display:inline-flex;gap:.5rem;align-items:center;margin:0;" onsubmit="return confirm('Advance selected bookings to the next stage? This stamps the stage timestamp.');">
+            <input type="hidden" name="action" value="advance">
+            <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#fff;background:#2b6cb0;border:none;cursor:pointer;">Advance selected ▸</button>
+          </form>
+          <form method="POST" action="/api/admin/quotes/bulk" style="display:inline-flex;gap:.5rem;align-items:center;margin:0;" onsubmit="return confirm('Delete selected invoices from the dashboard? Records are kept for safety but hidden everywhere.');">
+            <input type="hidden" name="action" value="delete">
+            <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#c53030;background:#fff;border:1.5px solid #c53030;cursor:pointer;">Delete selected</button>
+          </form>
+        </div>`
+      : "";
+    body = `${bulkBar}<form id="invoices-form" method="POST" action="/api/admin/quotes/bulk">
+      <table><thead><tr>
+        <th></th>
+        <th>Reference</th><th>Bride</th><th>Wedding</th><th>Town</th>
+        <th>Party</th><th>Total</th><th>Status</th>
+      </tr></thead><tbody>${rows}</tbody></table></form>`;
 
   } else {
     // payments tab — reuse payments query
@@ -1375,6 +1410,55 @@ export async function handleAdminQuotes(
   }
 
   return htmlResponse(adminShell("Invoices", user, tabBar + body, url.pathname));
+}
+
+// ── POST /api/admin/quotes/bulk ───────────────────────────────────────────────
+// Bulk advance (next booking stage) or delete (soft) for the Quotes/Invoices tabs.
+export async function handleAdminQuotesBulk(
+  req: Request,
+  env: DashboardEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAuthEnvUser(req, env, fetchFn);
+  if (!user) return loginRedirect();
+
+  let ids: string[] = [];
+  let action = "advance";
+  try {
+    const fd = await req.formData();
+    ids = fd.getAll("ids").map(String);
+    action = fd.get("action")?.toString() ?? "advance";
+  } catch {
+    return new Response(null, { status: 302, headers: { Location: "/api/admin/quotes?error=bad-form" } });
+  }
+
+  const ts = new Date().toISOString();
+  for (const id of ids) {
+    if (!/^[0-9a-f-]{36}$/.test(id)) continue;
+    if (action === "delete") {
+      await fetchFn(supabaseUrl(env, `bookings?id=eq.${id}`), {
+        method: "PATCH",
+        headers: { ...supabaseHeaders(env), prefer: "return=minimal" },
+        body: JSON.stringify({ deleted_at: ts }),
+      });
+      continue;
+    }
+    // advance: read current status, step forward, stamp timestamp
+    const curRes = await fetchFn(supabaseUrl(env, `bookings?select=status&id=eq.${id}&limit=1`), { headers: supabaseHeaders(env) });
+    if (!curRes.ok) continue;
+    const curRows = (await curRes.json()) as Array<{ status: string }>;
+    const cur = curRows[0]?.status;
+    if (!cur) continue;
+    const stage = nextBookingStage(cur);
+    const patch: Record<string, unknown> = { status: stage.status };
+    if (stage.stamp) patch[stage.stamp] = ts;
+    await fetchFn(supabaseUrl(env, `bookings?id=eq.${id}`), {
+      method: "PATCH",
+      headers: { ...supabaseHeaders(env), prefer: "return=minimal" },
+      body: JSON.stringify(patch),
+    });
+  }
+  return new Response(null, { status: 302, headers: { Location: "/api/admin/quotes" } });
 }
 
 // ── handleAdminPayments ───────────────────────────────────────────────────────

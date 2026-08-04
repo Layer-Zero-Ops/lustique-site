@@ -7,6 +7,8 @@ import { getAdminSession, type AdminUser } from "./auth";
 import { computeKpis, formatZAR, isZeroTotal, isQuoteExpired, isBalanceOverdue, type KpiBooking, type KpiEnquiry } from "./dashboard-kpi";
 import { computeOutcomes, formatMinutes, type AutomationEvent } from "./dashboard-outcomes";
 import { deriveLifecycle, isOrphanRisk } from "./lead-lifecycle";
+import { nextEnquiryStatus, nextBookingStage } from "./lifecycle-actions";
+import { softDeleteById, updateBookingStatus } from "./db";
 import type { Env } from "../index";
 
 export type ShellFn = (title: string, user: AdminUser, inner: string, currentPath?: string) => string;
@@ -212,8 +214,23 @@ export async function handleAdminInbox(
     </form>
   </div>`;
 
+  const bulkBar = visible.length
+    ? `<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.9rem;flex-wrap:wrap;">
+        <input type="checkbox" id="select-all" onchange="document.querySelectorAll('#inbox-form input[name=ids]').forEach(c=>c.checked=this.checked);" style="margin-right:.2rem;">
+        <label for="select-all" style="font-size:.8rem;color:#8a7d72;margin-right:.6rem;">Select all</label>
+        <form method="POST" action="/api/admin/inbox/bulk" style="display:inline-flex;gap:.5rem;align-items:center;margin:0;" onsubmit="return confirm('Advance selected items to the next stage? This stamps the stage timestamp.');">
+          <input type="hidden" name="action" value="advance">
+          <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#fff;background:#2b6cb0;border:none;cursor:pointer;">Advance selected ▸</button>
+        </form>
+        <form method="POST" action="/api/admin/inbox/bulk" style="display:inline-flex;gap:.5rem;align-items:center;margin:0;" onsubmit="return confirm('Delete selected items from the dashboard? Records are kept for safety but hidden everywhere.');">
+          <input type="hidden" name="action" value="delete">
+          <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#c53030;background:#fff;border:1.5px solid #c53030;cursor:pointer;">Delete selected</button>
+        </form>
+      </div>`
+    : "";
+
   const body = visible.length
-    ? `<form id="inbox-form" method="POST" action="/api/admin/inbox/archive">${filterBar}
+    ? `<form id="inbox-form" method="POST" action="/api/admin/inbox/archive">${bulkBar}
       <table><thead><tr><th></th><th>Type</th><th>Name</th><th>Event</th><th>Received</th><th>Status</th><th>Total</th></tr></thead><tbody>
       ${visible.map((r) => `<tr style="${r.at_risk ? "background:#fff5f5;" : ""}">
         <td><input type="checkbox" name="ids" value="${esc(r.kind)}:${esc(r.id)}"></td>
@@ -292,4 +309,78 @@ export async function handleAdminInboxArchive(
     });
   }
   return redirect("/api/admin/inbox");
+}
+
+// ── POST /api/admin/inbox/bulk ────────────────────────────────────────────────
+// Bulk action across the unified inbox: advance (next stage) or delete (soft).
+// Reuses the kind:id checkbox scheme from the archive flow.
+export async function handleAdminInboxBulk(
+  req: Request,
+  env: Env & { SUPABASE_JWT_SECRET: string },
+  f: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAdminSession(req, env, f);
+  if (!user) return redirect("/api/admin/login?msg=session-expired");
+  let ids: string[] = [];
+  let action = "advance";
+  try {
+    const fd = await req.formData();
+    ids = fd.getAll("ids").map(String);
+    action = fd.get("action")?.toString() ?? "advance";
+  } catch {
+    return redirect("/api/admin/inbox?error=bad-form");
+  }
+  const ts = new Date().toISOString();
+  for (const key of ids) {
+    const [kind, id] = key.split(":");
+    if (!/^[0-9a-f-]{36}$/.test(id ?? "")) continue;
+    if (action === "delete") {
+      const table = kind === "enquiry" ? "enquiries" : kind === "booking" ? "bookings" : null;
+      if (!table) continue;
+      await softDeleteById(env, table, id, f);
+      continue;
+    }
+    // advance
+    if (kind === "enquiry") {
+      const cur = await currentEnquiryStatus(env, id, f);
+      if (cur) await updateEnquiryStatus(env, id, nextEnquiryStatus(cur), f);
+    } else if (kind === "booking") {
+      const cur = await currentBookingStatus(env, id, f);
+      if (cur) {
+        const stage = nextBookingStage(cur);
+        const patch: Record<string, unknown> = { status: stage.status };
+        if (stage.stamp) patch[stage.stamp] = ts;
+        await updateBookingStatus(env, id, patch, f);
+      }
+    }
+  }
+  return redirect("/api/admin/inbox");
+}
+
+async function currentEnquiryStatus(env: any, id: string, f: typeof fetch): Promise<string | null> {
+  const r = await f(`${env.SUPABASE_URL}/rest/v1/enquiries?select=status&id=eq.${id}&deleted_at=is.null&limit=1`, {
+    headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
+  });
+  if (!r.ok) return null;
+  const rows = (await r.json()) as Array<{ status: string }>;
+  return rows[0]?.status ?? null;
+}
+
+async function updateEnquiryStatus(env: any, id: string, status: string, f: typeof fetch): Promise<void> {
+  const patch: Record<string, unknown> = { status };
+  if (status !== "new") patch.contacted_at = new Date().toISOString();
+  await f(`${env.SUPABASE_URL}/rest/v1/enquiries?id=eq.${id}`, {
+    method: "PATCH",
+    headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`, "content-type": "application/json", prefer: "return=minimal" },
+    body: JSON.stringify(patch),
+  });
+}
+
+async function currentBookingStatus(env: any, id: string, f: typeof fetch): Promise<string | null> {
+  const r = await f(`${env.SUPABASE_URL}/rest/v1/bookings?select=status&id=eq.${id}&deleted_at=is.null&limit=1`, {
+    headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
+  });
+  if (!r.ok) return null;
+  const rows = (await r.json()) as Array<{ status: string }>;
+  return rows[0]?.status ?? null;
 }

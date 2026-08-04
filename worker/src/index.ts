@@ -24,6 +24,7 @@ import {
   handleAdminDashboard,
   handleAdminBookingDetail,
   handleAdminQuotes,
+  handleAdminQuotesBulk,
   handleAdminPayments,
   handleAdminRejections,
   handleAdminCalendar,
@@ -46,12 +47,12 @@ import {
 } from "./booking/admin-actions";
 import { handleCalendarFeed } from "./booking/calendar";
 import { getAdminSession } from "./booking/auth";
-import { persistEnquiry, insertNotification } from "./booking/db";
-import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice, handleAdminDeleteEnquiry } from "./booking/enquiries";
+import { persistEnquiry, insertNotification, softDeleteById } from "./booking/db";
+import { handleAdminEnquiries, handleAdminEnquiryDetail, handleAdminUpdateEnquiry, handleAdminGenerateInvoice, handleAdminDeleteEnquiry, handleAdminEnquiryBulk } from "./booking/enquiries";
 import { buildTidyPlan, runTidy, type TidyEnquiry, type TidyBooking } from "./booking/dashboard-tidy";
 import { handleAdminAriaChat, handleAdminAriaMessage, handleAdminAriaApprove } from "./booking/aria-chat";
 import { handleAdminContacts, handleAdminAddContact } from "./booking/contacts";
-import { handleAdminInbox, handleAdminInboxArchive } from "./booking/inbox";
+import { handleAdminInbox, handleAdminInboxArchive, handleAdminInboxBulk } from "./booking/inbox";
 import { handleAdminMailSync } from "./booking/inbox-mail";
 import { handleAdminAriaTask } from "./booking/aria-bridge";
 import { handleAdminForms, handleAdminFormsSendQuote } from "./booking/forms";
@@ -414,6 +415,10 @@ export default {
         const id = url.pathname.slice("/api/admin/enquiries/".length);
         return handleAdminEnquiryDetail(req, env as Parameters<typeof handleAdminEnquiryDetail>[1], adminShell, id);
       }
+      // POST /api/admin/enquiries/bulk — bulk advance or delete selected enquiries
+      if (req.method === "POST" && url.pathname === "/api/admin/enquiries/bulk") {
+        return handleAdminEnquiryBulk(req, env as Parameters<typeof handleAdminEnquiryBulk>[1]);
+      }
       // POST /api/admin/enquiries/:id/delete — soft-delete (hide from dashboard)
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/enquiries/") && url.pathname.endsWith("/delete")) {
         const id = url.pathname.split("/")[4]!;
@@ -476,6 +481,10 @@ export default {
       if (req.method === "POST" && url.pathname === "/api/admin/inbox/archive") {
         return await handleAdminInboxArchive(req, dashEnv);
       }
+      // POST /api/admin/inbox/bulk — bulk advance or delete selected inbox items
+      if (req.method === "POST" && url.pathname === "/api/admin/inbox/bulk") {
+        return await handleAdminInboxBulk(req, dashEnv);
+      }
       // POST /api/admin/inbox/sync — manual trigger: sync mail from Spacemail
       if (req.method === "POST" && url.pathname === "/api/admin/inbox/sync") {
         return await handleAdminMailSync(req, dashEnv);
@@ -532,6 +541,10 @@ export default {
       if (req.method === "POST" && url.pathname.startsWith("/api/admin/quote/")) {
         const id = url.pathname.slice("/api/admin/quote/".length);
         if (id) return await handleAdminBookingDetail(req, dashEnv, id);
+      }
+      // POST /api/admin/quotes/bulk — bulk advance or delete selected bookings
+      if (req.method === "POST" && url.pathname === "/api/admin/quotes/bulk") {
+        return await handleAdminQuotesBulk(req, dashEnv);
       }
       // GET /api/admin/quotes — tabbed: Quotes / Invoices / Payments
       if (req.method === "GET" && url.pathname === "/api/admin/quotes") {

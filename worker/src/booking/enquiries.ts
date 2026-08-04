@@ -3,10 +3,11 @@
 // All routes are JWT-gated via getAdminSession.
 
 import { getAdminSession, type AdminUser } from "./auth";
-import { listEnquiries, getEnquiryById, updateEnquiry, insertBooking, type EnquiryCrmRow } from "./db";
+import { listEnquiries, getEnquiryById, updateEnquiry, insertBooking, softDeleteById, type EnquiryCrmRow } from "./db";
 import { writeAudit } from "./audit";
 import { signToken, hashToken } from "./token";
 import { makeReference } from "./util";
+import { nextEnquiryStatus } from "./lifecycle-actions";
 import type { Env } from "../index";
 
 export interface EnquiriesEnv extends Env {
@@ -99,6 +100,7 @@ export async function handleAdminEnquiries(
 
   const rows = enquiries.map((e) => `
     <tr>
+      <td><input type="checkbox" name="ids" value="${esc(e.id)}"></td>
       <td><a href="/api/admin/enquiries/${esc(e.id)}" style="color:#8a3a52;font-weight:600;text-decoration:none;">${esc(e.name)}</a></td>
       <td>${esc(e.email)}</td>
       <td>${esc(e.phone)}</td>
@@ -110,15 +112,34 @@ export async function handleAdminEnquiries(
       <td style="color:#8a7d72;font-size:.82rem;">${fmtDate(e.created_at)}</td>
     </tr>`).join("");
 
+  const bulkBar = enquiries.length
+    ? `<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.9rem;flex-wrap:wrap;">
+        <input type="checkbox" id="select-all" onchange="document.querySelectorAll('#enquiries-form input[name=ids]').forEach(c=>c.checked=this.checked);" style="margin-right:.2rem;">
+        <label for="select-all" style="font-size:.8rem;color:#8a7d72;margin-right:.6rem;">Select all</label>
+        <form method="POST" action="/api/admin/enquiries/bulk" style="display:inline-flex;gap:.5rem;align-items:center;margin:0;" onsubmit="return confirm('Advance selected enquiries to the next stage?');">
+          <input type="hidden" name="action" value="advance">
+          <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#fff;background:#2b6cb0;border:none;cursor:pointer;">Advance selected ▸</button>
+        </form>
+        <form method="POST" action="/api/admin/enquiries/bulk" style="display:inline-flex;gap:.5rem;align-items:center;margin:0;" onsubmit="return confirm('Delete selected enquiries from the dashboard? Records are kept for safety but hidden everywhere.');">
+          <input type="hidden" name="action" value="delete">
+          <button type="submit" style="padding:.35rem .9rem;border-radius:8px;font-size:.82rem;font-weight:600;color:#c53030;background:#fff;border:1.5px solid #c53030;cursor:pointer;">Delete selected</button>
+        </form>
+      </div>`
+    : "";
+
   const inner = `
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.4rem;">${filterLinks}</div>
+    ${bulkBar}
+    <form id="enquiries-form" method="POST" action="/api/admin/enquiries/bulk">
     <table>
       <thead><tr>
+        <th></th>
         <th>Name</th><th>Email</th><th>Phone</th><th>Occasion</th>
         <th>Date</th><th>Town</th><th>Estimate</th><th>Status</th><th>Received</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table>
+    </form>`;
 
   return htmlResponse(shell(`Enquiries (${enquiries.length})`, user, inner, url.pathname));
 }
@@ -322,6 +343,44 @@ export async function handleAdminUpdateEnquiry(
 
   await updateEnquiry(env, id, patch, f);
   return redirect(`/api/admin/enquiries/${id}?saved=1`);
+}
+
+// ── Bulk action (POST handler) ───────────────────────────────────────────────
+// Advance (next stage) or delete (soft) multiple enquiries at once.
+export async function handleAdminEnquiryBulk(
+  req: Request,
+  env: EnquiriesEnv,
+  f: typeof fetch = fetch,
+): Promise<Response> {
+  const user = await getAdminSession(req, env, f);
+  if (!user) return redirect("/api/admin/login?msg=session-expired");
+
+  let ids: string[] = [];
+  let action = "advance";
+  try {
+    const fd = await req.formData();
+    ids = fd.getAll("ids").map(String);
+    action = fd.get("action")?.toString() ?? "advance";
+  } catch {
+    return redirect("/api/admin/enquiries?error=bad-form");
+  }
+
+  for (const id of ids) {
+    if (!/^[0-9a-f-]{36}$/.test(id)) continue;
+    if (action === "delete") {
+      await softDeleteById(env, "enquiries", id, f);
+      continue;
+    }
+    const existing = await getEnquiryById(env, id, f);
+    if (!existing) continue;
+    const next = nextEnquiryStatus(existing.status);
+    const patch: Parameters<typeof updateEnquiry>[2] = { status: next };
+    if (existing.status === "new" && next !== "new" && !existing.contacted_at) {
+      patch.contacted_at = new Date().toISOString();
+    }
+    await updateEnquiry(env, id, patch, f);
+  }
+  return redirect("/api/admin/enquiries");
 }
 
 // ── Generate Invoice (POST handler) ──────────────────────────────────────────
