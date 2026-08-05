@@ -241,6 +241,7 @@ function typeBadge(kind: string): string {
     enquiry: ["Enquiry", "#b7791f"],
     booking: ["Booking", "#553c9a"],
     rejection: ["Declined", "#c53030"],
+    email: ["Email", "#2b6cb0"],
   };
   const [label, color] = map[kind] ?? [kind, "#718096"];
   return `<span style="display:inline-block;padding:.15em .6em;border-radius:20px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:#f7f3ef;color:${color};">${esc(label)}</span>`;

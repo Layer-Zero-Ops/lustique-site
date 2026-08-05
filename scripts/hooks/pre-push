@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Block accidental pushes to `main` from an interactive terminal.
+# GitHub Actions / CI sets CI=true, which bypasses this check.
+# Override with: ALLOW_PUSH_MAIN=1 git push ...
+set -euo pipefail
+branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+if [ "$branch" = "main" ] && [ "${CI:-}" != "true" ] && [ "${ALLOW_PUSH_MAIN:-}" != "1" ]; then
+  echo "BLOCKED: direct push to 'main' is disabled by Lustique deploy protection."
+  echo "       Work via feature/* → dev → review → main, or set ALLOW_PUSH_MAIN=1 to override."
+  exit 1
+fi

@@ -14,13 +14,15 @@
  *   2. Idempotency check: findPaymentByYocoId (already processed? return 200)
  *   3. Look up pending payment row by checkout ID
  *   4. Mark payment paid; kind-branch transition (deposit→deposit_paid, balance→settled)
- *   5. Email bride "date secured 🎉" / "fully paid 🎉"
+ *   5. Email bride "date secured 🎉" / "fully paid 🎉" with portal + contract links
+ *   6. Notify admin of deposit + assignment status
  *
  * payment.failed handler is retained but Yoco never fires it — failed cards produce no
  * payment object. The pendingPaymentSweep() cron covers failures (24h stale-pending → EFT fallback).
  *
  * payment.refunded: audit-only (no booking transition needed yet).
  */
+
 import {
   findPaymentByCheckoutId,
   findPaymentByYocoId,
@@ -33,75 +35,24 @@ import {
   insertNotification,
   type DbEnv,
 } from "./db";
+import { listBookingArtists } from "./artists";
 import { writeAudit, type AuditEnv } from "./audit";
 import { recordPayment, type WaveEnv } from "../lib/wave";
 import { esc, fmtDate, fmtZAR, ep, em, emailShell, emailTable, emailNote, firstN, sendEmail, getEftSettings, type EftSettings } from "../lib/email";
 import { upsertBrevoContact } from "../lib/brevoCampaign";
+import { signActionToken } from "./token";
+import { createBookingCalendarEvent, getCalendarEvent, renderIcs, icsAttachment } from "./calendar";
 
 export interface YocoWebhookEnv extends AuditEnv, WaveEnv, DbEnv {
   YOCO_WEBHOOK_SECRET: string;
   BREVO_API_KEY: string;
   NOTIFY_EMAIL: string;
+  SIGNING_SECRET: string;
+  ICAL_KEY?: string;
   BREVO_PAST_CLIENTS_LIST_ID?: string;
 }
 
-// ── Standard Webhooks signature verification ──────────────────────────────────
-
-const enc = new TextEncoder();
-
-/**
- * Decode the webhook secret. Yoco dispatches it with a "whsec_" prefix (Standard Webhooks
- * convention) whose value is base64-encoded key bytes. Strip the prefix then base64-decode;
- * fall back to UTF-8 for un-prefixed plain strings (test environments).
- */
-function decodeSecret(secret: string): Uint8Array {
-  const b64 = secret.startsWith("whsec_") ? secret.slice(6) : secret;
-  try {
-    return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-  } catch {
-    return enc.encode(secret);
-  }
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-/**
- * Standard Webhooks verification (https://www.standardwebhooks.com/).
- * Signed content = "${webhookId}.${webhookTimestamp}.${rawBody}"
- * Signature header = one or more "v1,<base64>" values separated by spaces.
- * Timestamp must be within 3 minutes of now (replay protection).
- */
-async function verifyStandardWebhook(
-  rawBody: string,
-  webhookId: string,
-  webhookTimestamp: string,
-  sigHeader: string,
-  secret: string,
-  nowMs: number = Date.now(),
-): Promise<boolean> {
-  // Reject stale timestamps (±3 minutes)
-  const ts = parseInt(webhookTimestamp, 10);
-  if (isNaN(ts) || Math.abs(nowMs - ts * 1000) > 3 * 60 * 1000) return false;
-
-  const keyBytes = decodeSecret(secret);
-  const key = await crypto.subtle.importKey(
-    "raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
-  );
-  const toSign = `${webhookId}.${webhookTimestamp}.${rawBody}`;
-  const buf = await crypto.subtle.sign("HMAC", key, enc.encode(toSign));
-  const computed = btoa(String.fromCharCode(...new Uint8Array(buf)));
-
-  // Header may contain multiple "v1,<base64>" entries (space-separated) — accept any one
-  return sigHeader.split(" ").some((part) => {
-    if (!part.startsWith("v1,")) return false;
-    return timingSafeEqual(computed, part.slice(3));
-  });
-}
+import { verifyStandardWebhook } from "./yoco-webhook-verify";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -122,7 +73,7 @@ interface YocoPaymentEvent {
 
 // ── email helpers ─────────────────────────────────────────────────────────────
 
-function depositSecuredEmailHtml(brideName: string, weddingDate: string, depositCents: number, balanceCents: number, reference: string): string {
+function depositSecuredEmailHtml(brideName: string, weddingDate: string, depositCents: number, balanceCents: number, reference: string, portalUrl: string, contractUrl: string, icalUrl: string | null): string {
   return emailShell({
     preheader: `Your deposit is in — ${fmtDate(weddingDate)} is officially yours.`,
     heading: `Your date is secured, ${esc(firstN(brideName))}.`,
@@ -132,12 +83,15 @@ function depositSecuredEmailHtml(brideName: string, weddingDate: string, deposit
         { key: "Deposit received", val: fmtZAR(depositCents), bold: true },
         { key: "Balance due", val: fmtZAR(balanceCents), bold: true },
         { key: "Your reference", val: reference, ref: true },
-      ]),
+      ]) +
+      ep(`You can view your event details and assignment any time via the portal link below.`) +
+      `<p style="margin-top:1.2rem;"><a href="${esc(portalUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Open booking portal</a></p>` +
+      (icalUrl ? `<p style="margin-top:1rem;font-size:.88rem;color:#8a7d72;">Add your booking to your calendar: <a href="${esc(icalUrl)}">Subscribe to calendar</a></p>` : ""),
     btnZone: emailNote(`We&#8217;ll send you a balance reminder closer to your day.`),
   });
 }
 
-function fullyPaidEmailHtml(brideName: string, weddingDate: string, balanceCents: number, reference: string): string {
+function fullyPaidEmailHtml(brideName: string, weddingDate: string, balanceCents: number, reference: string, portalUrl: string, contractUrl: string, icalUrl: string | null): string {
   return emailShell({
     preheader: `You're all settled — ${fmtDate(weddingDate)} is fully paid and we're ready for your day.`,
     heading: `All settled, ${esc(firstN(brideName))}.`,
@@ -146,7 +100,10 @@ function fullyPaidEmailHtml(brideName: string, weddingDate: string, balanceCents
         { key: "Date", val: fmtDate(weddingDate) },
         { key: "Balance received", val: fmtZAR(balanceCents), bold: true },
         { key: "Your reference", val: reference, ref: true },
-      ]),
+      ]) +
+      ep(`You can view your event details and assignment any time via the portal link below.`) +
+      `<p style="margin-top:1.2rem;"><a href="${esc(portalUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Open booking portal</a></p>` +
+      (icalUrl ? `<p style="margin-top:1rem;font-size:.88rem;color:#8a7d72;">Add your booking to your calendar: <a href="${esc(icalUrl)}">Subscribe to calendar</a></p>` : ""),
     btnZone: emailNote(`We&#8217;ll be in touch closer to your day with final details.`),
   });
 }
@@ -181,7 +138,7 @@ function paymentFailedAdminEmailHtml(brideName: string, weddingDate: string, amo
 <p style="font-size:.88rem;color:#8a7d72;">If she pays by EFT, use the &#8220;Mark deposit received&#8221; link from the original approval email to confirm receipt.</p>`;
 }
 
-// ── shared failure handler (webhook + sweep) ──────────────────────────────────
+// ── shared failure handler (webhook + sweep) ─────────────────────────────────
 
 async function handlePaymentFailure(
   env: YocoWebhookEnv,
@@ -283,7 +240,7 @@ export async function handleYocoWebhook(
     const isBalance = kind === "balance";
     const toStatus = isBalance ? "settled" : "deposit_paid";
     const paidAtField = isBalance ? "settled_at" : "deposit_paid_at";
-    const paidPatch = { status: toStatus, [paidAtField]: new Date().toISOString() };
+    const paidPatch = { status: toStatus, [paidAtField]: new Date().toISOString() } as Record<string, unknown>;
 
     const updated = isBalance
       ? await transitionBooking(env, bookingId, "deposit_paid", paidPatch, fetchImpl)
@@ -299,8 +256,8 @@ export async function handleYocoWebhook(
 
     // S8: record in Wave (fire-and-forget)
     if (booking?.wave_invoice_id && (env.WAVE_CLIENT_ID || env.WAVE_API_KEY) && env.WAVE_BUSINESS_ID && env.WAVE_BANK_ACCOUNT_ID) {
-      const label = kind === "balance" ? "Yoco balance" : "Yoco deposit";
-      const cents = kind === "balance" ? booking.balance_net_cents : booking.deposit_net_cents;
+      const label = isBalance ? "Yoco balance" : "Yoco deposit";
+      const cents = isBalance ? booking.balance_net_cents : booking.deposit_net_cents;
       recordPayment(env, booking.wave_invoice_id, cents, new Date().toISOString().slice(0, 10), `${label} · ${booking.reference}`, fetchImpl)
         .then(() => writeAudit(env, { bookingId, eventType: "wave.payment-recorded", payload: { reference: booking.reference, kind } }, fetchImpl))
         .catch(() => writeAudit(env, { bookingId, eventType: "wave.payment-failed", payload: { reference: booking.reference } }, fetchImpl).catch(() => {}));
@@ -308,14 +265,59 @@ export async function handleYocoWebhook(
 
     if (booking) {
       try {
-        const subject = kind === "balance"
+        const origin = env.ALLOWED_ORIGIN || "";
+        const portalToken = await signActionToken(booking.id, new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), env.SIGNING_SECRET, "portal");
+        const portalUrl = `${origin}/api/booking/portal?token=${encodeURIComponent(portalToken)}`;
+        const contractUrl = `${origin}/api/booking/contract?token=${encodeURIComponent(portalToken)}`;
+        const icalUrl = env.ICAL_KEY ? `${origin}/api/calendar.ics?key=${encodeURIComponent(env.ICAL_KEY)}` : null;
+
+        const assignedArtists = await listBookingArtists(env, bookingId, fetchImpl);
+        const unassigned = assignedArtists.length === 0;
+        if (isBalance && unassigned) {
+          await insertNotification(env, {
+            type: "artist_unassigned",
+            title: `Assign artist — ${booking.reference}`,
+            body: `${booking.bride_name} · ${booking.wedding_date}`,
+            link: `/api/admin/booking/${bookingId}`,
+            booking_id: bookingId,
+            payload: { reference: booking.reference },
+          }, fetchImpl).catch(() => {});
+        }
+
+        const calendarCreated = isBalance
+          ? await createBookingCalendarEvent(env, booking, fetchImpl).catch(() => false)
+          : false;
+
+        const subject = isBalance
           ? "You're all set — fully paid 🎉 · Lustique Co."
           : "Your date is secured 🎉 · Lustique Co.";
-        const html = kind === "balance"
-          ? fullyPaidEmailHtml(booking.bride_name, booking.wedding_date, booking.balance_net_cents, booking.reference)
-          : depositSecuredEmailHtml(booking.bride_name, booking.wedding_date, booking.deposit_net_cents, booking.balance_net_cents, booking.reference);
-        await sendEmail(env, { email: booking.bride_email, name: booking.bride_name }, subject, html, fetchImpl);
-        await writeAudit(env, { bookingId, eventType: `payment.${kind}-paid`, payload: { reference: booking.reference, checkoutId, yocoPaymentId } }, fetchImpl);
+        const bodyHtml = isBalance
+          ? fullyPaidEmailHtml(booking.bride_name, booking.wedding_date, booking.balance_net_cents, booking.reference, portalUrl, contractUrl, icalUrl)
+          : depositSecuredEmailHtml(booking.bride_name, booking.wedding_date, booking.deposit_net_cents, booking.balance_net_cents, booking.reference, portalUrl, contractUrl, icalUrl);
+
+        await sendEmail(env, { email: booking.bride_email, name: booking.bride_name }, subject, bodyHtml, fetchImpl);
+
+        const artists = await listBookingArtists(env, bookingId, fetchImpl);
+        if (!isBalance && artists.length) {
+          const artistRows = artists.map(a => `${a.artists.name}${a.lead ? " (lead)" : ""}${a.confirmed_at ? " · confirmed" : " · pending"}`).join("<br>");
+          await sendEmail(env, { email: env.NOTIFY_EMAIL, name: "Lustique" },
+            `Deposit paid · assign artist · ${booking.reference}`,
+            `<p style="font:14px/1.6 system-ui,sans-serif;"><strong>${booking.reference}</strong> — ${fmtDate(booking.wedding_date)}</p>
+             <p style="font-size:.88rem;color:#8a7d72;">Assigned artists:<br>${artistRows}</p>
+             <p style="margin-top:1rem;"><a href="${esc(portalUrl)}" style="display:inline-block;background:#8a3a52;color:#fff;padding:.7em 1.6em;border-radius:8px;text-decoration:none;font-weight:600;">Manage assignment</a></p>`,
+            fetchImpl).catch(() => {});
+        }
+
+        await insertNotification(env, {
+          type: isBalance ? "balance_paid" : "deposit_paid",
+          title: `${isBalance ? "Balance" : "Deposit"} received — ${booking.reference}`,
+          body: `${booking.bride_name} · ${booking.wedding_date}`,
+          link: `/api/admin/booking/${bookingId}`,
+          booking_id: bookingId,
+          payload: { reference: booking.reference, kind, portalUrl, contractUrl },
+        }, fetchImpl).catch(() => {});
+
+        await writeAudit(env, { bookingId, eventType: `payment.${kind}-paid`, payload: { reference: booking.reference, checkoutId, yocoPaymentId, portalUrl, contractUrl } }, fetchImpl);
       } catch {
         await writeAudit(env, { bookingId, eventType: "payment.email-failed", payload: { reference: booking.reference, checkoutId } }, fetchImpl).catch(() => {});
       }
@@ -356,12 +358,6 @@ export async function handleYocoWebhook(
 
 // ── pending payment sweep (cron) ──────────────────────────────────────────────
 
-/**
- * Called from the daily scheduled() handler.
- * Finds payment rows that have been pending for more than 24 hours and runs the
- * same failure path as payment.failed — marks them failed and sends the EFT fallback
- * email to the bride (guarded by failure_notified_at so it only fires once).
- */
 export async function pendingPaymentSweep(
   env: YocoWebhookEnv,
   fetchImpl: typeof fetch = fetch,

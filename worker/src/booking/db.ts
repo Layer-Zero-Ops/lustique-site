@@ -525,6 +525,23 @@ export async function listAccountingRows(
   return (await r.json()) as import("./accounting").AccountingRow[];
 }
 
+/** Soft-delete (hide from dashboard) a row by setting deleted_at. Reused by
+ *  single + bulk delete across enquiries and bookings. Row is kept (recoverable). */
+export async function softDeleteById(
+  env: DbEnv,
+  table: "enquiries" | "bookings",
+  id: string,
+  f: typeof fetch = fetch,
+): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/.test(id)) return;
+  const r = await f(rest(env, `${table}?id=eq.${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: { ...headers(env), prefer: "return=minimal" },
+    body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+  });
+  if (!r.ok) throw new Error(`softDeleteById ${table} ${r.status}: ${await r.text()}`);
+}
+
 /** Bookings due a balance reminder: deposit_paid, not yet reminded, real balance, wedding within window. */
 export async function listBookingsDueForReviewEmail(
   env: DbEnv,
