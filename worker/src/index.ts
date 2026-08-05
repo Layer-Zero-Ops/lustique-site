@@ -34,6 +34,7 @@ import {
   handleAdminClio,
   handleAdminQuoteComposer,
 } from "./booking/dashboard";
+import { handleAdminCommand, handleAdminCommandBulk, handleAdminCommandApprove } from "./booking/command-center";
 import { handleAssignArtist, handleRemoveArtist } from "./booking/artists";
 import { handleAdminArtists } from "./booking/artist-media";
 import {
@@ -465,6 +466,19 @@ export default {
       // GET /api/admin/dashboard — Inbox view (requires valid session)
       if (req.method === "GET" && url.pathname === "/api/admin/dashboard") {
         return await handleAdminDashboard(req, dashEnv);
+      }
+
+      // GET /api/admin/command — unified command center (single list)
+      if (req.method === "GET" && url.pathname === "/api/admin/command") {
+        return await handleAdminCommand(req, dashEnv);
+      }
+      // POST /api/admin/command/bulk — Advance / Delete selected from command center
+      if (req.method === "POST" && url.pathname === "/api/admin/command/bulk") {
+        return await handleAdminCommandBulk(req, dashEnv);
+      }
+      // POST /api/admin/command/approve — approve a queued automation action (human QC gate)
+      if (req.method === "POST" && url.pathname === "/api/admin/command/approve") {
+        return await handleAdminCommandApprove(req, dashEnv);
       }
 
       // GET /api/admin/inbox — Phase 1 unified inbox (enquiries + bookings + rejections)
