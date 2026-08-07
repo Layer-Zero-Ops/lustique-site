@@ -134,6 +134,15 @@ const btn = document.getElementById("sendEnquiry") as HTMLButtonElement | null;
 const statusEl = document.getElementById("enquiryStatus");
 const say = (msg: string) => { if (statusEl) statusEl.textContent = msg; };
 
+/** Highlight a field with a visual error state for missing validation. */
+function highlight(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add("field-error");
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => el.classList.remove("field-error"), 3000);
+}
+
 /** One POST attempt with a 15s timeout. `retriable` = transient (network / timeout / 5xx) → worth one auto-retry.
  *  `forceNoToken` = strip the Turnstile token (used on the security-fail fallback so a blocked captcha
  *  never loses the lead — the Worker persists + flags for review instead of rejecting). */
@@ -162,9 +171,15 @@ async function postEnquiry(data: unknown, forceNoToken = false): Promise<{ ok: b
 btn?.addEventListener("click", async () => {
   const data = collect();
   if (!data.name || !data.email) {
+    if (!data.name) {
+      if (!val("fName")) highlight("fName");
+      if (!val("lName")) highlight("lName");
+    }
+    if (!data.email) highlight("email");
     say("Please add your name and email so we can reply.");
     return;
   }
+  if (!data.phone) { highlight("phone"); say("Please add your mobile number so we can reach you."); return; }
   const consent = document.getElementById("consentCheck") as HTMLInputElement | null;
   if (consent && !consent.checked) {
     say("Please tick the consent box so we can contact you about your enquiry.");

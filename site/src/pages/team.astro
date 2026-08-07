@@ -47,14 +47,18 @@ function specialismLabel(specialisms: string[]): string {
         <div class={`artist reveal${["", " d1", " d2"][i % 3]}`}>
           {a.photo_url
             ? <img src={a.photo_url} alt={`${a.name} — Lustique Co. bridal artist`} class="artist-photo" loading="lazy" decoding="async" width="480" height="640">
-            : <div class="ph"></div>
+            : <div class="ph artist-placeholder" role="presentation" aria-hidden="true"><span class="ph-text">{a.name}</span></div>
           }
           <h3>{a.name}</h3>
           <div class="role">{specialismLabel(a.specialisms)}</div>
         </div>
       ))}
     </div>
-    <p class="note center" style="margin-top:2.4rem;max-width:60ch;margin-inline:auto;">
+    </div>
+  {artists.length === 0 && (
+    <p class="note center" style="margin-top: var(--space-lg);">Our team's portraits are being updated — check back soon, or browse our <a href="portfolio.html" style="color: var(--burgundy);">portfolio</a> to see their work.</p>
+  )}
+  <p class="note center" style="margin-top: 2.4rem; max-width: 60ch; margin-inline: auto;">
       Each artist's portfolio will live as a highlight on our Instagram. We allocate the right
       artists for your wedding by date and party size — so you simply get the Lustique standard,
       every time.

@@ -142,16 +142,44 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // testimonial slideshow (auto-loop + dots)
+  // testimonial slideshow (auto-loop + dots + pause button)
   const slider = document.querySelector(".testi-slider");
   if (slider) {
     const slides = Array.from(slider.querySelectorAll(".testi-slide"));
     const dotsWrap = document.querySelector(".testi-dots");
     if (slides.length > 1) {
       let i = 0;
+      let timer = null;
+
+      // Add pause/play button for accessibility
+      if (dotsWrap) {
+        const pauseBtn = document.createElement("button");
+        pauseBtn.type = "button";
+        pauseBtn.id = "testiPause";
+        pauseBtn.setAttribute("aria-label", "Pause testimonials");
+        pauseBtn.setAttribute("aria-pressed", "false");
+        pauseBtn.className = "btn btn-ghost";
+        pauseBtn.style.cssText = "padding:.4em .9em;font-size:.75rem;";
+        pauseBtn.textContent = "Pause";
+        dotsWrap.parentNode.insertBefore(pauseBtn, dotsWrap);
+        pauseBtn.addEventListener("click", () => {
+          const isPaused = timer === null;
+          if (isPaused) {
+            timer = setInterval(() => go(i + 1), 6000);
+            pauseBtn.setAttribute("aria-pressed", "false");
+            pauseBtn.textContent = "Pause";
+          } else {
+            if (timer) clearInterval(timer);
+            timer = null;
+            pauseBtn.setAttribute("aria-pressed", "true");
+            pauseBtn.textContent = "Play";
+          }
+        });
+      }
+
       slides.forEach((_, n) => {
         const b = document.createElement("button");
-        b.setAttribute("aria-label", "Review " + (n + 1));
+        b.setAttribute("aria-label", "Go to testimonial " + (n + 1));
         if (n === 0) b.classList.add("active");
         b.addEventListener("click", () => { go(n); reset(); });
         if (dotsWrap) dotsWrap.appendChild(b);
@@ -164,8 +192,8 @@ document.addEventListener("DOMContentLoaded", () => {
         slides[i].classList.add("active");
         if (dots[i]) dots[i].classList.add("active");
       };
-      let timer = setInterval(() => go(i + 1), 6000);
-      const reset = () => { clearInterval(timer); timer = setInterval(() => go(i + 1), 6000); };
+      const reset = () => { if (timer) clearInterval(timer); timer = setInterval(() => go(i + 1), 6000); };
+      timer = setInterval(() => go(i + 1), 6000);
     }
   }
 
