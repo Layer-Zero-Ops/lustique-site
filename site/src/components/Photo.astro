@@ -9,11 +9,12 @@ interface Props {
   eager?: boolean;
   width?: number;
   height?: number;
+  aspect?: "3/4" | "5/6" | "16/11" | "1/1";
 }
 
-const { src, alt, cls = "", eager = false, width = 800, height = 800 } = Astro.props as Props;
+const { src, alt, cls = "", eager = false, width = 800, height = 800, aspect = "3/4" } = Astro.props as Props;
 ---
-<div class={`ph img ${cls}`}>
+<div class={`ph img ${cls}`} style={`aspect-ratio: ${aspect};`}>
   <Image
     class="ph-img"
     src={src}

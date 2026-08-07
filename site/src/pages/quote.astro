@@ -36,22 +36,22 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
     <form id="quoteForm">
       <input type="text" name="company" id="hp_company" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
       <div class="form-step reveal"><h3>Your occasion</h3><p class="step-sub">Choose your occasion and we'll tailor the estimator and quote to you.</p>
-        <div class="field"><label for="occasion">What are we creating for?</label><select id="occasion"><option value="wedding">Wedding</option><option value="matric">Matric farewell</option><option value="event">Event</option></select></div>
+        <div class="field"><label for="occasion">What are we creating for?</label><select id="occasion" required><option value="wedding">Wedding</option><option value="matric">Matric farewell</option><option value="event">Event</option></select></div>
       </div>
       <div class="form-step reveal"><h3>About you</h3><p class="step-sub">Let’s start with the star of the show.</p>
-        <div class="field-row"><div class="field"><label for="fName">First name</label><input id="fName" placeholder="Your name"></div><div class="field"><label for="lName">Last name</label><input id="lName" placeholder="Surname"></div></div>
-        <div class="field-row"><div class="field"><label for="email">Email</label><input type="email" id="email" placeholder="you@email.com"></div><div class="field"><label for="phone">Mobile / WhatsApp</label><input id="phone" placeholder="067 000 0000"></div></div>
-        <div class="field"><label for="source">How did you hear about us?</label><select id="source"><option>Instagram</option><option>Google</option><option>A friend / past bride</option><option>TikTok</option><option>Facebook</option><option>Other</option></select></div>
+        <div class="field-row"><div class="field"><label for="fName">First name</label><input id="fName" placeholder="Your name" required></div><div class="field"><label for="lName">Last name</label><input id="lName" placeholder="Surname" required></div></div>
+        <div class="field-row"><div class="field"><label for="email">Email</label><input type="email" id="email" placeholder="you@email.com" required></div><div class="field"><label for="phone">Mobile / WhatsApp</label><input id="phone" placeholder="067 000 0000" required></div></div>
+        <div class="field"><label for="source">How did you hear about us?</label><select id="source" required><option>Instagram</option><option>Google</option><option>A friend / past bride</option><option>TikTok</option><option>Facebook</option><option>Other</option></select></div>
       </div>
       <div class="form-step reveal" id="weddingDayFields"><h3>Your big day</h3><p class="step-sub">So we can reserve the date and work out the travel from our La Montagne studio.</p>
-        <div class="field"><label for="weddingDate">Wedding date</label><input type="date" id="weddingDate"></div>
+        <div class="field"><label for="weddingDate">Wedding date</label><input type="date" id="weddingDate" required></div>
         <div class="field" style="position:relative;">
           <label for="venueInput">Venue name or address <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#6b5c52;">(start typing — we’ll search for it)</span></label>
-          <input id="venueInput" placeholder="e.g. Red Ivory Estate, or a street address" autocomplete="off">
+          <input id="venueInput" placeholder="e.g. Red Ivory Estate, or a street address" autocomplete="off" required>
           <div id="venueSuggestions" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;background:#fff;border:1px solid rgba(60,42,42,.18);border-radius:10px;margin-top:.3rem;box-shadow:0 8px 24px rgba(60,42,42,.12);max-height:280px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;"></div>
         </div>
-        <button type="button" class="btn btn-ghost" id="checkTravel" style="padding:.7em 1.4em;">Find venue on map</button>
-        <div id="venueMap" style="height:300px;border-radius:14px;margin-top:1rem;display:none;"></div>
+        <button type="button" class="btn btn-ghost" id="checkTravel" style="padding:.75em 1.5em;">Find venue on map</button>
+        <div id="venueMap" style="height:300px;border-radius:14px;margin-top:1rem;display:none;max-width:100%;"></div>
         <div id="mapHint" style="display:none;margin-top:.75rem;background:rgba(138,90,74,.07);border:1px solid rgba(138,90,74,.18);border-radius:10px;padding:.65rem 1rem;font-size:.88rem;color:#5c5048;">
           <strong style="color:var(--mocha);">📍 Pick a suggestion above for the exact pin.</strong> Didn’t see it? Drag the pin on the map to your venue and the travel fee updates instantly.
         </div>
@@ -131,7 +131,7 @@ const desc = "Tell us about your wedding day and receive a personalised bridal h
         <div class="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} style="margin:1rem 0;"></div>
         <button type="button" class="btn btn-primary" id="sendEnquiry" style="width:100%;justify-content:center;">Request to Book</button>
         <noscript><p class="note center" style="margin-top:1rem;">This live form needs JavaScript to send. To enquire right now, email <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a> with your date, venue and party — we reply within 24 hours.</p></noscript>
-        <p class="note center" id="enquiryStatus" role="alert" style="margin-top:1rem;color:var(--burgundy);"></p>
+        <p class="note center" id="enquiryStatus" role="alert" style="margin-top:1rem;color:#c04a5a;"></p>
         <p class="note center" style="margin-top:1rem;">We reply within 24 hours, often sooner. <strong>Blessings, The Lustique Cosmetology Team.</strong></p>
       </div>
     </form>

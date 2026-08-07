@@ -20,7 +20,7 @@ const breadcrumbJsonLd = breadcrumb ? {
 const canonical = `${SITE}/${slug === "index.html" ? "" : slug}`;
 ---
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB" class="no-js">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -45,6 +45,7 @@ const canonical = `${SITE}/${slug === "index.html" ? "" : slug}`;
   <meta name="theme-color" content="#A0625E" />
   <script is:inline define:vars={{ gaId: GA_MEASUREMENT_ID }}>window.LUSTIQUE_GA_ID = gaId;</script>
   <script is:inline>
+    document.documentElement.classList.remove("no-js");
     (function(){var h=location.hash;if(h.includes('access_token=')&&h.includes('type=magiclink')){var p=new URLSearchParams(h.slice(1));var t=p.get('access_token');if(t)location.replace('/api/admin/auth/callback?access_token='+encodeURIComponent(t));}})();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -60,9 +61,28 @@ const canonical = `${SITE}/${slug === "index.html" ? "" : slug}`;
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <Header active={slug} />
+  {breadcrumb && (
+    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+      <div class="wrap">
+        <ol style="display: flex; gap: 0.5rem; align-items: center; font-size: clamp(0.78rem, 1vw, 0.85rem); color: #6b5c52;">
+          <li><a href="index.html" style="color: var(--burgundy);">Home</a></li>
+          {breadcrumb.map((crumb, i) => (
+            <>
+              <li aria-hidden="true">›</li>
+              <li key={i}>
+                {i === breadcrumb.length - 1
+                  ? <span aria-current="page">{crumb.name}</span>
+                  : <a href={crumb.item ?? "#"}>{crumb.name}</a>}
+              </li>
+            </>
+          ))}
+        </ol>
+      </div>
+    </nav>
+  )}
   <main id="main"><slot /></main>
   <Footer />
-  <div class="cookie-banner" id="cookieBanner" hidden>
+  <div class="cookie-banner" id="cookieBanner" role="dialog" aria-live="polite" aria-label="Cookie consent" hidden>
     <p>We use a few cookies to make the site work and to understand how it’s used. <a href="privacy.html">Privacy &amp; cookies</a>.</p>
     <div class="cookie-actions"><button class="btn btn-ghost" id="cookieDecline">Decline</button><button class="btn btn-primary" id="cookieAccept">Accept</button></div>
   </div>

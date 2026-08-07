@@ -51,6 +51,10 @@ const businessJsonLdExtra = googleReviews ? {
     <div class="hero-inner">
       <span class="eyebrow">Bridal Hair &amp; Makeup Artistry · Pretoria &amp; Beyond</span>
       <h1 class="hero-title display">{heroHeadline}</h1>
+      <div class="hero-rating reveal" role="img" aria-label={`Rated ${googleReviews?.rating?.toFixed(1) ?? 5} out of 5 stars`}>
+        <div class="stars">{"★".repeat(Math.round(googleReviews?.rating ?? 5))}{"☆".repeat(5 - Math.round(googleReviews?.rating ?? 5))}</div>
+        {googleReviews && <span class="rating-sub">— ${googleReviews.userRatingCount} real Google reviews</span>}
+      </div>
       <p class="hero-sub">{heroSub}</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="pricing.html">Get your estimate</a>
