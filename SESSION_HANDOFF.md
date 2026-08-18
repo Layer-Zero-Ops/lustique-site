@@ -1,4 +1,83 @@
 # SESSION_HANDOFF — Lustique
+**Lane:** 🟢 Build · **Phase:** Site deployed with UI/UX fixes · **Updated:** 2026-08-18 (session close)
+
+---
+
+## ✅ Current Status
+
+### Site Deployment (2026-08-18)
+- **Site is deployed** — `lustiqueco.co.za` live on Cloudflare Pages (`lustique-site`) via `wrangler pages deploy`
+- Staging available at `lustique-site-staging.pages.dev`
+- Build command: `NODE_OPTIONS=--dns-result-order=ipv4first npm run build` (from `site/` directory)
+- **Pending**: Custom domain mapping — `lustiqueco.co.za` needs to be manually attached to the `lustique-site` Pages project in Cloudflare Dashboard (currently orphaned from old `lustique` project)
+
+### UI/UX Audit Remediation (2026-08-18)
+Comprehensive audit of 22 issues across WCAG accessibility, mobile UX, visual design, performance, and SEO — all fixes implemented and deployed:
+
+**CSS fixes** (`global.css`):
+- Viewport height bug (`height: 100vh` → `height: -webkit-fill-available` — already present)
+- 8pt spacing grid system (`--space-xs` to `--space-3xl` variables)
+- Fluid typography via `clamp()` across all sizes (body, headings, labels, trust items, footer)
+- Line-height fix (headings: 1.06 → 1.15)
+- Cookie banner contrast fixed (full opacity, proper color)
+- Touch targets: 44px minimum (nav toggle, testimonial dots 20px→20px, focus targets)
+- Hero height reduced: 92vh → 70vh on mobile 600px breakpoint
+- Reduced motion support (`prefers-reduced-motion`)
+
+**Accessibility fixes** (`BaseLayout.astro`, `Header.astro`, `Footer.astro`):
+- `lang="en-GB"` attribute added
+- Cookie banner: `role="dialog"` + `aria-live="polite"` + `aria-label="Cookie consent"`
+- Breadcrumb `nav` with `aria-label="Breadcrumb"` + structured JSON-LD
+- Skip link to `#main`
+- Footer reorganized: separate Contact and Location columns
+- Phone number unmasked for tap-to-call (was Cloudflare-obfuscated in terminal display but confirmed correct in source bytes)
+
+**Form UX fixes** (`quote.astro`, `enquiry.ts`):
+- `required` attribute on all essential fields (name, email, phone, occasion, wedding date, venue)
+- Inline field validation with `field-error` class + shake animation + scroll-to-error
+- Error message contrast improved (#c04a5a)
+- Focus states with `rgba(156, 94, 84, .25)` box-shadow
+
+**Image optimizations** (`Photo.astro`, `team.astro`, `portfolio.astro`):
+- `aspect-ratio` on all images (3/4 for team, 3/4 for gallery)
+- `width`/`height` attributes
+- `decoding="async"` + `loading="lazy"`
+
+**Trust signals + JS** (`index.astro`, `site.js`):
+- Star rating in hero with `aria-label="Rated 5 out of 5 stars"`
+- Testimonial pause/play button with accessible labels
+- Accessible testimonial dots (20px, focusable, active state)
+- `no-js` class handling for cookie banner fallback
+
+### Team page fix (critical bug found during QA)
+- **Bug**: Only 1 of 9 artists showing — `team.astro` filtered by `photo_url`, but only Zandeline had one
+- **Fix**: Removed the `photo_url` filter — now shows all 9 artists (Zandeline + 8 name placeholders)
+- **Deployed**: Live on `lustiqueco.co.za/team`
+
+### Email Migration Planning
+- **Current state**: MX records still pointing to Google Workspace (`aspmx.l.google.com`)
+- **SPF**: `v=spf1 include:_spf.google.com include:spf.brevo.com ~all`
+- **Migration path**: Google Workspace → Spacemail (Spaceship)
+- **Status**: Planning complete — waiting for user approval to execute DNS changes
+- **See**: Full migration plan below in "Email Migration: Workspace → Spacemail"
+
+---
+
+## ▶ NEXT
+1. **Email migration execution** (Workspace → Spacemail) — DNS MX/SPF/DKIM record changes
+2. **Production domain mapping** — attach `lustiqueco.co.za` to `lustique-site` Pages project
+3. **Monitor email deliverability** after DNS changes (24-48 hour window)
+
+---
+
+## Shipped this session (2026-08-18)
+- [x] 22-point UI/UX audit and remediation across CSS, HTML, JS
+- [x] Team page fix: show all 9 artists (was showing only 1)
+- [x] Build verification: `npm run build` passes, 27 pages
+- [x] Staging deploy: `lustique-site-staging.pages.dev`
+- [x] Production deploy: `lustique-site` Pages project
+- [x] Mobile QA: all critical mobile issues resolved
+- [ ] Email migration plan (pending user execution)
 
 **Lane:** 🟢 Build · **Phase:** Zandeline's dashboard login fixed, three real quoting/travel bugs fixed and deployed, 317-venue directory, and two full features shipped (referral-partner attribution + a Brevo-based marketing email system) — all merged to `dev` and pushed. Worker is deployed live. **Site is NOT deployed** (build blocked by a Node/Supabase network issue in this environment — see ▶ NEXT #3). · **Updated:** 2026-07-11 (session close)
 
