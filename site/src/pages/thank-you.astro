@@ -8,14 +8,14 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
   <section class="page-hero">
     <span class="eyebrow">Thank you</span>
     <h1>You're in good hands<br class="rwd-br"> — we'll be in touch soon.</h1>
-    <p style="max-width: 44ch">
+    <p class="maxw-sm">
       We've received your enquiry and we're already checking availability for your date.
       Expect a reply within 24&nbsp;hours — often much sooner.
     </p>
   </section>
 
   <!-- What happens next -->
-  <section class="section" style="background: var(--ivory)">
+  <section class="section section-alt">
     <div class="wrap">
       <div class="center" >
         <span class="eyebrow reveal">What happens next</span>
@@ -45,7 +45,7 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
     <div class="wrap">
       <div class="center" >
         <span class="eyebrow reveal">While you wait</span>
-        <p class="reveal d1" style="color: var(--body-text); max-width: 44ch">
+        <p class="reveal d1 maxw-sm">
           A few things worth exploring before your quote arrives.
         </p>
       </div>
@@ -70,17 +70,15 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
   <section class="section cta-band" >
     <div class="wrap center">
       <span class="eyebrow reveal">Any questions?</span>
-      <h2 class="reveal d1" style="font-size: clamp(1.6rem,3.5vw,2.6rem)">
-        Reach us directly.
-      </h2>
-      <p class="reveal d2" style="max-width: 44ch">
+      <h2 class="reveal d1 h2-alt">Reach us directly.</h2>
+      <p class="reveal d2 maxw-sm">
         You're welcome to call or message us — we're a real team and we love a quick chat.
       </p>
-      <div class="reveal d2" style="display: flex; justify-content: center; flex-wrap: wrap">
+      <div class="reveal d2 cta-actions">
         <a class="btn btn-primary" href="tel:+27679253894">Call 067&nbsp;925&nbsp;3894</a>
         <a class="btn btn-light" href="mailto:info@lustiqueco.co.za">Email us</a>
       </div>
-      <p class="reveal d3" style="font-family: var(--serif); font-style: italic; font-size: 1.1rem; opacity: .85">
+      <p class="reveal d3 ty-signature">
         Blessings, The Lustique Co. team.
       </p>
     </div>
@@ -88,45 +86,4 @@ const desc = "We've received your enquiry and will reply within 24 hours.";
 
 </BaseLayout>
 
-<style>
-  .rwd-br { display: none; }
-  @media (max-width: 540px) { .rwd-br { display: block; } }
 
-  .ty-grid {
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: repeat(3, 1fr);
-    max-width: 900px;
-    margin-inline: auto;
-  }
-  @media (max-width: 720px) {
-    .ty-grid { grid-template-columns: 1fr; max-width: 480px; }
-  }
-
-  .ty-tile {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: .6rem;
-    background: #fff;
-    border: 1.5px solid rgba(92,67,50,.12);
-    border-radius: 14px;
-    padding: 1.8rem 1.5rem;
-    text-decoration: none;
-    color: var(--charcoal);
-    transition: box-shadow .35s, transform .35s;
-  }
-  .ty-tile:hover {
-    box-shadow: 0 8px 28px -10px rgba(92,67,50,.18);
-    transform: translateY(-3px);
-  }
-  .ty-tile strong {
-    font-family: var(--serif);
-    font-size: 1.2rem;
-    color: var(--mocha);
-    font-weight: 400;
-    line-height: 1.2;
-  }
-  .ty-tile span { font-size: .88rem; color: #7a6257; line-height: 1.55; }
-</style>

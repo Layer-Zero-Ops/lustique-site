@@ -45,7 +45,7 @@ function specialismLabel(specialisms: string[]): string {
       {artists.map((a, i) => (
         <div class={`artist reveal${["", " d1", " d2"][i % 3]}`}>
           {a.photo_url
-            ? <img src={a.photo_url} alt={`${a.name} — Lustique Co. bridal artist`} class="artist-photo" loading="lazy" decoding="async" width="480" height="640" style="aspect-ratio: 3/4; object-fit: cover;">
+            ? <img src={a.photo_url} alt={`${a.name} — Lustique Co. bridal artist`} class="artist-photo artist-photo-lg" loading="lazy" decoding="async" width="480" height="640">
             : <div class="ph artist-placeholder" aria-hidden="true"><span class="ph-text">{a.name}</span></div>
           }
           <h3>{a.name}</h3>
