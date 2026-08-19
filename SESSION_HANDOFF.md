@@ -44,7 +44,7 @@ Systematic CSS spacing overhaul — 5 phases completed and deployed to both stag
 | `--body-text` color | `#4a3f37` (4.6:1 on ivory) ✓ |
 | Hero title | `max-width:18ch` ✓ |
 | Team page | All 9 artists render ✓ |
-| Production deploy | `https://8709c081.lustique-site.pages.dev` ✓ |
+| Production deploy | `https://879ee4bf.lustique-site.pages.dev` ✓ |
 | Staging deploy | `https://2c3cc956.lustique-site-staging.pages.dev` ✓ |
 
 **⚠️ BLOCKED** — `lustiqueco.co.za` domain still not mapped to `lustique-site` Pages project (still on old `lustique` project). Requires manual Cloudflare Dashboard action.
