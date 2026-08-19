@@ -1,5 +1,57 @@
 # SESSION_HANDOFF — Lustique
-**Lane:** 🟢 Build · **Phase:** Site deployed with UI/UX fixes · **Updated:** 2026-08-18 (session close)
+**Stage:** 🟢 Build · **Phase:** 5-phase UI overhaul complete, deployed to Pages · **Updated:** 2026-08-19 (session close)
+
+---
+
+## ✅ Phase 2 Deployment Complete (2026-08-19)
+
+Systematic CSS spacing overhaul — 5 phases completed and deployed to both staging and production Pages projects.
+
+### What was done
+
+**Phase 1 — CSS foundation:**
+- Fluid spacing scale added to `:root`: `--space-3xs` (0.25rem) through `--space-3xl` (6rem) — all `clamp()`-based
+- Color contrast fix: `--body-text: #4a3f37` (4.6:1 on `--ivory`, WCAG AA)
+- `.eyebrow` base style: `display: inline-block` (DEFAULT per skill pitfall), `margin-bottom: var(--space-sm)`
+- `.hero-inner .eyebrow` override correctly uses `display: block` (contextual, not global)
+
+**Phase 2 — CSS component rules:**
+- Rewrote all component CSS to use `--space-*` tokens instead of raw `rem` values
+- `.hero-rating`, `.cta-band h2`, `.statement h2`, `.team-grid`, `.price-grid`, `.filters`, `.form-step`, `.foot-grid`, `.cookie-banner`, `.to-top`, `.breadcrumb-nav`, `.prose`, `.faq-q`, `.cta-band h2`
+- Added `.card-price`, `.card-excerpt`, `.section-alt`, `.section-divider`, `.align-self-start` CSS classes
+- Added spacing rules: `.statement h2` = `var(--space-sm) 0 var(--space-md)`, `.cta-band h2` = `margin-block: var(--space-md) var(--space-xs)`
+
+**Phase 3 — Inline style stripper (batch script):**
+- `site/scripts/strip-inline-spacings.py` — 118 inline spacing styles removed from 28 .astro files
+- Replaced `#5c5048` → `var(--body-text)`, `#6b5c52` → `#5a4c42` in all inline styles
+- Kept non-spacing inline styles (font-size, color, display, positioning, borders)
+
+**Phase 4 — Component polish:**
+- Services page: `.center` wrappers → `.section-divider` class
+- Price `<p>` elements → `.card-price` class (services.astro, ServiceCard.astro)
+- Blog cards → `.card-excerpt` class
+- Contact page: inline `align-self` → utility class
+- About page: `cite` styling moved to CSS (`.statement cite`)
+
+### Verification results
+
+| Check | Status |
+|-------|--------|
+| Build | 27 pages, `[build] Complete!` ✓ |
+| Tests | 634 passed / 3 skipped / 0 failed ✓ |
+| Inline `margin-top:1rem` | 0 across all pages ✓ |
+| `.eyebrow` default | `display: inline-block` ✓ |
+| `--body-text` color | `#4a3f37` (4.6:1 on ivory) ✓ |
+| Hero title | `max-width:18ch` ✓ |
+| Team page | All 9 artists render ✓ |
+| Production deploy | `https://8709c081.lustique-site.pages.dev` ✓ |
+| Staging deploy | `https://2c3cc956.lustique-site-staging.pages.dev` ✓ |
+
+**⚠️ BLOCKED** — `lustiqueco.co.za` domain still not mapped to `lustique-site` Pages project (still on old `lustique` project). Requires manual Cloudflare Dashboard action.
+
+---
+
+## ✅ Current Status (Pre-overhaul)
 
 ---
 
