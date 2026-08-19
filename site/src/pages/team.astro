@@ -40,7 +40,7 @@ function specialismLabel(specialisms: string[]): string {
     </p>
   </section>
 
-  <section class="section" style="padding-top:3rem"><div class="wrap">
+  <section class="section" ><div class="wrap">
     <div class="artist-grid">
       {artists.map((a, i) => (
         <div class={`artist reveal${["", " d1", " d2"][i % 3]}`}>
@@ -55,11 +55,11 @@ function specialismLabel(specialisms: string[]): string {
     </div>
     </div>
   {artists.length === 0 && (
-    <p class="note center" style="margin-top: var(--space-xl); max-width: 60ch; margin-inline: auto;">
+    <p class="note center" style="max-width: 60ch">
       Our team directory is being updated — check back soon, or browse our <a href="portfolio.html" style="color: var(--burgundy);">portfolio</a> to see their work.
     </p>
   )}
-  <p class="note center" style="margin-top: 2.4rem; max-width: 60ch; margin-inline: auto;">
+  <p class="note center" style="max-width: 60ch">
       Each artist's portfolio will live as a highlight on our Instagram. We allocate the right
       artists for your wedding by date and party size — so you simply get the Lustique standard,
       every time.
@@ -69,7 +69,7 @@ function specialismLabel(specialisms: string[]): string {
   <section class="section cta-band">
     <div class="wrap">
       <span class="eyebrow reveal">Let's begin</span>
-      <h2 class="reveal d1" style="margin-top:1rem;">Tell us about your day.</h2>
+      <h2 class="reveal d1" >Tell us about your day.</h2>
       <p class="reveal d2">
         Share a few details and we'll send a personalised quote — usually within 24 hours, often sooner.
       </p>

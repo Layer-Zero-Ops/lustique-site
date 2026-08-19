@@ -14,12 +14,12 @@ const desc = "Trusted wedding venues, photographers, and planners Lustique Co. i
     {RECOMMENDED_VENDORS.length === 0 ? (
       <p style="color:#8a7d72;font-style:italic;">Coming soon.</p>
     ) : (
-      <div style="display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr))">
         {RECOMMENDED_VENDORS.map((v) => (
-          <a href={v.url} target="_blank" rel="noopener" style="display:block;border:1px solid #e8d5b7;border-radius:12px;padding:1.2rem;text-decoration:none;color:inherit;">
+          <a href={v.url} target="_blank" rel="noopener" style="display: block; border: 1px solid #e8d5b7; text-decoration: none; color: inherit">
             <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#8a7060;">{v.category}</div>
-            <h3 style="margin:.3rem 0;font-family:Georgia,serif;font-style:italic;">{v.name}</h3>
-            <p style="margin:0;font-size:.9rem;color:#3a2e26;">{v.note}</p>
+            <h3 style="font-family: Georgia,serif; font-style: italic">{v.name}</h3>
+            <p style="font-size: .9rem; color: #3a2e26">{v.note}</p>
           </a>
         ))}
       </div>
