@@ -424,3 +424,33 @@ html.no-js .cookie-banner { display: flex !important; }
 /* ---------- real logo in header ---------- */
 .brand-logo { width: 46px; height: 46px; border-radius: 50%; object-fit: contain; }
 
+
+
+/* Utility classes for inline-style cleanup */
+.field-helper { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--body-text-light); }
+.field-label-row { display: flex; align-items: center; font-size: clamp(0.88rem, 1vw, 0.92rem); color: var(--body-text); }
+.field-label-start { display: flex; align-items: flex-start; font-size: clamp(0.88rem, 1vw, 0.92rem); color: var(--body-text); cursor: pointer; }
+.field-checkbox { width: auto; flex-shrink: 0; }
+.section-subhead { font-weight: 600; color: var(--mocha); }
+.section-subhead-sm { font-weight: 600; color: var(--mocha); font-size: clamp(0.82rem, 1vw, 0.9rem); }
+.form-group-box { border: 1px solid rgba(92,67,50,.12); background: var(--champagne); border-radius: 8px; }
+.form-group-inline { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.form-hidden { display: none; }
+.relative { position: relative; }
+.estimate-detail { font-size: clamp(0.88rem, 1vw, 0.92rem); color: var(--body-text); }
+.estimate-label { font-size: clamp(0.62rem, 0.8vw, 0.74rem); letter-spacing: .14em; text-transform: uppercase; opacity: .85; }
+.estimate-sub { opacity: .85; font-size: clamp(0.82rem, 1vw, 0.88rem); }
+.venue-suggestions { display: none; position: absolute; left: 0; right: 0; top: 100%; z-index: 20; background: var(--white); border: 1px solid rgba(60,42,42,.18); box-shadow: 0 8px 24px rgba(60,42,42,.12); max-height: 280px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+.venue-map { height: 300px; display: none; max-width: 100%; }
+.map-hint { display: none; background: rgba(138,90,74,.07); border: 1px solid rgba(138,90,74,.18); font-size: clamp(0.82rem, 1vw, 0.88rem); color: var(--body-text); }
+.map-hint strong { color: var(--mocha); }
+.field-full { width: 100%; }
+.inline-checkbox-label { display: flex; align-items: center; gap: var(--space-2xs); font-size: clamp(0.85rem, 1vw, 0.92rem); color: var(--body-text); }
+.input-auto { width: auto; }
+.consent-text a { color: var(--burgundy); }
+.btn-full { width: 100%; justify-content: center; }
+.status-error { color: var(--error, #c04a5a); }
+.hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+.hero-alt { min-height: 62vh; display: flex; flex-direction: column; justify-content: center; }
+.justify-center { justify-content: center; }
