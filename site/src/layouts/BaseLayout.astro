@@ -64,8 +64,8 @@ const canonical = `${SITE}/${slug === "index.html" ? "" : slug}`;
   {breadcrumb && (
     <nav aria-label="Breadcrumb" class="breadcrumb-nav">
       <div class="wrap">
-        <ol style="display: flex; align-items: center; font-size: clamp(0.78rem, 1vw, 0.85rem); color: var(--body-text-light)">
-          <li><a href="index.html" style="color: var(--burgundy);">Home</a></li>
+        <ol class="breadcrumb-list">
+          <li><a href="index.html" class="breadcrumb-home">Home</a></li>
           {breadcrumb.map((crumb, i) => (
             <>
               <li aria-hidden="true">›</li>
