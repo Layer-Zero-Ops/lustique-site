@@ -56,7 +56,7 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 400; line-height: 1.15; col
 .display { font-size: clamp(2.9rem, 8vw, 6rem); }
 h2 { font-size: clamp(2rem, 4.5vw, 3.4rem); }
 h3 { font-size: clamp(1.4rem, 2.3vw, 1.9rem); }
-.eyebrow { font-family: var(--sans); font-size: clamp(0.75rem, 1.2vw, 0.85rem); font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--burgundy); }
+.eyebrow { font-family: var(--sans); font-size: clamp(0.75rem, 1.2vw, 0.85rem); font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--burgundy); margin-bottom: 1.25rem; display: block; }
 .lead { font-family: var(--serif); font-style: italic; font-size: clamp(1.3rem, 2.4vw, 1.85rem); line-height: 1.4; color: var(--mocha); }
 
 .wrap { max-width: var(--maxw); margin-inline: auto; padding-inline: var(--gut); }
@@ -134,7 +134,7 @@ html.js .ph.img-error .ph-img { opacity: 1; filter: none; }
 
 /* ---------- page hero (inner pages) ---------- */
 .page-hero { background: var(--ivory); padding-block: clamp(3rem,7vw,6rem) clamp(2.5rem,5vw,4rem); text-align: center; }
-.page-hero .eyebrow { display: inline-block; margin-bottom: 1.1rem; }
+.page-hero .eyebrow { display: inline-block; margin-bottom: 1.25rem; }
 .page-hero h1 { font-size: clamp(2.6rem, 6vw, 4.6rem); }
 .page-hero p { max-width: 52ch; margin: 1.2rem auto 0; color: #5c5048; font-size: 1.1rem; }
 
@@ -148,7 +148,7 @@ html.js .ph.img-error .ph-img { opacity: 1; filter: none; }
 /* ---------- statement ---------- */
 .statement { text-align: center; }
 .statement .wrap { max-width: 900px; }
-.statement h2 { margin-bottom: 1.6rem; }
+.statement h2 { margin: 1.5rem 0 1.4rem; }
 .statement p { font-size: 1.12rem; color: #5c5048; max-width: 60ch; margin: 0 auto 1.2rem; }
 .quote-block { margin-top: 3.5rem; padding-top: 3rem; border-top: 1px solid rgba(92,67,50,.15); }
 .quote-block .lead { max-width: 28ch; margin-inline: auto; }
@@ -287,7 +287,12 @@ html.js .ph.img-error .ph-img { opacity: 1; filter: none; }
 
 /* ---------- final CTA ---------- */
 .cta-band { background: var(--ivory); text-align:center; }
-.cta-band h2 { margin-bottom: 1.2rem; }
+.cta-band h2 { margin: 1.5rem 0 1.2rem; }
+
+/* CTA band headings — default spacing when no inline style */
+.cta-band .eyebrow + h2,
+.page-hero .eyebrow + h2,
+.section .eyebrow + h2 { margin: 1.5rem 0 1.2rem; }
 .cta-band p { color: var(--mocha); opacity:.8; margin-bottom: 2.2rem; max-width: 46ch; margin-inline:auto; }
 
 /* ---------- footer ---------- */
