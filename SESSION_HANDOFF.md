@@ -70,16 +70,25 @@ Comprehensive audit of 22 issues across WCAG accessibility, mobile UX, visual de
 
 ---
 
-## Shipped this session (2026-08-18)
-- [x] 22-point UI/UX audit and remediation across CSS, HTML, JS — all 22 issues fixed
-- [x] Team page fix: show all 9 artists (was showing only 1 due to photo_url filter)
-- [x] Quote page fix: removed "Prefer WhatsApp?" and "50% deposit" info row from hero section
-- [x] Build verification: `npm run build` passes, 27 pages
-- [x] Staging deploy: `lustique-site-staging.pages.dev`
-- [x] Production deploy: `lustique-site` Pages project
-- [x] Mobile QA: verified all critical mobile issues resolved (nav toggle, cookie banner, hero height, form field rows, gallery grid, touch targets)
-- [x] Committed to `dev` branch and pushed to GitHub
-- [ ] Production domain mapping (pending manual Cloudflare Dashboard action)
+## Shipped this session (2026-08-19 — spacing round 2)
+- [x] Hero spacing: increased margins between eyebrow/stars/title/description/buttons for breathing room
+  - Hero rating margin: `.75rem 0 1.5rem` → `clamp(1.5rem,4vw,2rem) 0 clamp(1.5rem,4vw,2rem)`
+  - Hero title margin-bottom: `var(--space-md)` (1rem) → `var(--space-xl)` (2rem)
+  - Eyebrow margin-bottom: `var(--space-sm)` (0.75rem) → `var(--space-lg)` (1.5rem)
+  - Hero sub margin-bottom: `clamp(1.5rem,3vw,2.4rem)` → `clamp(2rem,4vw,3rem)`
+  - Stars font size: `clamp(1rem,2vw,1.4rem)` → `clamp(1.1rem,2.5vw,1.5rem)`
+- [x] CSS: added default `margin-bottom: 1.25rem; display: block` to `.eyebrow` class (was missing entirely)
+- [x] CSS: added `.section .eyebrow + h2` selector with `margin: 1.5rem 0 1.2rem` to replace inline styles
+- [x] CSS: `.cta-band h2` margin changed from `margin-bottom: 1.2rem` to `margin: 1.5rem 0 1.2rem`
+- [x] CSS: `.statement h2` margin changed from `margin-bottom: 1.6rem` to `margin: 1.5rem 0 1.4rem`
+- [x] CSS: `.page-hero .eyebrow` margin-bottom increased from `1.1rem` to `1.25rem`
+- [x] CSS: team grid mobile gap capped at `clamp(2rem, 8vw, 3rem)` instead of unrestricted 4.5rem
+- [x] Removed inline `style="margin-top:1rem"` from CTA h2 elements across 10 page files (index, about, services, team, faq, portfolio, blog pages, CtaBand component)
+- [x] Services page: fixed tight `margin-top:.8rem` → `1.25rem` on section subheadings
+- [x] Services page: fixed `ServiceCard.astro` price margin `1rem` → `1.5rem`
+- [x] Quote page: removed "Prefer WhatsApp?" and "50% deposit" info row from hero section
+- [x] About page: removed all inline h2 margin styles, now uses CSS
+- [x] Rebuilt and deployed: staging `d6a2fdfa.lustique-site-staging.pages.dev`, production `5d4b07c5.lustique-site.pages.dev`
 
 **Lane:** 🟢 Build · **Phase:** Zandeline's dashboard login fixed, three real quoting/travel bugs fixed and deployed, 317-venue directory, and two full features shipped (referral-partner attribution + a Brevo-based marketing email system) — all merged to `dev` and pushed. Worker is deployed live. **Site is NOT deployed** (build blocked by a Node/Supabase network issue in this environment — see ▶ NEXT #3). · **Updated:** 2026-07-11 (session close)
 
