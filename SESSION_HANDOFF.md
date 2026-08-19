@@ -71,13 +71,15 @@ Comprehensive audit of 22 issues across WCAG accessibility, mobile UX, visual de
 ---
 
 ## Shipped this session (2026-08-18)
-- [x] 22-point UI/UX audit and remediation across CSS, HTML, JS
-- [x] Team page fix: show all 9 artists (was showing only 1)
+- [x] 22-point UI/UX audit and remediation across CSS, HTML, JS — all 22 issues fixed
+- [x] Team page fix: show all 9 artists (was showing only 1 due to photo_url filter)
+- [x] Quote page fix: removed "Prefer WhatsApp?" and "50% deposit" info row from hero section
 - [x] Build verification: `npm run build` passes, 27 pages
 - [x] Staging deploy: `lustique-site-staging.pages.dev`
 - [x] Production deploy: `lustique-site` Pages project
-- [x] Mobile QA: all critical mobile issues resolved
-- [ ] Email migration plan (pending user execution)
+- [x] Mobile QA: verified all critical mobile issues resolved (nav toggle, cookie banner, hero height, form field rows, gallery grid, touch targets)
+- [x] Committed to `dev` branch and pushed to GitHub
+- [ ] Production domain mapping (pending manual Cloudflare Dashboard action)
 
 **Lane:** 🟢 Build · **Phase:** Zandeline's dashboard login fixed, three real quoting/travel bugs fixed and deployed, 317-venue directory, and two full features shipped (referral-partner attribution + a Brevo-based marketing email system) — all merged to `dev` and pushed. Worker is deployed live. **Site is NOT deployed** (build blocked by a Node/Supabase network issue in this environment — see ▶ NEXT #3). · **Updated:** 2026-07-11 (session close)
 
