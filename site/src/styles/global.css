@@ -56,7 +56,8 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 400; line-height: 1.15; col
 .display { font-size: clamp(2.9rem, 8vw, 6rem); }
 h2 { font-size: clamp(2rem, 4.5vw, 3.4rem); }
 h3 { font-size: clamp(1.4rem, 2.3vw, 1.9rem); }
-.eyebrow { font-family: var(--sans); font-size: clamp(0.75rem, 1.2vw, 0.85rem); font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--burgundy); margin-bottom: 1.25rem; display: block; }
+/* eyebrow — uppercase label above section headings */
+.eyebrow { font-family: var(--sans); font-size: clamp(0.75rem, 1.2vw, 0.85rem); font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--burgundy); display: inline-block; }
 .lead { font-family: var(--serif); font-style: italic; font-size: clamp(1.3rem, 2.4vw, 1.85rem); line-height: 1.4; color: var(--mocha); }
 
 .wrap { max-width: var(--maxw); margin-inline: auto; padding-inline: var(--gut); }
