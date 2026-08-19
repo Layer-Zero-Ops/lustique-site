@@ -33,7 +33,7 @@ const posts = await supabaseGet<BlogPost>(
             <article class={`card reveal${i === 1 ? " d1" : i === 2 ? " d2" : ""}`} >
               <span class="eyebrow">{post.tags?.[0] ?? "Journal"}</span>
               <h3 >{post.title}</h3>
-              <p style="font-size: .96rem; color: var(--body-text)">{post.excerpt}</p>
+              <p class="card-excerpt">{post.excerpt}</p>
               <a class="card-link" href={`blog/${post.slug}.html`}>Read <span>→</span></a>
             </article>
           ))
@@ -41,7 +41,7 @@ const posts = await supabaseGet<BlogPost>(
           <article class="card reveal" >
             <span class="eyebrow">Journal</span>
             <h3 >Articles coming soon</h3>
-            <p style="font-size:.96rem;color:var(--body-text);">Our journal is on its way — check back soon for honest advice from the Lustique team.</p>
+            <p class="card-excerpt">Our journal is on its way — check back soon for honest advice from the Lustique team.</p>
           </article>
         )
       }

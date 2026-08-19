@@ -70,7 +70,11 @@ h3 { font-size: clamp(1.4rem, 2.3vw, 1.9rem); }
 /* Constrain body text to optimal line length (50-75ch) */
 .maxw-text { max-width: 68ch; margin-inline: auto; }
 .section { padding-block: var(--section-y); }
+.section-alt { background: var(--ivory); }
 .center { text-align: center; }
+.center + .cards,
+.center ~ .cards { margin-top: var(--space-xl); }
+.section-divider { margin-bottom: var(--space-2xl); }
 
 /* ---------- buttons ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; gap: 0.6em; font-family: var(--sans); font-size: 0.82rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 1.05em 2em; border-radius: 100px; cursor: pointer; transition: transform .5s var(--ease), background .5s var(--ease), color .5s var(--ease), box-shadow .5s var(--ease); border: 1px solid transparent; max-width: 100%; }
@@ -99,7 +103,8 @@ header.nav.scrolled { box-shadow: 0 8px 30px -22px rgba(92,67,50,.5); }
 .nav-links a.active { color: var(--burgundy); }
 .nav-cta { display: flex; align-items: center; gap: var(--space-md); }
 .nav-cta .btn-whatsapp { background:#25D366; color:#fff; border-color:#25D366; }
-.nav-cta .btn-whatsapp:hover { background:#1fb855; transform: translateY(-2px); box-shadow: 0 10px 24px -12px rgba(37,211,102,.55); }
+.btn-whatsapp:hover { background:#1fb855; transform: translateY(-2px); box-shadow: 0 10px 24px -12px rgba(37,211,102,.55); }
+.align-self-start { align-self: flex-start; }
 .nav-toggle { display: none; background: none; border: 0; font-size: 1.5rem; color: var(--mocha); cursor: pointer; }
 @media (max-width: 760px) {
   .nav-links { position: absolute; top: 100%; left: 0; right: 0; background: var(--ivory); flex-direction: column; gap: 0; padding: var(--space-sm) var(--gut) var(--space-xl); border-bottom: 1px solid rgba(92,67,50,.08); transform: translateY(-10px); opacity: 0; pointer-events: none; transition: .35s var(--ease); }
@@ -157,9 +162,11 @@ html.js .ph.img-error .ph-img { opacity: 1; filter: none; }
 .statement .wrap { max-width: 900px; }
 .statement h2 { margin: var(--space-sm) 0 var(--space-md); }
 .statement p { font-size: 1.12rem; color: var(--body-text); max-width: 60ch; margin: 0 auto var(--space-sm); }
+.statement .lead { max-width: 30ch; margin-inline: auto; }
 .quote-block { margin-block: var(--space-2xl); padding-top: var(--space-2xl); border-top: 1px solid rgba(92,67,50,.15); }
 .quote-block .lead { max-width: 28ch; margin-inline: auto; }
 .quote-block cite { display: block; margin-top: var(--space-sm); font-family: var(--sans); font-style: normal; font-size: clamp(0.75rem, 1vw, 0.8rem); letter-spacing: 0.18em; text-transform: uppercase; color: var(--burgundy); }
+.statement cite { display: block; font-style: normal; font-size: clamp(0.7rem, 0.8vw, 0.74rem); letter-spacing: .18em; text-transform: uppercase; color: var(--burgundy); margin-top: var(--space-xs); }
 
 /* ---------- cards / services grid ---------- */
 .services-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2xl); margin-bottom: var(--space-2xl); flex-wrap: wrap; }
@@ -173,6 +180,8 @@ html.js .ph.img-error .ph-img { opacity: 1; filter: none; }
 .card-body { padding: var(--space-lg) var(--space-xl) var(--space-xl); }
 .card-body h3 { margin-bottom: var(--space-2xs); }
 .card-body p { font-size: 0.97rem; color: var(--body-text); margin-bottom: var(--space-sm); }
+.card-excerpt { font-size: clamp(0.85rem, 1vw, 0.9rem); color: var(--body-text); margin-bottom: var(--space-sm); }
+.card-price { font-family: var(--serif); font-size: 1.3rem; color: var(--mocha); margin-top: var(--space-xs); }
 .card-link { font-size: clamp(0.75rem, 1vw, 0.8rem); letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; color: var(--burgundy); display: inline-flex; gap: .5rem; }
 .card-link span { transition: transform .4s var(--ease); }
 .card:hover .card-link span { transform: translateX(5px); }

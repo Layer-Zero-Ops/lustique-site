@@ -6,5 +6,5 @@ const { n, title, body, price } = Astro.props as { n: string; title: string; bod
   <span class="eyebrow">{n}</span>
   <h3  set:html={title} />
   <p set:html={body} />
-  <p style="font-family: var(--serif); font-size: 1.3rem; color: var(--mocha)" set:html={price} />
+  <p class="card-price" set:html={price} />
 </article>
