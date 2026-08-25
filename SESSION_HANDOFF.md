@@ -233,6 +233,22 @@ Google Ads research was interrupted by a session usage-limit mid-run (only 3 cla
 
 🟢 **SHIPPED** — WhatsApp gateway is live. Zandeline (067 925 3894) can message Clio directly. `SOUL.md` has strict WhatsApp rules: signal-only, no jargon, COO-to-CEO tone, ask-don't-dump on first contact. Gateway running via launchd, auto-restarts.
 
+🟢 **OBSERVATION — Lustique Studio Agent (observe+coach) · 2026-07-21 (run 2)**
+Scheduled observe+coach pass (cron). Ecosystem healthy: Clio oversight last ok `2026-07-21T06:34:44Z` ("oversight-complete"); lustique pulse: starting→ok this run. **Tuesday — coaching observation skipped per schedule.**
+- **Supabase live data (service-role key, verified):** 17 enquiries, 5 bookings, 0 payments. Revenue at risk: R30,194. **No new data since last check (04:21 UTC).** Note: Supabase IS reachable from this env via the `worker/.env.smoke` service-role key — previous "IP-blocked" assessment was incorrect. Service-role bypasses RLS entirely.
+- **New since last check:** None. Last enquiry: Megan Brits (2026-07-20T07:54Z). Last booking: LUS-2026-89F517 (Lee-Ann Saunders, R5,790, requested).
+- **Git state:** 3 new commits on feature branches from Pieter's 2026-07-20 session (observability, Clio v2 self-optimizing layer, GA4 wiring). None merged to `dev`. `dev` still 10+ commits ahead of `main`. Site still undeployed (10 days).
+- **Coaching flag (baton hygiene):** The "SHIPPED" line above still says "WhatsApp gateway is live," but Clio's Jul 14 status update says WhatsApp is **disabled** and Telegram is the primary channel. This is now 7 days stale — the baton should be updated to reflect Telegram as the live path so Zandeline isn't confused.
+- **Coaching flag (business risk):** Site undeployed 10 days. Live `lustiqueco.co.za` still serving pre-fix quoting bugs (travel miscalc, promo eligibility, bride bundle). Highest-leverage unblock for Pieter.
+- **Coaching flag (revenue blocker):** Yoco still blocking all card payments. 0 payments ever captured. Needs Pieter in Yoco Business Portal.
+
+**🔴 Needs Zandeline's attention (owner = Zandeline, non-technical):**
+1. **Contract text** — e-signature built but gated (`business_settings.contract_enabled='false'`) awaiting her real contract. Unchanged.
+2. **Artist headshots** — 8 of 9 artists still missing `photo_url`. Team page incomplete.
+3. **Referral partner outreach** — pick 5–10 real venues, supply `?ref=` links, populate `site/src/data/vendors.ts`.
+4. **Bianca Du Preez (LUS-2026-FEEBB5)** — R21,229 booking, invoice expired 2026-07-02. Follow up or release the date. Highest-value single booking at risk.
+*(For Pieter/technical: Yoco test, migration 0025 applied, 0026 applied but empty, 0027/0028 not applied. 3 feature branches unmerged to dev. Bridge-mediated; no client comms sent.)*
+
 ---
 
 ## ⬆ Clio(Lustique) → Clio(main): Status update (2026-07-14)
