@@ -9,18 +9,17 @@ const desc = "Get in touch with Lustique Co. — bridal hair and makeup in La Mo
   <section class="page-hero">
     <span class="eyebrow">Contact</span>
     <h1>Let’s talk about your day.</h1>
-    <p>We’re easy to reach. Phone, WhatsApp, or email — we reply within a few hours.</p>
+    <p>We're easy to reach. Phone, WhatsApp, or email — we reply within a few hours.</p>
   </section>
   <section class="section"><div class="wrap team-grid">
     <div class="team-copy">
       <span class="eyebrow">Get in touch</span>
-      <h2 >We reply within 24 hours.</h2>
+      <h2>We reply within 24 hours.</h2>
       <p ><strong>Phone / WhatsApp</strong><br><a href="tel:+27679253894">067 925 3894</a> · <a href="https://wa.me/27679253894" target="_blank" rel="noopener">WhatsApp</a></p>
       <p ><a class="btn btn-whatsapp align-self-start" href="https://wa.me/27679253894" target="_blank" rel="noopener">Open WhatsApp chat</a></p>
       <p ><strong>Email</strong><br><a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a></p>
       <p ><strong>Studio (trials by appointment)</strong><br>242 Frangipani Street, La Montagne, Pretoria</p>
       <p ><strong>Follow</strong><br><a href="https://www.instagram.com/lustique_cosmetology/">Instagram</a> · <a href="https://www.facebook.com/LustiqueCosmetology">Facebook</a> · <a href="https://www.tiktok.com/@lustique_co">TikTok</a></p>
-      <a class="btn btn-primary" href="quote.html">Request a quote</a>
     </div>
     <div>
       <iframe
@@ -33,6 +32,30 @@ const desc = "Get in touch with Lustique Co. — bridal hair and makeup in La Mo
         referrerpolicy="no-referrer"
       ></iframe>
       <p class="note center" ><a href="https://www.openstreetmap.org/?mlat=-25.7986&mlon=28.3127#map=16/-25.7986/28.3127" target="_blank" rel="noopener">View larger map →</a></p>
+    </div>
+  </div></section>
+
+  <!-- Contact Form -->
+  <section class="section"><div class="wrap form-wrap">
+    <div class="form-step reveal">
+      <h3>Send us a quick note</h3>
+      <p class="step-sub">Questions about availability, pricing, or your vision? Drop us a line and we'll reply within a few hours.</p>
+      <form id="contactForm" class="nl-subscribe" method="POST" action="/api/enquiry">
+        <input type="hidden" name="company" id="hp_company" tabindex="-1" autocomplete="off" class="hp-field">
+        <input type="hidden" name="occasion" value="event">
+        <div class="field-row">
+          <div class="field"><label for="cName">Name *</label><input type="text" id="cName" name="name" required></div>
+          <div class="field"><label for="cEmail">Email *</label><input type="email" id="cEmail" name="email" required></div>
+        </div>
+        <div class="field"><label for="cPhone">Mobile / WhatsApp</label><input type="tel" id="cPhone" name="phone" placeholder="067 000 0000"></div>
+        <div class="field"><label for="cMessage">Message *</label><textarea id="cMessage" name="message" rows="4" placeholder="Tell us about your event, date, or questions..." required></textarea></div>
+        <div class="consent-section">
+          <label class="field-label-start"><input type="checkbox" name="consentCheck" id="consentCheck" class="input-auto"> <span>I consent to Lustique Co. processing my personal information to reply to my enquiry, as described in the <a href="privacy.html" target="_blank" class="consent-text">Privacy Policy</a>. (Required)</span></label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Send message</button>
+        <p class="note center status-error" id="contactStatus" role="alert"></p>
+        <noscript><p class="note center">This form needs JavaScript to send. Email <a href="mailto:info@lustiqueco.co.za">info@lustiqueco.co.za</a> instead.</p></noscript>
+      </form>
     </div>
   </div></section>
 </BaseLayout>
